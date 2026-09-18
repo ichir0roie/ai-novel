@@ -14,9 +14,12 @@
 
 | | 持ち方 | 読む相手 |
 | --- | --- | --- |
-| `worlds/**/*.md` | 文章。**なぜそうなのか**を書く | 人間。**これが正** |
+| `worlds/<宇宙>/**/*.md` | 文章。**なぜそうなのか**を書く | 人間。**これが正** |
 | `worlds/<宇宙>/records/*.md` | 表。**いつ・どこで・誰が・いくつ**を書く | 機械。文章から起こす |
-| `worlds/<宇宙>/chronicle.db` | SQLite。**組み上げた結果** | ツール。**git に入れない**。いつでも作り直せる |
+| `worlds/<宇宙>/world.db` | SQLite。**組み上げた結果** | ツール。**git に入れない**。いつでも作り直せる |
+
+**作品もこの宇宙の中にある**（`worlds/<宇宙>/stories/<作品名>/`）。
+台帳・設定・本文が同じディレクトリに揃っているので、**作品が宇宙をまたぐことがない。**
 
 **文章が正で、台帳が従。** 食い違ったら文章を直してから台帳を直す。
 台帳にしか存在しない設定を作らない（`CLAUDE.md`「設定の一元管理」と同じ縛り）。
@@ -69,6 +72,7 @@ python3 tools/chronicle.py brief --world 地球系 --star 入植星 --year 4360 
 | 1 いまの数値 | 分子と分母。前回からの動き |
 | 2 続いている出来事 | この時点でまだ終わっていないもの。**背景に置くべきもの** |
 | 3 直近の出来事 | 登場人物が覚えている範囲の過去 |
+| 3.5 この射程での行動 | 誰が何をして、**何を失ったか**。代償が残っているうちは、まだ効いている |
 | 4 その場にいる者 | 年齢つき。死んだ者と生まれる前の者は出ない |
 | 5 関係 | 誰が誰をどう見ているか |
 | 6 張っている火種 | **次の一手の候補** |
@@ -157,7 +161,19 @@ python3 tools/roll.py --num 200 3000 --step 10 --label 入植星総人口万人
 
 ## 台帳の形
 
-`worlds/<宇宙>/records/` に置く。全部マークダウンの表で、**列の見出しが機械の読む鍵**になる。
+**形は `tools/schema.py` が一か所で決めている**（SQLAlchemy のモデル）。
+DB の列も、マークダウンの列見出しも、検査の内容も、そこから出ている。
+列を増やしたければ `schema.py` を直す。**マークダウン側に勝手な列を足さない。**
+
+```
+python3 tools/chronicle.py schema     # いまの形を表示する
+```
+
+見出しがスキーマと食い違う表は、**取り込まれずエラーになる**。
+黙って行が消えるより、止まったほうがいいという判断。
+
+台帳は `worlds/<宇宙>/records/` に置く。全部マークダウンの表で、
+**列の見出しが機械の読む鍵**になる。
 
 | ファイル | 何を貯めるか | 時間 |
 | --- | --- | --- |
@@ -180,10 +196,19 @@ python3 tools/roll.py --num 200 3000 --step 10 --label 入植星総人口万人
 
 ## ツール
 
-`tools/chronicle.py`。Python 3 だけで動く。
+```
+pip install -r requirements.txt     # SQLAlchemy が要る
+```
+
+| ファイル | 役割 |
+| --- | --- |
+| `tools/schema.py` | **台帳の形。** SQLAlchemy のモデル。DB の列とマークダウンの見出しを決める |
+| `tools/ledger.py` | マークダウンの読み書きと、**DB への取り込み** |
+| `tools/chronicle.py` | 入口。下のコマンドを持つ |
 
 | | |
 | --- | --- |
+| `init --world <宇宙名>` | **新しい宇宙**に台帳の雛形と `stories/` を作る |
 | `build` | 台帳から DB を組み上げる |
 | `check` | 矛盾を探す。**エラーがあれば終了コード 1** |
 | `brief` | 断面を出す |
@@ -191,6 +216,7 @@ python3 tools/roll.py --num 200 3000 --step 10 --label 入植星総人口万人
 | `add --table event --set 年=...` | 台帳に一行足して、組み直す |
 | `sql "SELECT ..."` | 直接問い合わせる |
 | `worlds` | 宇宙の一覧 |
+| `schema` | 台帳の形を表示する |
 
 `--world` を省くと、記録のある宇宙が一つだけならそれを使う。
 
@@ -202,6 +228,23 @@ python3 tools/chronicle.py sql --world 地球系 \
    ON a.t0 = b.t0 AND a.place = b.place WHERE a.name='配分量' AND b.name='人口'"
 ```
 
-`chronicle.db` は git に入れない。**台帳から何度でも組み直せる**ので、
+`world.db` は git に入れない。**台帳から何度でも組み直せる**ので、
 差分が読めないバイナリを履歴に残す意味がない。
 新しい環境では最初に `build` を一度走らせる（`brief` は無ければ勝手に組む）。
+
+## 一本書くときの流れ
+
+```
+pip install -r requirements.txt                          # 初回だけ
+python3 tools/chronicle.py build  --world <宇宙>          # 台帳 → world.db
+python3 tools/chronicle.py brief  --world <宇宙> --star <星> --year <年> --place <場所>
+                                                         # ↑ これを読んでから書く
+（worlds/<宇宙>/stories/<作品名>/episodes/NNN.md に本文を書く）
+（生まれた設定を worlds/<宇宙>/ の文章側へ書き戻す）
+python3 tools/chronicle.py add    --world <宇宙> --table event --set ...
+python3 tools/chronicle.py add    --world <宇宙> --table tension --set ...
+python3 tools/chronicle.py check  --world <宇宙>          # エラー 0 で終わる
+```
+
+**この順番を崩さない。** 断面を読まずに書くと前と矛盾し、
+台帳に戻さずに次へ行くと、次の断面が嘘になる。
