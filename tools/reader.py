@@ -158,9 +158,9 @@ MODELS = {
     "place": schema.Place,
     "event": schema.Event,
     "character": schema.Character,
-    "actor": schema.Actor,
-    "actor_place": schema.ActorPlace,
-    "actor_event": schema.Action,
+    "actor": schema.Object,
+    "actor_place": schema.ObjectPlace,
+    "actor_event": schema.ObjectAction,
     "term": schema.Term,
 }
 
@@ -284,7 +284,6 @@ def read_library(novels_dir: str) -> Library:
                 continue
             place_id_of_dir[place_dir] = rec.id
             lib.records.append(rec)
-
 
     for place_dir, place_id in place_id_of_dir.items():
         for path in _stamped_files(os.path.join(place_dir, "events")):
