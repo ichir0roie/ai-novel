@@ -5,7 +5,7 @@
 分類: 組織
 始: 4160/01/01 00:00:00
 終:
-出典: novels/worlds/SFファンタジー/入植星/society.md
+出典: novels/worlds/SFファンタジー/入植星/入植星.md
 ---
 
 # 商人組合

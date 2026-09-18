@@ -4,7 +4,7 @@
 世界: SFファンタジー
 星: 入植星
 場所:
-出典: novels/worlds/SFファンタジー/入植星/society.md
+出典: novels/worlds/SFファンタジー/入植星/入植星.md
 ---
 
 # トーラン
