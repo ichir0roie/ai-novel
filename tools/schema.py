@@ -94,9 +94,10 @@ class Kind(Base):
 
 class Object(Base):
     """
-    novels/actors/{root_place_name}/**/{actor_name}/actor.md
+    novels/objects/{root_place_name}/**/{object_name}/object.md
 
-    舞台装置として、個、または多数の存在として行動する。
+    **種族・組織・仕組みなど、まとまりとして振る舞うもの。**
+    一人ひとりの人間は `Character` が持つ。ここは群としての行動を持つ。
     """
     __tablename__ = "object"
 
