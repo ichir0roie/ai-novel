@@ -267,6 +267,26 @@ class Term(Base):
         String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
 
+class Document(Base):
+    """
+    novels/stories/**/*.md
+
+    **本文と、その作品の資料（`meta.md` `plot.md`）。** 台帳のレコードと違い、
+    上段（front matter）を持たない。ファイルの中身をそのまま一行として持つ。
+    id は `novels/` からの相対パス（`stories/<作品>/episodes/001.md`）。
+
+    マークダウンを直に開かずに済ませるためのテーブル。読むのも書くのも
+    `tools/novel.py` の `read` / `write` を通す。
+    """
+    __tablename__ = "document"
+
+    story: Mapped[str] = mapped_column(String, default="", comment="作品名")
+    kind: Mapped[str] = mapped_column(
+        String, default="", comment="meta / plot / episode / other")
+    number: Mapped[int | None] = mapped_column(
+        Integer, comment="話数。episode のときだけ入る")
+
+
 def create_db(path):
     """**db ファイルを作り直して、空のテーブルを張る。**
 
