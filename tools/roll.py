@@ -2,13 +2,13 @@
 """設定用の乱数ツール。
 
 使い方:
-    python3 core/tools/roll.py                      全テーブルを1回ずつ引く
-    python3 core/tools/roll.py --prefix SF          接頭辞で絞って引く
-    python3 core/tools/roll.py --table FT/魔法の源 --n 3
-    python3 core/tools/roll.py --num 0.6 1.6 --step 0.05 --label 重力
-    python3 core/tools/roll.py --seed 12345         シードを指定して再現
+    python3 tools/roll.py                      全テーブルを1回ずつ引く
+    python3 tools/roll.py --prefix SF          接頭辞で絞って引く
+    python3 tools/roll.py --table FT/魔法の源 --n 3
+    python3 tools/roll.py --num 0.6 1.6 --step 0.05 --label 重力
+    python3 tools/roll.py --seed 12345         シードを指定して再現
 
-引いた目は worlds/<id>/rolls.md に記録すること。詳しくは core/principles.md。
+引いた目は worlds/<宇宙名>/rolls.md に記録すること。詳しくは core/principles.md。
 """
 import argparse
 import json

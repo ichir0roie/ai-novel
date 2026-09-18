@@ -13,8 +13,8 @@
 | `dialogue.md` | 会話文の作り方 |
 | `checklist.md` | 推敲チェックリスト |
 | `templates/` | 各種ひな形 |
-| `tools/roll.py` | 乱数ツール。設定をアバウトに決めるときに使う |
-| `tools/tables.json` | 乱数テーブル。項目は自由に増やしてよい |
+
+Python ツールは core の外、リポジトリ直下の `tools/` にある（`tools/roll.py` など）。
 
 ## 更新のしかた
 
