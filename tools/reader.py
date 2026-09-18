@@ -16,7 +16,8 @@ novels/
   characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md  CharacterPlace（居場所の推移）
   characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md   CharacterAction（行動）
   terms/**/<語>/<語>.md                      Term（入れ子。親は上のディレクトリ）
-  stories/<作品>/…                           本文。台帳には入らない
+  stories/<作品名>/meta.md                    Story（作品。企画。上段を持つ）
+  stories/<作品名>/episodes/{話数}.md          Episode（一話。**原稿そのもの**）
 ```
 
 `{時刻}` は `{年}_{mm}_{dd}`、時刻まで要るなら `{年}_{mm}_{dd}_{hhmmss}`
@@ -155,6 +156,12 @@ FIELDS: dict[str, dict[str, str]] = {
         "世界": "restrict_world_id", "星": "restrict_planet_id",
         "場所": "restrict_place_id",
     },
+    "story": {
+        "名": "name", "世界": "world_id", "場所": "place_id",
+        "語り": "narration", "状態": "state", "始": "start", "終": "end",
+    },
+    # 本文のファイルには上段を書かない。話数・題・字数は原稿から読む
+    "episode": {"話数": "number", "題": "title", "字数": "letters"},
 }
 
 MODELS = {
@@ -168,10 +175,9 @@ MODELS = {
     "character_place": schema.CharacterPlace,
     "character_event": schema.CharacterAction,
     "term": schema.Term,
+    "story": schema.Story,
+    "episode": schema.Episode,
 }
-
-# 台帳の外。本文の md をそのまま持つ
-DOCUMENT_MODEL = schema.Document
 
 TIME_COLUMNS = {"time", "start", "end"}
 
@@ -190,6 +196,8 @@ REFS: dict[str, dict[str, str]] = {
     "character_event": {"event_id": "event"},
     "term": {"parent_term_id": "term", "restrict_world_id": "place",
              "restrict_planet_id": "place", "restrict_place_id": "place"},
+    "story": {"world_id": "place", "place_id": "place"},
+    "episode": {"story_id": "story"},
 }
 
 LABEL = {
@@ -197,10 +205,11 @@ LABEL = {
     "object_place": "居場所", "object_event": "行動",
     "character": "人物", "character_place": "人物居場所",
     "character_event": "人物行動", "term": "語",
+    "story": "作品", "episode": "話",
 }
 
 # 数で持つ欄。文字で書かれていても数へ寄せ直す
-NUMBER_COLUMNS = {"height", "world_influence"}
+NUMBER_COLUMNS = {"height", "world_influence", "number", "letters"}
 
 
 # ---------------------------------------------------------------- 読んだ結果
@@ -216,7 +225,7 @@ class Record:
         return self.values.get("id", "")
 
     def instance(self):
-        return (MODELS.get(self.table) or DOCUMENT_MODEL)(**self.values)
+        return MODELS[self.table](**self.values)
 
 
 @dataclass
@@ -227,7 +236,6 @@ class Library:
     records: list[Record] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
     stories: list[str] = field(default_factory=list)
-    documents: list[Record] = field(default_factory=list)
 
     def of(self, table: str) -> list[Record]:
         return [r for r in self.records if r.table == table]
@@ -406,46 +414,11 @@ def read_library(novels_dir: str) -> Library:
     # --- 語（入れ子）------------------------------------------------------
     _read_terms(lib, fail, os.path.join(novels_dir, "terms"))
 
-    # --- 本文（中身ごと db へ入れる） -------------------------------------
-    stories_dir = os.path.join(novels_dir, "stories")
-    for current, dirs, files in os.walk(stories_dir):
-        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-        for name in sorted(f for f in files if f.endswith(".md")):
-            path = os.path.join(current, name)
-            lib.stories.append(path)
-            try:
-                lib.documents.append(read_document(path, novels_dir))
-            except OSError as err:
-                fail(path, err)
+    # --- 作品と、その話 ---------------------------------------------------
+    _read_stories(lib, fail, os.path.join(novels_dir, "stories"))
 
     _resolve_refs(lib)
     return lib
-
-
-def read_document(path: str, novels_dir: str) -> Record:
-    """本文の md を一件、中身ごと読む。**上段は無い。ファイルの中身がすべて。**
-
-    id は `novels/` からの相対パス。作品名と種類（`meta` `plot` `episode`
-    `other`）は置き場所から決まる。話数は `episodes/NNN.md` の NNN。
-    """
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
-
-    rel = os.path.relpath(path, novels_dir).replace(os.sep, "/")
-    parts = rel.split("/")
-    story = parts[1] if len(parts) > 2 else ""
-    stem = _stem(path)
-    if len(parts) > 3 and parts[2] == "episodes":
-        kind, number = "episode", int(stem) if stem.isdigit() else None
-    elif stem in ("meta", "plot"):
-        kind, number = stem, None
-    else:
-        kind, number = "other", None
-
-    return Record(table="document", path=path, values={
-        "id": rel, "story": story, "kind": kind,
-        "number": number, "text": text,
-    })
 
 
 def _read_terms(lib: Library, fail, terms_dir: str) -> None:
@@ -522,6 +495,72 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
                 if not rec.values.get(column) and parent.values.get(column):
                     rec.values[column] = parent.values[column]
             parent = _parent_of(parent)
+
+
+# `3.md` のような、話数だけのファイル名。**ゼロ埋めしない**
+# （`003.md` と書かれていても数として同じに読む）
+_NUMBERED = re.compile(r"\A(\d+)\Z")
+
+
+def _read_stories(lib: Library, fail, stories_dir: str) -> None:
+    """`stories/<作品名>/meta.md` と `stories/<作品名>/episodes/{話数}.md` を読む。
+
+    **作品の id は作品名、話の id は `<作品名>/<話数>`。** 話数はファイル名の
+    数がそのまま入る（`3.md` なら 3）。**ゼロ埋めしない。** 話の `text` は
+    原稿そのもので、上段は持たない（本文のファイルに上段を足さない）。
+    題は本文の先頭の見出し（`# 第 3 話　…`）から読む。
+
+    `meta.md` の無いディレクトリは作品として採らない。企画を書く前の
+    置き場や、`plot.md` だけの下書きを不備にしないため。
+    """
+    for name in sorted(_listdir(stories_dir)):
+        story_dir = os.path.join(stories_dir, name)
+        meta = os.path.join(story_dir, "meta.md")
+        if not os.path.isdir(story_dir) or not os.path.exists(meta):
+            continue
+        try:
+            story = read_record(meta, "story", {"id": name, "name": name})
+        except (ReadError, yaml.YAMLError) as err:
+            fail(meta, err)
+            continue
+        lib.records.append(story)
+        lib.stories.append(meta)
+
+        for path in _md_files(os.path.join(story_dir, "episodes")):
+            found = _NUMBERED.match(_stem(path))
+            if not found:
+                fail(path, ReadError(
+                    "本文のファイル名が話数（`3.md`）になっていない"))
+                continue
+            number = int(found.group(1))
+            try:
+                rec = read_record(path, "episode", {
+                    "id": f"{story.id}/{number}", "story_id": story.id,
+                    "number": number,
+                })
+            except (ReadError, yaml.YAMLError) as err:
+                fail(path, err)
+                continue
+            body = rec.values.get("text", "")
+            rec.values.setdefault("title", _episode_title(body))
+            rec.values.setdefault("letters", len(body))
+            lib.records.append(rec)
+            lib.stories.append(path)
+
+
+def _episode_title(body: str) -> str:
+    """本文の先頭の見出しから、サブタイトルだけを取る。
+
+    `# 第 3 話　外の土地の話` → `外の土地の話`。見出しが無ければ空。
+    """
+    for line in body.splitlines():
+        line = line.strip()
+        if not line.startswith("#"):
+            continue
+        head = line.lstrip("#").strip()
+        m = re.match(r"\A第\s*\d+\s*話[　\s]*(.*)\Z", head)
+        return (m.group(1) if m else head).strip()
+    return ""
 
 
 def _resolve_refs(lib: Library) -> None:

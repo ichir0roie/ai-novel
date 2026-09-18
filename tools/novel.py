@@ -6,13 +6,14 @@ python3 tools/novel.py check                 不備を探す。あればコー�
 python3 tools/novel.py load                  **作業開始時。** md を db へ読み込む
 python3 tools/novel.py save                  **作業終了時。** db を md へ書き出す
 python3 tools/novel.py stories --work めぐる旅路は枯れゆく世界と
-python3 tools/novel.py read stories/<作品>/episodes/001.md
-python3 tools/novel.py write stories/<作品>/episodes/003.md --file 下書き.md
+python3 tools/novel.py read <作品名>/1
+python3 tools/novel.py write <作品名>/3 --file 下書き.md
 python3 tools/novel.py brief --place ムシュヴァン --time 4360
 python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
 python3 tools/novel.py template --kind 人物
 python3 tools/novel.py index --world SFファンタジー
+python3 tools/novel.py episodes --story めぐる旅路は枯れゆく世界と --before 11
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 ```
 
@@ -59,6 +60,8 @@ REQUIRED = {
     "character_place": ("character_id", "place_id"),
     "character_event": ("character_id", "event_id"),
     "term": ("name",),
+    "story": ("name",),
+    "episode": ("story_id", "number"),
 }
 
 # 指し先の対応は `reader.REFS` が持っている。ここで足すのは、
@@ -112,14 +115,13 @@ def build(lib: reader.Library, path: str = DB):
     engine = schema.create_db(path)
     order = ["place", "kind", "object", "character", "event",
              "object_place", "object_event",
-             "character_place", "character_event", "term"]
+             "character_place", "character_event", "term",
+             "story", "episode"]
     with Session(engine) as session:
         for table in order:
             for rec in lib.of(table):
                 session.add(rec.instance())
             session.flush()
-        for rec in lib.documents:
-            session.add(rec.instance())
         session.commit()
     return engine
 
@@ -337,6 +339,40 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------- 直前の話
+
+def episodes(lib: reader.Library, story: str, before: int | None,
+             count: int, body: bool) -> str:
+    """**次の話を考える前に、直前の話を読む。** 既定で 10 話ぶん。
+
+    `--before 11` を付けると 11 話より前（001〜010）を返す。付けなければ
+    いちばん新しいほうから数える。`--list` を付けると原稿は出さず、
+    話数と題と字数だけを並べる（どこまで書いたかの確認用）。
+    """
+    found = [r for r in lib.of("episode")
+             if r.values.get("story_id") == story]
+    if not found:
+        names = "、".join(sorted(str(r.values.get("name") or r.id)
+                                for r in lib.of("story"))) or "（作品がない）"
+        return f"「{story}」という作品の話がない。作品: {names}"
+
+    found.sort(key=lambda r: r.values.get("number") or 0)
+    if before is not None:
+        found = [r for r in found if (r.values.get("number") or 0) < before]
+    found = found[-count:] if count > 0 else found
+
+    out = [f"# 直前の話 / {story} / {len(found)} 話", ""]
+    for rec in found:
+        title = rec.values.get("title") or ""
+        out.append(f"## 第 {rec.values.get('number')} 話"
+                   + (f"　{title}" if title else "")
+                   + f"（{rec.values.get('letters') or 0} 字）")
+        out.append("")
+        if body:
+            out += [rec.values.get("text", ""), ""]
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- 索引
 
 def index(lib: reader.Library, world: str) -> str:
@@ -381,7 +417,28 @@ def index(lib: reader.Library, world: str) -> str:
 
 # ---------------------------------------------------------------- 雛形
 
+# 本文は上段を持たない。雛形もマークダウンの見出しから始める
+EPISODE_TEMPLATE = """<!-- 置き場所: novels/stories/<作品名>/episodes/<話数>.md（`3.md`。ゼロ埋めしない） -->
+<!-- **このファイルに上段（YAML）を書かない。** 原稿だけを置く。
+     話数はファイル名、題は下の見出しから台帳に入る（core/chronicle.md）。
+     書きはじめる前に、直前の 10 話を読む:
+     python3 tools/novel.py episodes --story <作品名> -->
+
+# 第 <N> 話　<サブタイトル>
+
+<!-- 作業メモ。本文には残さない
+- 変化するもの:
+- 引きの型:
+- 前話からの接続:
+-->
+
+<本文をここから。冒頭 3 行で場所・時間・誰がいるかを示す>
+"""
+
+
 def template(table: str) -> str:
+    if table == "episode":
+        return EPISODE_TEMPLATE
     fields = reader.FIELDS[table]
     head = ["---"] + [f"{k}:" for k in fields] + ["---", "",
                       f"# （{reader.LABEL[table]}の名）", "",
@@ -400,6 +457,8 @@ def template(table: str) -> str:
         "character_event":
             "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
         "term": "novels/terms/**/<語>/<語>.md",
+        "story": "novels/stories/<作品名>/meta.md",
+        "episode": "novels/stories/<作品名>/episodes/<話数>.md",
     }[table]
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
 
@@ -418,9 +477,18 @@ OWNER_DIR = {
 ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
             "character": "characters", "term": "terms"}
 
+# 上段を持たないレコード。書き戻すときは `text` をそのまま原稿として書く
+BODY_ONLY = {"episode"}
+
 
 def _record_path(table: str, rec_id: str, owner_id: str | None) -> str:
     """id から置き場所を逆に組む。**id がそのまま置き場所を持っている。**"""
+    if table == "story":
+        return os.path.join(NOVELS, "stories", rec_id, "meta.md")
+    if table == "episode":
+        story, number = rec_id.rsplit("/", 1)
+        return os.path.join(NOVELS, "stories", story, "episodes",
+                            f"{number}.md")
     if table in ROOT_DIR:
         root = ROOT_DIR[table]
         if table == "kind":
@@ -487,11 +555,15 @@ def dump(engine, lib: reader.Library) -> list[str]:
                 path = existing_path.get((table, row.id)) \
                     or _record_path(table, row.id, owner_id)
                 text_body = (row.text or "").strip()
-                content = ("---\n"
-                           + yaml.safe_dump(head, allow_unicode=True,
-                                            sort_keys=False,
-                                            default_flow_style=False)
-                           + "---\n\n" + text_body + "\n")
+                if table in BODY_ONLY:
+                    # 本文は原稿がそのまま中身。上段を足さない
+                    content = text_body + "\n"
+                else:
+                    content = ("---\n"
+                               + yaml.safe_dump(head, allow_unicode=True,
+                                                sort_keys=False,
+                                                default_flow_style=False)
+                               + "---\n\n" + text_body + "\n")
                 if os.path.exists(path):
                     with open(path, encoding="utf-8") as fh:
                         if fh.read() == content:
@@ -505,95 +577,80 @@ def dump(engine, lib: reader.Library) -> list[str]:
 
 # ------------------------------------------------------------ 本文（stories）
 
-def documents(engine) -> list:
-    """db に入っている本文をぜんぶ返す（`schema.Document` の行）。"""
+def story_rows(engine) -> list:
+    """db の作品をぜんぶ返す（`schema.Story` の行）。"""
     from sqlalchemy.orm import Session
 
     with Session(engine) as session:
-        rows = session.query(schema.Document).order_by(
-            schema.Document.story, schema.Document.kind,
-            schema.Document.number, schema.Document.id).all()
+        rows = session.query(schema.Story).order_by(schema.Story.id).all()
         session.expunge_all()
         return rows
 
 
-def read_document(engine, path: str) -> str:
-    """本文を一件読む。**`path` は `novels/` からの相対パス。**
+def episode_rows(engine, story: str | None = None) -> list:
+    """db の話を返す（`schema.Episode` の行）。`story` で作品を絞れる。"""
+    from sqlalchemy.orm import Session
 
-    `stories/<作品>/episodes/001.md` のほか、`<作品>/001` のような
-    省いた書き方でも引ける。見つからなければ `LookupError`。
-    """
-    rows = documents(engine)
-    by_id = {row.id: row for row in rows}
-    if path in by_id:
-        return by_id[path].text
-    hits = [row for row in rows if row.id.endswith(f"/{path}")
-            or row.id.endswith(f"/{path}.md")
-            or f"{row.story}/{row.kind}" == path
-            or (row.number is not None
-                and f"{row.story}/{row.number:03d}" == path)]
-    if len(hits) == 1:
-        return hits[0].text
-    if not hits:
-        raise LookupError(f"「{path}」という本文は db に無い")
-    raise LookupError("どれか一つに絞れない: "
-                      + ", ".join(row.id for row in hits))
+    with Session(engine) as session:
+        query = session.query(schema.Episode)
+        if story:
+            query = query.filter(schema.Episode.story_id == story)
+        rows = query.order_by(schema.Episode.story_id,
+                              schema.Episode.number).all()
+        session.expunge_all()
+        return rows
 
 
-def write_document(engine, path: str, text: str) -> str:
-    """本文を一件、db へ書き入れる（無ければ作る）。**戻り値は id。**
+def _split_episode(path: str) -> tuple[str, int]:
+    """`stories/<作品>/episodes/3.md` も `<作品>/3` も、作品名と話数へ解く。"""
+    rel = path.replace(os.sep, "/").strip("/")
+    if rel.startswith("stories/"):
+        rel = rel[len("stories/"):]
+    rel = rel.replace("/episodes/", "/")
+    if rel.endswith(".md"):
+        rel = rel[:-len(".md")]
+    story, _, number = rel.rpartition("/")
+    if not story or not number.isdigit():
+        raise ValueError("話の指し方は `<作品名>/<話数>` "
+                         "（`stories/<作品名>/episodes/3.md` でもよい）")
+    return story, int(number)
+
+
+def read_episode(engine, path: str) -> str:
+    """話を一件、原稿のまま読む。無ければ `LookupError`。"""
+    story, number = _split_episode(path)
+    for row in episode_rows(engine, story):
+        if row.number == number:
+            return row.text
+    raise LookupError(f"「{story}」の {number} 話は db に無い")
+
+
+def write_episode(engine, path: str, text: str) -> str:
+    """話を一件、db へ書き入れる（無ければ作る）。**戻り値は id。**
 
     マークダウンはここでは触らない。ファイルになるのは `save`（書き出し）。
+    題と字数は原稿から採り直す。
     """
     from sqlalchemy.orm import Session
 
-    rel = path.replace(os.sep, "/").lstrip("/")
-    if not rel.startswith("stories/"):
-        raise ValueError("本文は stories/ の下にだけ置ける")
-    if not rel.endswith(".md"):
-        raise ValueError("本文のパスは .md で終える")
-    parts = rel.split("/")
-    story = parts[1] if len(parts) > 2 else ""
-    stem = os.path.splitext(parts[-1])[0]
-    if len(parts) > 3 and parts[2] == "episodes":
-        kind, number = "episode", int(stem) if stem.isdigit() else None
-    elif stem in ("meta", "plot"):
-        kind, number = stem, None
-    else:
-        kind, number = "other", None
-
+    story, number = _split_episode(path)
     if not text.endswith("\n"):
         text += "\n"
 
     with Session(engine) as session:
-        row = session.get(schema.Document, rel)
+        if session.get(schema.Story, story) is None:
+            raise LookupError(f"「{story}」という作品が db に無い。"
+                              "先に meta.md を作る")
+        rec_id = f"{story}/{number}"
+        row = session.get(schema.Episode, rec_id)
         if row is None:
-            row = schema.Document(id=rel)
+            row = schema.Episode(id=rec_id, story_id=story, number=number)
             session.add(row)
-        row.story, row.kind, row.number, row.text = story, kind, number, text
+        row.text = text
+        row.title = reader._episode_title(text)
+        row.letters = len(text)
         session.commit()
-    return rel
-
-
-def dump_documents(engine) -> list[str]:
-    """db の本文をマークダウンへ書き戻す。**書き出したパスを返す。**
-
-    中身が変わらないファイルは書き直さない。db から消した本文は
-    こちらでは消さない（消すのは作者の手でやる）。
-    """
-    written = []
-    for row in documents(engine):
-        path = os.path.join(NOVELS, *row.id.split("/"))
-        content = row.text or ""
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as fh:
-                if fh.read() == content:
-                    continue
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(content)
-        written.append(os.path.relpath(path, REPO))
-    return written
+    return rec_id
 
 
 # ---------------------------------------------------------------- 入口
@@ -607,14 +664,14 @@ def main(argv=None):
     sub.add_parser("build", help="load と同じ（旧い呼び名）")
     sub.add_parser("save", help="**作業終了時。** db をマークダウンへ書き出す")
 
-    p = sub.add_parser("stories", help="本文の一覧を出す")
+    p = sub.add_parser("stories", help="作品と話の一覧を出す")
     p.add_argument("--work", help="作品名で絞る")
 
-    p = sub.add_parser("read", help="本文を一件読む（db から）")
-    p.add_argument("path", help="stories/<作品>/episodes/001.md など")
+    p = sub.add_parser("read", help="話を一件読む（db から）")
+    p.add_argument("path", help="<作品名>/<話数>（`めぐる旅路…/3`）")
 
-    p = sub.add_parser("write", help="本文を一件書く（db へ）")
-    p.add_argument("path", help="stories/<作品>/episodes/003.md")
+    p = sub.add_parser("write", help="話を一件書く（db へ）")
+    p.add_argument("path", help="<作品名>/<話数>（`めぐる旅路…/3`）")
     p.add_argument("--file", required=True,
                    help="本文の入ったファイル。`-` で標準入力")
 
@@ -634,6 +691,14 @@ def main(argv=None):
 
     p = sub.add_parser("template", help="雛形を出す")
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
+
+    p = sub.add_parser("episodes", help="直前の話を読む。**次の話を考える前に**")
+    p.add_argument("--story", required=True)
+    p.add_argument("--before", type=int,
+                   help="この話数より前だけ。付けなければ最新から数える")
+    p.add_argument("--count", type=int, default=10, help="何話ぶん（既定 10）")
+    p.add_argument("--list", action="store_true",
+                   help="原稿を出さず、話数と題と字数だけ並べる")
 
     p = sub.add_parser("index", help="用語索引を書き出す")
     p.add_argument("--world", required=True)
@@ -669,7 +734,7 @@ def main(argv=None):
             return 1
         build(lib)
         print(f"{os.path.relpath(DB, REPO)} を組み直した"
-              f"（レコード {len(lib.records)} / 本文 {len(lib.documents)}）")
+              f"（レコード {len(lib.records)}）")
         return 0
 
     if args.command == "brief":
@@ -699,6 +764,11 @@ def main(argv=None):
         print(f"「{args.id}」が見つからない", file=sys.stderr)
         return 1
 
+    if args.command == "episodes":
+        print(episodes(lib, args.story, args.before, args.count,
+                       body=not args.list))
+        return 0
+
     if args.command == "index":
         out = os.path.join(NOVELS, "worlds", args.world, "glossary.md")
         with open(out, "w", encoding="utf-8") as fh:
@@ -721,16 +791,18 @@ def main(argv=None):
         engine = schema.open_db(DB)
 
         if args.command == "stories":
-            for row in documents(engine):
-                if args.work and args.work != row.story:
+            for row in story_rows(engine):
+                if args.work and args.work != row.id:
                     continue
-                print(f"{row.id}\t{row.kind}\t{len(row.text)} 字")
+                print(f"{row.id}\t{row.world_id or ''}")
+                for ep in episode_rows(engine, row.id):
+                    print(f"  {ep.number}\t{ep.title}\t{ep.letters} 字")
             return 0
 
         if args.command == "read":
             try:
-                print(read_document(engine, args.path), end="")
-            except LookupError as err:
+                print(read_episode(engine, args.path), end="")
+            except (LookupError, ValueError) as err:
                 print(err, file=sys.stderr)
                 return 1
             return 0
@@ -738,11 +810,11 @@ def main(argv=None):
         text = (sys.stdin.read() if args.file == "-"
                 else open(args.file, encoding="utf-8").read())
         try:
-            rel = write_document(engine, args.path, text)
-        except ValueError as err:
+            rec_id = write_episode(engine, args.path, text)
+        except (LookupError, ValueError) as err:
             print(err, file=sys.stderr)
             return 1
-        print(f"{rel} を db へ書いた（save で md に出る）")
+        print(f"{rec_id} を db へ書いた（save で md に出る）")
         return 0
 
     if args.command == "save":
@@ -750,7 +822,7 @@ def main(argv=None):
             print("先に load して db を組む", file=sys.stderr)
             return 1
         engine = schema.open_db(DB)
-        written = dump(engine, lib) + dump_documents(engine)
+        written = dump(engine, lib)
         for path in written:
             print(f"更新: {path}")
         print(f"{len(written)} 件を書き出した" if written else "変更なし")
@@ -761,7 +833,7 @@ def main(argv=None):
             print("先に build して db を組む", file=sys.stderr)
             return 1
         engine = schema.open_db(DB)
-        written = dump(engine, lib) + dump_documents(engine)
+        written = dump(engine, lib)
         for path in written:
             print(f"更新: {path}")
         print(f"{len(written)} 件を書き直した" if written else "変更なし")
