@@ -414,6 +414,7 @@ def read_library(novels_dir: str) -> Library:
 def _read_terms(lib: Library, fail, terms_dir: str) -> None:
     """`terms/**/<語>.md`（子を持たない語）と `terms/**/<語>/<語>.md`
     （子を持つ語。下にぶら下がる語を置ける）を、浅いほうから読む。
+    ディレクトリ自身の記事は `<語>.md` のほか、名を省いた `.md` でもよい。
 
     **入れ子が上下を表す。** `魔力/魔力切れ.md` と置けば、
     魔力切れは魔力にぶら下がる。子を持たない語に、空の入れ物ディレクトリは
@@ -423,7 +424,8 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
     for current, dirs, files in os.walk(terms_dir):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
         name = os.path.basename(current)
-        own_marker = f"{name}.md"
+        # ディレクトリ自身の記事。名を省いた `.md` も同じ扱いにする
+        own_marker = f"{name}.md" if f"{name}.md" in files else ".md"
         container_parent = parent_of_dir.get(os.path.dirname(current))
 
         own_id = None
@@ -445,13 +447,10 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
         parent_of_dir[current] = effective_parent
 
         for leaf in sorted(files):
-            if leaf == own_marker or not leaf.endswith(".md"):
+            if leaf == own_marker or leaf == ".md" or not leaf.endswith(".md"):
                 continue
             leaf_name = leaf[:-len(".md")]
             path = os.path.join(current, leaf)
-            if not leaf_name:
-                fail(path, ReadError("ファイル名が空。語の名を付ける"))
-                continue
             try:
                 rec = read_record(path, "term", {
                     "id": f"{effective_parent}/{leaf_name}"
