@@ -17,7 +17,6 @@ python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 from __future__ import annotations
 
 import argparse
-import datetime
 import os
 import sys
 
@@ -25,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import reader  # noqa: E402
 import schema  # noqa: E402
+import stamp  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NOVELS = os.path.join(REPO, "novels")
@@ -170,7 +170,7 @@ def _find_place(lib: reader.Library, needle: str) -> str | None:
     return None
 
 
-def brief(lib: reader.Library, place: str, when: datetime.datetime,
+def brief(lib: reader.Library, place: str, when: stamp.Stamp,
           reach: int, full: bool) -> str:
     """その場所・その年の世界を一枚に出す。**設定を頭から読み直すより早い。**
 
