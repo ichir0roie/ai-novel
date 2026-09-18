@@ -412,42 +412,80 @@ def read_library(novels_dir: str) -> Library:
 
 
 def _read_terms(lib: Library, fail, terms_dir: str) -> None:
-    """`terms/**/<語>/<語>.md` を、浅いほうから読む。
+    """`terms/**/<語>.md`（子を持たない語）と `terms/**/<語>/<語>.md`
+    （子を持つ語。下にぶら下がる語を置ける）を、浅いほうから読む。
 
-    **入れ子が上下を表す。** `魔力/魔力切れ/魔力切れ.md` と置けば、
-    魔力切れは魔力にぶら下がる。id は親の id と語の名から採番する。
+    **入れ子が上下を表す。** `魔力/魔力切れ.md` と置けば、
+    魔力切れは魔力にぶら下がる。子を持たない語に、空の入れ物ディレクトリは
+    要らない。id は親の id と語の名から採番する。
     """
     parent_of_dir: dict[str, str] = {}
     for current, dirs, files in os.walk(terms_dir):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
         name = os.path.basename(current)
-        marker = f"{name}.md"
-        if marker not in files:
-            continue
-        path = os.path.join(current, marker)
-        parent = parent_of_dir.get(os.path.dirname(current))
-        try:
-            rec = read_record(path, "term", {
-                "id": f"{parent}/{name}" if parent else name,
-                "name": name,
-                **({"parent_term_id": parent} if parent else {}),
-            })
-        except (ReadError, yaml.YAMLError) as err:
-            fail(path, err)
-            continue
-        parent_of_dir[current] = rec.id
-        lib.records.append(rec)
+        own_marker = f"{name}.md"
+        container_parent = parent_of_dir.get(os.path.dirname(current))
+
+        own_id = None
+        if own_marker in files:
+            path = os.path.join(current, own_marker)
+            try:
+                rec = read_record(path, "term", {
+                    "id": f"{container_parent}/{name}" if container_parent else name,
+                    "name": name,
+                    **({"parent_term_id": container_parent} if container_parent else {}),
+                })
+            except (ReadError, yaml.YAMLError) as err:
+                fail(path, err)
+            else:
+                own_id = rec.id
+                lib.records.append(rec)
+
+        effective_parent = own_id or container_parent
+        parent_of_dir[current] = effective_parent
+
+        for leaf in sorted(files):
+            if leaf == own_marker or not leaf.endswith(".md"):
+                continue
+            leaf_name = leaf[:-len(".md")]
+            path = os.path.join(current, leaf)
+            if not leaf_name:
+                fail(path, ReadError("ファイル名が空。語の名を付ける"))
+                continue
+            try:
+                rec = read_record(path, "term", {
+                    "id": f"{effective_parent}/{leaf_name}"
+                          if effective_parent else leaf_name,
+                    "name": leaf_name,
+                    **({"parent_term_id": effective_parent}
+                       if effective_parent else {}),
+                })
+            except (ReadError, yaml.YAMLError) as err:
+                fail(path, err)
+                continue
+            lib.records.append(rec)
 
     # 上の語で決めた縛りは、下の語も引き継ぐ
     by_id = {r.id: r for r in lib.of("term")}
+
+    def _parent_of(rec_or_values) -> "Record | None":
+        parent_id = rec_or_values.values.get("parent_term_id")
+        return by_id.get(parent_id) if parent_id else None
+
     for rec in lib.of("term"):
-        parent = by_id.get(str(rec.values.get("parent_term_id") or ""))
+        seen = {rec.id}
+        parent = _parent_of(rec)
         while parent is not None:
+            if parent.id in seen:
+                fail(rec.path, ReadError(
+                    f"語の親をたどると自分に戻ってくる（「{parent.id}」で循環）"))
+                break
+            seen.add(parent.id)
             for column in ("restrict_world_id", "restrict_planet_id",
                            "restrict_place_id"):
                 if not rec.values.get(column) and parent.values.get(column):
                     rec.values[column] = parent.values[column]
-            parent = by_id.get(str(parent.values.get("parent_term_id") or ""))
+            parent = _parent_of(parent)
 
 
 def _resolve_refs(lib: Library) -> None:
