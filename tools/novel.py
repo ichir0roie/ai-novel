@@ -7,7 +7,7 @@ python3 tools/novel.py build                 novels/novel.db を組み直す
 python3 tools/novel.py brief --place 霧湊大陸 --time 4360
 python3 tools/novel.py list --kind 語 --world SFファンタジー世界線
 python3 tools/novel.py show 采配
-python3 tools/novel.py template --kind 個体
+python3 tools/novel.py template --kind 人物
 python3 tools/novel.py index --world SFファンタジー世界線
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 ```
@@ -43,20 +43,27 @@ RETIRED = ("/死語", "/候補", "/設定側")
 REQUIRED = {
     "place": ("name",),
     "event": ("name", "time"),
-    "character": ("name", "kind"),
-    "actor": ("name", "character_id"),
-    "actor_place": ("actor_id", "place_id"),
-    "actor_event": ("actor_id", "event_id"),
+    "kind": ("name", "kind"),
+    "object": ("name", "kind_id"),
+    "object_place": ("object_id", "place_id"),
+    "object_event": ("object_id", "event_id"),
+    "character": ("name", "read", "born_place_id"),
+    "character_place": ("character_id", "place_id"),
+    "character_event": ("character_id", "event_id"),
     "term": ("name",),
 }
 
 REFS = {
     "place": {"parent_id": "place"},
     "event": {"place_id": "place", "parent_event_id": "event"},
-    "character": {"root_place_id": "place"},
-    "actor": {"character_id": "character", "root_place_name": "place"},
-    "actor_place": {"actor_id": "actor", "place_id": "place"},
-    "actor_event": {"actor_id": "actor", "event_id": "event"},
+    "kind": {"root_place_id": "place"},
+    "object": {"kind_id": "kind", "root_place_name": "place"},
+    "object_place": {"object_id": "object", "place_id": "place"},
+    "object_event": {"object_id": "object", "event_id": "event"},
+    "character": {"born_place_id": "place", "race_id": "kind",
+                  "belong_id": "object"},
+    "character_place": {"character_id": "character", "place_id": "place"},
+    "character_event": {"character_id": "character", "event_id": "event"},
     "term": {"restrict_world_id": "place", "restrict_planet_id": "place",
              "restrict_place_id": "place"},
 }
@@ -103,8 +110,9 @@ def build(lib: reader.Library, path: str = DB):
     from sqlalchemy.orm import Session
 
     engine = schema.create_db(path)
-    order = ["place", "character", "actor", "event", "actor_place",
-             "actor_event", "term"]
+    order = ["place", "kind", "object", "character", "event",
+             "object_place", "object_event",
+             "character_place", "character_event", "term"]
     with Session(engine) as session:
         for table in order:
             for rec in lib.of(table):
@@ -222,29 +230,40 @@ def brief(lib: reader.Library, place: str, when: datetime.datetime,
             recent.append(rec)
 
     # --- その場にいる者と、その行動 ---------------------------------------
-    by_id = {r.id: r for r in lib.of("actor")}
+    # 個体（群）と人物（一人ひとり）は、置き場所が違うだけで扱いは同じ
+    owners = ["object", "character"]
+    by_id = {}
+    for table in owners:
+        by_id.update({r.id: (table, r) for r in lib.of(table)})
+
     present = []
-    for stay in lib.of("actor_place"):
-        start, end = stay.values.get("start"), stay.values.get("end")
-        if stay.values.get("place_id") not in scope:
-            continue
-        if (start and start > when) or (end and end < when):
-            continue
-        actor = by_id.get(stay.values["actor_id"])
-        if actor and not (actor.values.get("end") and actor.values["end"] < when):
-            present.append((actor, stay))
+    for table in owners:
+        for stay in lib.of(f"{table}_place"):
+            start, end = stay.values.get("start"), stay.values.get("end")
+            if stay.values.get("place_id") not in scope:
+                continue
+            if (start and start > when) or (end and end < when):
+                continue
+            found = by_id.get(stay.values[f"{table}_id"])
+            if not found:
+                continue
+            owner = found[1]
+            if owner.values.get("end") and owner.values["end"] < when:
+                continue
+            present.append((table, owner, stay))
 
     event_by_id = {r.id: r for r in lib.of("event")}
     deeds = []
-    for deed in lib.of("actor_event"):
-        at = deed.values.get("start")
-        target = event_by_id.get(deed.values.get("event_id"))
-        if not at or at > when or (when.year - at.year) > reach:
-            continue
-        if target is None or target.values.get("place_id") not in scope:
-            continue
-        if visible(target) and kind_of(target) != "関係":
-            deeds.append((deed, target))
+    for table in owners:
+        for deed in lib.of(f"{table}_event"):
+            at = deed.values.get("start")
+            target = event_by_id.get(deed.values.get("event_id"))
+            if not at or at > when or (when.year - at.year) > reach:
+                continue
+            if target is None or target.values.get("place_id") not in scope:
+                continue
+            if visible(target) and kind_of(target) != "関係":
+                deeds.append((table, deed, target))
 
     # --- その場で使える語 -------------------------------------------------
     words = []
@@ -286,15 +305,20 @@ def brief(lib: reader.Library, place: str, when: datetime.datetime,
         f"- {_year(when_of(r))} {r.values['name']}{wide(r)}"
         for r in sorted(recent, key=when_of)])
 
+    def label_of(table, rec):
+        """個体は分類、人物は種族を添える。どちらか無ければ種別名で代える。"""
+        if table == "character":
+            return rec.values.get("race_id") or "人物"
+        return rec.values.get("kind") or rec.values.get("kind_id") or "個体"
+
     section("4 その場にいる者", [
-        f"- {a.values['name']}（{a.values.get('kind') or a.values['character_id']}）"
-        f" {_span(a)}{wide(s)}"
-        for a, s in sorted(present, key=lambda p: str(p[0].values["name"]))])
+        f"- {o.values['name']}（{label_of(t, o)}）{_span(o)}{wide(s)}"
+        for t, o, s in sorted(present, key=lambda p: str(p[1].values["name"]))])
 
     section("5 この射程での行動（何を失ったか）", [
         f"- {_year(d.values['start'])} "
-        f"{by_id[d.values['actor_id']].values['name']}: {e.values['name']}"
-        for d, e in sorted(deeds, key=lambda p: p[0].values["start"])])
+        f"{by_id[d.values[f'{t}_id']][1].values['name']}: {e.values['name']}"
+        for t, d, e in sorted(deeds, key=lambda p: p[1].values["start"])])
 
     section("6 張っている火種（次の一手の候補）", [
         f"- {r.values['name']}{wide(r)}"
@@ -351,10 +375,15 @@ def template(table: str) -> str:
     where = {
         "place": "novels/worlds/<世界線>/**/<場所>/<場所>.md",
         "event": "novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md",
-        "character": "novels/characters/<世界線>/<種別>.md",
-        "actor": "novels/actors/<世界線>/**/<個体>/actor.md",
-        "actor_place": "novels/actors/<世界線>/**/<個体>/places/{時刻}_{場所}.md",
-        "actor_event": "novels/actors/<世界線>/**/<個体>/actions/{時刻}_{名}.md",
+        "kind": "novels/objects/<世界線>/<種別>.md",
+        "object": "novels/objects/<世界線>/**/<個体>/object.md",
+        "object_place": "novels/objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md",
+        "object_event": "novels/objects/<世界線>/**/<個体>/actions/{時刻}_{名}.md",
+        "character": "novels/characters/<出身地>/**/<人名>/character.md",
+        "character_place":
+            "novels/characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md",
+        "character_event":
+            "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
         "term": "novels/terms/<語>.md",
     }[table]
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"

@@ -72,12 +72,15 @@ class Event(Base):
     )
 
 
-class Character(Base):
+class Kind(Base):
     """
-    novels/characters/{root_place_name}/{character_name}.md
+    novels/objects/{root_place_name}/{kind_name}.md
+
+    **型。** 何であるかの分類（系統・国・組織・仕組み）。
+    個体はこの型にぶら下がる。
     """
 
-    __tablename__ = "character"
+    __tablename__ = "kind"
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
@@ -95,14 +98,14 @@ class Object(Base):
 
     舞台装置として、個、または多数の存在として行動する。
     """
-    __tablename__ = "actor"
+    __tablename__ = "object"
 
     root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
 
-    character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
+    kind_id: Mapped[str] = mapped_column(String, ForeignKey("kind.id"))
     kind: Mapped[str] = mapped_column(String)
 
     start: Mapped[datetime | None] = mapped_column(DateTime)
@@ -111,12 +114,12 @@ class Object(Base):
 
 class ObjectPlace(Base):
     """
-    {actor_name}/places/{yyyymmddhhmmss}_{place_name}.md
+    {object_name}/places/{yyyymmddhhmmss}_{place_name}.md
     """
 
-    __tablename__ = "actor_place"
+    __tablename__ = "object_place"
 
-    actor_id: Mapped[str] = mapped_column(String, ForeignKey("actor.id"))
+    object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
 
     start: Mapped[datetime | None] = mapped_column(DateTime)
@@ -125,11 +128,11 @@ class ObjectPlace(Base):
 
 class ObjectAction(Base):
     """
-    {actor_name}/actions/{yyyymmddhhmmss}_{action_name}.md
+    {object_name}/actions/{yyyymmddhhmmss}_{action_name}.md
     """
-    __tablename__ = "actor_event"
+    __tablename__ = "object_event"
 
-    actor_id: Mapped[str] = mapped_column(String, ForeignKey("actor.id"))
+    object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
     event_id: Mapped[str] = mapped_column(String, ForeignKey("event.id"))
 
     start: Mapped[datetime | None] = mapped_column(DateTime)
@@ -138,21 +141,53 @@ class ObjectAction(Base):
 
 class Character(Base):
     """
-    novels/characters/{root_place_name}/{character_name}.md
+    novels/characters/{born_place_name}/**/{character_name}/character.md
 
-    一人ひとり、性格を持った個人として行動する。ストーリーの人称として表現される。
+    **一人ひとりの人間。** 本文で一人称・二人称・三人称を書き分けるために、
+    ここがいちばん細かい。群としての振る舞いは `Object` の側にある。
     """
 
     __tablename__ = "character"
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
-    kind: Mapped[str] = mapped_column(String)
 
-    root_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    race_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("kind.id"), comment="種族。種別のどれか")
+    belong_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("object.id"), comment="所属。個体のどれか")
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    # --- 体 -------------------------------------------------------------
+    sex: Mapped[str] = mapped_column(String, default="", comment="性別")
+    height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm")
+    build: Mapped[str] = mapped_column(String, default="", comment="体格")
+    looks: Mapped[str] = mapped_column(String, default="", comment="見た目の要点")
+
+    # --- 口 -------------------------------------------------------------
+    first_person: Mapped[str] = mapped_column(String, default="", comment="一人称")
+    second_person: Mapped[str] = mapped_column(String, default="", comment="二人称")
+    third_person: Mapped[str] = mapped_column(
+        String, default="", comment="三人称。地の文がこの人物を指す呼び方")
+    tone: Mapped[str] = mapped_column(String, default="", comment="口調")
+
+    # --- 中身 -----------------------------------------------------------
+    personality: Mapped[str] = mapped_column(String, default="", comment="性格")
+    emotion: Mapped[str] = mapped_column(
+        String, default="", comment="感情。何に揺れるか")
+    thought: Mapped[str] = mapped_column(String, default="", comment="思想")
+    desire: Mapped[str] = mapped_column(String, default="", comment="欲。自覚した目的")
+    lie: Mapped[str] = mapped_column(String, default="", comment="嘘。誤った思い込み")
+    need: Mapped[str] = mapped_column(String, default="", comment="必要。本当に要るもの")
+    fear: Mapped[str] = mapped_column(String, default="", comment="恐れ")
+
+    # --- できること -----------------------------------------------------
+    ability: Mapped[str] = mapped_column(String, default="", comment="能力")
+    cost: Mapped[str] = mapped_column(
+        String, default="", comment="能力の代償・制限。**制限のない能力は書かない**")
+
+    start: Mapped[datetime | None] = mapped_column(DateTime, comment="生")
+    end: Mapped[datetime | None] = mapped_column(DateTime, comment="没")
 
 
 class CharacterPlace(Base):
