@@ -12,13 +12,18 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
     src: Mapped[str] = mapped_column(String, default="", nullable=False)
+
     text: Mapped[str] = mapped_column(String, default="", nullable=False)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="主キー,md内に記載される。")
 
 
 class Place(Base):
+    """
+    novels/worlds/{place_name}/**/{place_name}.md
+    """
+
     __tablename__ = "place"
 
     name: Mapped[str | None] = mapped_column(String)
@@ -41,6 +46,10 @@ class Place(Base):
 
 
 class Event(Base):
+    """
+    novels/worlds/{place_name}/**/events/{yyyymmddhhmmss}_{event_name}.md
+    """
+
     __tablename__ = "event"
 
     name: Mapped[str] = mapped_column(String)
@@ -61,21 +70,33 @@ class Event(Base):
 
 
 class Character(Base):
+    """
+    novels/characters/{root_place_name}/{character_name}.md
+    """
+
     __tablename__ = "character"
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
 
+    root_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+
     start: Mapped[datetime | None] = mapped_column(TIME)
     end: Mapped[datetime | None] = mapped_column(TIME)
 
 
 class Actor(Base):
+    """
+    novels/actors/{root_place_name}/**/{actor_name}/actor.md
+    """
     __tablename__ = "actor"
+
+    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
+
     character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
     kind: Mapped[str] = mapped_column(String)
 
@@ -84,6 +105,10 @@ class Actor(Base):
 
 
 class ActorPlace(Base):
+    """
+    {actor_name}/places/{yyyymmddhhmmss}_{place_name}.md
+    """
+
     __tablename__ = "actor_place"
 
     actor_id: Mapped[str] = mapped_column(String, ForeignKey("actor.id"))
@@ -94,6 +119,9 @@ class ActorPlace(Base):
 
 
 class Action(Base):
+    """
+    {actor_name}/actions/{yyyymmddhhmmss}_{action_name}.md
+    """
     __tablename__ = "actor_event"
 
     actor_id: Mapped[str] = mapped_column(String, ForeignKey("actor.id"))
@@ -104,6 +132,9 @@ class Action(Base):
 
 
 class Term(Base):
+    """
+    novels/terms/{term_name}.md
+    """
     __tablename__ = "term"
 
     name: Mapped[str] = mapped_column(String)
