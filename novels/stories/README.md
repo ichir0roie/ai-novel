@@ -7,8 +7,8 @@ novels/stories/<作品名>/
   meta.md           企画（core/templates/story-meta-template.md から）。**上段を持つ**
   plot.md           全体プロット（core/templates/plot-template.md から）
   episodes/
-    001.md          第 1 話（core/templates/episode-template.md から）
-    002.md
+    1.md            第 1 話（core/templates/episode-template.md から）
+    2.md
 ```
 
 **作品は、必ずひとつの世界線の中で完結する。** どの世界線に立つかは `meta.md` に書く。
@@ -16,7 +16,7 @@ novels/stories/<作品名>/
 
 ## 原則
 
-- **1 話 1 ファイル。** ファイル名は 3 桁ゼロ埋め。
+- **1 話 1 ファイル。** ファイル名は話数だけ（`1.md` `12.md`）。**ゼロ埋めしない**。
   **本文のファイルに上段（YAML）を書かない。** 原稿だけを置く。
   話数はファイル名、題は先頭の見出しから台帳へ入る（chronicle.md）
 - **話の頭に作業メモを HTML コメントで置く。** 変化するもの・引きの型・前話からの接続

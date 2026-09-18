@@ -413,7 +413,7 @@ def index(lib: reader.Library, world: str) -> str:
 # ---------------------------------------------------------------- 雛形
 
 # 本文は上段を持たない。雛形もマークダウンの見出しから始める
-EPISODE_TEMPLATE = """<!-- 置き場所: novels/stories/<作品名>/episodes/NNN.md（三桁ゼロ埋め） -->
+EPISODE_TEMPLATE = """<!-- 置き場所: novels/stories/<作品名>/episodes/<話数>.md（`3.md`。ゼロ埋めしない） -->
 <!-- **このファイルに上段（YAML）を書かない。** 原稿だけを置く。
      話数はファイル名、題は下の見出しから台帳に入る（core/chronicle.md）。
      書きはじめる前に、直前の 10 話を読む:
@@ -453,7 +453,7 @@ def template(table: str) -> str:
             "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
         "term": "novels/terms/**/<語>/<語>.md",
         "story": "novels/stories/<作品名>/meta.md",
-        "episode": "novels/stories/<作品名>/episodes/NNN.md",
+        "episode": "novels/stories/<作品名>/episodes/<話数>.md",
     }[table]
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
 
