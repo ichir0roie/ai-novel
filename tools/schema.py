@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""台帳の形。**DB の列と、マークダウンの列見出しを、ここ一か所で決めている。**
+"""台帳の形。**DB の列と、マークダウンの構造を、ここ一か所で決めている。**
 
-ここを直すと、DB の列・マークダウンの表の形・検査の内容が同時に変わる。
-台帳を増やしたいときは、このファイルにクラスを足して `LEDGERS` に並べる。
+ここを直すと、DB の列・マークダウンの形・検査の内容が同時に変わる。
 
-    from schema import LEDGERS, create_db, headers
+**入れ物は二種類ある。**
+
+| | 何で書くか | 何を入れるか |
+| --- | --- | --- |
+| `TABLES` | `records/*.md` の**表**。一行 = 一レコード | 行が短くて数が多いもの。出来事・行動・数・関係・火種 |
+| `ENTRIES` | **1 ファイル = 1 レコード。** front matter ＋ 本文 | 文章のつくもの。人物・物・用語・概念 |
+
+ENTRIES では、front matter が**レコードとして管理する形**、本文が**文章として書く形**。
+**同じファイルに併存させる**ことで、二重管理にならないようにしている。
+
+    from schema import TABLES, ENTRIES, LEDGERS, create_db, headers
 
 読み方と使いどころは core/chronicle.md。
 """
@@ -20,16 +29,16 @@ NUM = "num"        # 数。文字が混ざっていても数だけ拾う
 
 
 def md(header, kind=TEXT, req=False, ref=None):
-    """マークダウン側の列見出しと、その約束ごと。
+    """マークダウン側の名前と、その約束ごと。
 
-    header — 表の見出し。**これが機械の読む鍵になる**
+    header — 表なら**列見出し**、記事なら **front matter のキー**。これが機械の読む鍵
     req    — 空を許さない
-    ref    — 他の台帳の id を指す列（検査で使う）
+    ref    — 他の台帳の id を指す（検査で使う）
     """
     return {"md": header, "kind": kind, "req": req, "ref": ref}
 
 
-DERIVED = {"derived": True}   # マークダウンには出ない、組み上げのときに作る列
+DERIVED = {"derived": True}   # マークダウンには書かない、組み上げのときに作る列
 
 
 class Base(DeclarativeBase):
@@ -46,7 +55,10 @@ class Row:
     pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     src: Mapped[str] = mapped_column(String, default="", info=DERIVED)
 
-    md_file = ""        # 台帳のファイル名
+    source = "table"    # "table"（records/*.md の表）か "entry"（1 ファイル 1 レコード）
+    md_file = ""        # 表のときの台帳ファイル名
+    entry_kind = ""     # 記事のときの front matter「記録」の値
+    dir_hint = ""       # 記事を置く目安の場所（人間の整理用。強制しない）
     ja = ""             # 日本語の呼び名
     about = ""          # 何を貯めるか
     key_col = None      # 一意な id の列名（あれば）
@@ -54,6 +66,20 @@ class Row:
     inherit = ()        # 同じ id の初出から引き継ぐ列
     id_prefix = ""      # id を自動で振るときの接頭辞
 
+
+class EntryCols:
+    """1 ファイル 1 レコードの記事だけが持つ列。
+
+    path — リポジトリからの相対パス。**断面からこれを辿って本文を読む**
+    body — front matter の下の文章。まるごと入れてあるので `sql` で本文も探せる
+    """
+
+    source = "entry"
+    path: Mapped[str] = mapped_column(String, default="", info=DERIVED)
+    body: Mapped[str] = mapped_column(String, default="", info=DERIVED)
+
+
+# ===================================================== 表（records/*.md）
 
 class Place(Row, Base):
     __tablename__ = "place"
@@ -66,26 +92,6 @@ class Place(Row, Base):
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
     kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
     parent: Mapped[str] = mapped_column(String, default="", info=md("親", ref="place"))
-    note: Mapped[str] = mapped_column(String, default="", info=md("備考"))
-
-
-class Actor(Row, Base):
-    __tablename__ = "actor"
-    md_file, ja = "人物.md", "人物"
-    about = "行動の主語になれるもの。個人・組織・国・集団・仕組み"
-    key_col, id_prefix = "id", "ac"
-
-    id: Mapped[str] = mapped_column(String, info=md("id", req=True))
-    name: Mapped[str] = mapped_column(String, info=md("名", req=True))
-    kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
-    star: Mapped[str] = mapped_column(String, default="", info=md("星"))
-    line: Mapped[str] = mapped_column(String, default="", info=md("系統"))
-    born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
-    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
-    died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
-    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
-    org: Mapped[str] = mapped_column(String, default="", info=md("所属", ref="actor"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("居所", ref="place"))
     note: Mapped[str] = mapped_column(String, default="", info=md("備考"))
 
 
@@ -182,17 +188,107 @@ class Tension(Row, Base):
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
 
+# ============================================ 記事（1 ファイル 1 レコード）
+
+class Actor(EntryCols, Row, Base):
+    __tablename__ = "actor"
+    entry_kind, ja = "人物", "人物"
+    dir_hint = "<星>/characters/"
+    about = "行動の主語になれるもの。個人・組織・国・集団・仕組み"
+    key_col, id_prefix = "id", "ac"
+
+    id: Mapped[str] = mapped_column(String, info=md("id", req=True))
+    name: Mapped[str] = mapped_column(String, info=md("名", req=True))
+    read: Mapped[str] = mapped_column(String, default="", info=md("読み"))
+    kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
+    star: Mapped[str] = mapped_column(String, default="", info=md("星"))
+    line: Mapped[str] = mapped_column(String, default="", info=md("系統"))
+    born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
+    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
+    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    org: Mapped[str] = mapped_column(String, default="", info=md("所属", ref="actor"))
+    place: Mapped[str] = mapped_column(String, default="", info=md("居所", ref="place"))
+    note: Mapped[str] = mapped_column(String, default="", info=md("一言"))
+    ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
+
+
+class Thing(EntryCols, Row, Base):
+    __tablename__ = "thing"
+    entry_kind, ja = "物", "物"
+    dir_hint = "<星>/objects/"
+    about = "主語にならないもの。道具・資源・現象・施設"
+    key_col, id_prefix = "id", "th"
+
+    id: Mapped[str] = mapped_column(String, info=md("id", req=True))
+    name: Mapped[str] = mapped_column(String, info=md("名", req=True))
+    read: Mapped[str] = mapped_column(String, default="", info=md("読み"))
+    kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
+    star: Mapped[str] = mapped_column(String, default="", info=md("星"))
+    place: Mapped[str] = mapped_column(String, default="", info=md("場所", ref="place"))
+    born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
+    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
+    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    note: Mapped[str] = mapped_column(String, default="", info=md("一言"))
+    ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
+
+
+class Term(EntryCols, Row, Base):
+    __tablename__ = "term"
+    entry_kind, ja = "用語", "用語"
+    dir_hint = "terms/"
+    about = ("作中に出る語。正式名称と通称、表と裏、いつ使われたか。"
+             "**語の側の記録。** 実体（人物・物）が別にあるなら「実体」で指す")
+    key_col, id_prefix = "id", "tm"
+
+    id: Mapped[str] = mapped_column(String, info=md("id", req=True))
+    name: Mapped[str] = mapped_column(String, info=md("名", req=True))
+    read: Mapped[str] = mapped_column(String, default="", info=md("読み"))
+    kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
+    star: Mapped[str] = mapped_column(String, default="", info=md("星"))
+    born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
+    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
+    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    formal: Mapped[str] = mapped_column(String, default="", info=md("正式名称"))
+    common: Mapped[str] = mapped_column(String, default="", info=md("通称"))
+    face: Mapped[str] = mapped_column(String, default="", info=md("表"))
+    back: Mapped[str] = mapped_column(String, default="", info=md("裏"))
+    entity: Mapped[str] = mapped_column(String, default="", info=md("実体"))
+    state: Mapped[str] = mapped_column(String, default="", info=md("状態"))
+    ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
+
+
+class Concept(EntryCols, Row, Base):
+    __tablename__ = "concept"
+    entry_kind, ja = "概念", "概念"
+    dir_hint = "concepts/"
+    about = "その世界がどう動いているかの考え方。星をまたいで効く"
+    key_col, id_prefix = "id", "cn"
+
+    id: Mapped[str] = mapped_column(String, info=md("id", req=True))
+    name: Mapped[str] = mapped_column(String, info=md("名", req=True))
+    star: Mapped[str] = mapped_column(String, default="", info=md("星"))
+    summary: Mapped[str] = mapped_column(String, info=md("一言", req=True))
+    ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
+
+
+TABLES = (Place, Event, Act, Metric, Bond, Tension)
+ENTRIES = (Actor, Thing, Term, Concept)
 # 組み上げる順。場所と人物が先（他がここの id を指すため）
-LEDGERS = (Place, Actor, Event, Act, Metric, Bond, Tension)
+LEDGERS = (Place, Actor, Thing, Term, Concept, Event, Act, Metric, Bond, Tension)
+
+ENTRY_KEY = "記録"     # front matter のこのキーで、どの記事かを決める
 
 
 def md_cols(model):
-    """マークダウンに出る列を、表の並び順で返す。"""
+    """マークダウンに書く列を、定義順で返す。"""
     return [c for c in model.__table__.columns if c.info.get("md")]
 
 
 def headers(model):
-    """マークダウンの表の見出し。**これが表の形そのもの**。"""
+    """表なら列見出し、記事なら front matter のキー。**これが形そのもの**。"""
     return [c.info["md"] for c in md_cols(model)]
 
 
@@ -200,17 +296,23 @@ def by_header(model):
     return {c.info["md"]: c for c in md_cols(model)}
 
 
-def stamp_of(model, col):
-    """STAMP 列に対になる並べ替え用の列名。"""
-    return f"{col.name}_k" if col.info.get("kind") == STAMP else None
-
-
 def find(name):
     """テーブル名・ファイル名・日本語名のどれでも引けるようにする。"""
     for model in LEDGERS:
-        if name in (model.__tablename__, model.md_file, model.ja, model.md_file.removesuffix(".md")):
+        names = {model.__tablename__, model.ja, model.entry_kind}
+        if model.md_file:
+            names |= {model.md_file, model.md_file.removesuffix(".md")}
+        if name in names - {""}:
             return model
     raise KeyError(name)
+
+
+def entry_model(kind):
+    """front matter の「記録」の値から記事の型を引く。"""
+    for model in ENTRIES:
+        if model.entry_kind == kind:
+            return model
+    raise KeyError(kind)
 
 
 def create_db(path):
@@ -233,6 +335,9 @@ def open_db(path):
 
 
 if __name__ == "__main__":
-    for m in LEDGERS:
-        print(f"{m.ja}（{m.__tablename__} / {m.md_file}）— {m.about}")
-        print("  | " + " | ".join(headers(m)) + " |")
+    for group, title in ((TABLES, "表（records/*.md）"), (ENTRIES, "記事（1 ファイル 1 レコード）")):
+        print(f"== {title}")
+        for m in group:
+            where = f"records/{m.md_file}" if m.md_file else f"{ENTRY_KEY}: {m.entry_kind}"
+            print(f"{m.ja}（{m.__tablename__} / {where}）— {m.about}")
+            print("  " + " | ".join(headers(m)))
