@@ -14,7 +14,6 @@ from stamp import Stamp
 
 class StampType(TypeDecorator):
     """作中の時刻。**桁を並べた整数として持つ。**
-
     python の `datetime` は 9999 年までしか持てず、作中の暦はそれを越える。
     `tools/stamp.py` の `Stamp` を、`年月日時分秒` を並べた整数へ落として入れる。
     並びがそのまま時の前後になるので、`ORDER BY` も `<` もそのまま効く。
@@ -24,15 +23,18 @@ class StampType(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
-        return None if value is None else Stamp.parse(value).to_int()
+        if value is None:
+            return None
+        parsed = Stamp.parse(value)
+        if parsed is None:
+            raise ValueError(f"Invalid stamp value: {value}")
+        return parsed.to_int()
 
     def process_result_value(self, value, dialect):
         return Stamp.from_int(value)
 
 
 class Base(DeclarativeBase):
-    src: Mapped[str] = mapped_column(String, default="", nullable=False)
-
     text: Mapped[str] = mapped_column(String, default="", nullable=False)
 
     id: Mapped[str] = mapped_column(

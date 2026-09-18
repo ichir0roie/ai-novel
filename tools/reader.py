@@ -102,11 +102,8 @@ def split_stamped_name(stem: str) -> tuple[stamp.Stamp, str]:
 
 # ---------------------------------------------------------------- 欄の対応表
 
-COMMON = {"出典": "src"}
-
 FIELDS: dict[str, dict[str, str]] = {
     "place": {
-        **COMMON,
         "名": "name", "種別": "kind", "親": "parent_id",
         "世界番号": "location_world", "惑星番号": "location_planet",
         "経度": "location_longitude", "緯度": "location_latitude",
@@ -115,32 +112,26 @@ FIELDS: dict[str, dict[str, str]] = {
         "始": "start", "終": "end",
     },
     "event": {
-        **COMMON,
         "名": "name", "種別": "kind", "時": "time",
         "親": "parent_event_id", "場所": "place_id",
         "始": "start", "終": "end",
     },
     "kind": {
-        **COMMON,
         "名": "name", "読み": "read", "種別": "kind",
         "世界": "root_place_id", "始": "start", "終": "end",
     },
     "object": {
-        **COMMON,
         "名": "name", "読み": "read", "種別": "kind",
         "分類": "kind_id", "世界": "root_place_name",
         "始": "start", "終": "end",
     },
     "object_place": {
-        **COMMON,
         "場所": "place_id", "始": "start", "終": "end",
     },
     "object_event": {
-        **COMMON,
         "出来事": "event_id", "始": "start", "終": "end",
     },
     "character": {
-        **COMMON,
         "名": "name", "読み": "read",
         "出身": "born_place_id", "種族": "race_id", "所属": "belong_id",
         "性別": "sex", "背丈": "height", "体格": "build", "見た目": "looks",
@@ -152,15 +143,12 @@ FIELDS: dict[str, dict[str, str]] = {
         "生": "start", "没": "end",
     },
     "character_place": {
-        **COMMON,
         "場所": "place_id", "始": "start", "終": "end",
     },
     "character_event": {
-        **COMMON,
         "出来事": "event_id", "始": "start", "終": "end",
     },
     "term": {
-        **COMMON,
         "名": "name", "種別": "kind",
         "世界": "restrict_world_id", "星": "restrict_planet_id",
         "場所": "restrict_place_id",
@@ -271,7 +259,6 @@ def read_record(path: str, table: str, defaults: dict) -> Record:
             values[column] = float(digits)
 
     values["text"] = body
-    values.setdefault("src", "")
     for column in ("name", "read", "kind"):
         if column in fields.values():
             values.setdefault(column, "")
