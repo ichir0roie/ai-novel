@@ -4,7 +4,7 @@
 
 ```
 novels/stories/<作品名>/
-  meta.md           企画（core/templates/story-meta-template.md から）。**上段を持つ**
+  meta.md           企画（core/templates/story-meta-template.md から）。**データを持つ**
   plot.md           全体プロット（core/templates/plot-template.md から）
   episodes/
     1.md            第 1 話（core/templates/episode-template.md から）
@@ -17,7 +17,7 @@ novels/stories/<作品名>/
 ## 原則
 
 - **1 話 1 ファイル。** ファイル名は話数だけ（`1.md` `12.md`）。**ゼロ埋めしない**。
-  **本文のファイルに上段（YAML）を書かない。** 原稿だけを置く。
+  **本文のファイルにデータ（`# data`）を書かない。** 原稿だけを置く。
   話数はファイル名、題は先頭の見出しから台帳へ入る（chronicle.md）
 - **話の頭に作業メモを HTML コメントで置く。** 変化するもの・引きの型・前話からの接続
 - **過去話は指示があるまで書き換えない。** 修正は差分がわかる形で
