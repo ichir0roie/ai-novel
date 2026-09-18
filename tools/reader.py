@@ -190,7 +190,7 @@ REFS: dict[str, dict[str, str]] = {
                   "belong_id": "object"},
     "character_place": {"place_id": "place"},
     "character_event": {"event_id": "event"},
-    "term": {"parent_id": "term", "restrict_world_id": "place",
+    "term": {"parent_term_id": "term", "restrict_world_id": "place",
              "restrict_planet_id": "place", "restrict_place_id": "place"},
 }
 
@@ -438,7 +438,7 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
             rec = read_record(path, "term", {
                 "id": f"{parent}/{name}" if parent else name,
                 "name": name,
-                **({"parent_id": parent} if parent else {}),
+                **({"parent_term_id": parent} if parent else {}),
             })
         except (ReadError, yaml.YAMLError) as err:
             fail(path, err)
@@ -449,13 +449,13 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
     # 上の語で決めた縛りは、下の語も引き継ぐ
     by_id = {r.id: r for r in lib.of("term")}
     for rec in lib.of("term"):
-        parent = by_id.get(str(rec.values.get("parent_id") or ""))
+        parent = by_id.get(str(rec.values.get("parent_term_id") or ""))
         while parent is not None:
             for column in ("restrict_world_id", "restrict_planet_id",
                            "restrict_place_id"):
                 if not rec.values.get(column) and parent.values.get(column):
                     rec.values[column] = parent.values[column]
-            parent = by_id.get(str(parent.values.get("parent_id") or ""))
+            parent = by_id.get(str(parent.values.get("parent_term_id") or ""))
 
 
 def _resolve_refs(lib: Library) -> None:
