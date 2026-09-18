@@ -9,6 +9,7 @@ python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
 python3 tools/novel.py template --kind 人物
 python3 tools/novel.py index --world SFファンタジー
+python3 tools/novel.py episodes --story めぐる旅路は枯れゆく世界と --before 11
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 ```
 
@@ -54,6 +55,8 @@ REQUIRED = {
     "character_place": ("character_id", "place_id"),
     "character_event": ("character_id", "event_id"),
     "term": ("name",),
+    "story": ("name",),
+    "episode": ("story_id", "number"),
 }
 
 # 指し先の対応は `reader.REFS` が持っている。ここで足すのは、
@@ -107,7 +110,8 @@ def build(lib: reader.Library, path: str = DB):
     engine = schema.create_db(path)
     order = ["place", "kind", "object", "character", "event",
              "object_place", "object_event",
-             "character_place", "character_event", "term"]
+             "character_place", "character_event", "term",
+             "story", "episode"]
     with Session(engine) as session:
         for table in order:
             for rec in lib.of(table):
@@ -330,6 +334,40 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------- 直前の話
+
+def episodes(lib: reader.Library, story: str, before: int | None,
+             count: int, body: bool) -> str:
+    """**次の話を考える前に、直前の話を読む。** 既定で 10 話ぶん。
+
+    `--before 11` を付けると 11 話より前（001〜010）を返す。付けなければ
+    いちばん新しいほうから数える。`--list` を付けると原稿は出さず、
+    話数と題と字数だけを並べる（どこまで書いたかの確認用）。
+    """
+    found = [r for r in lib.of("episode")
+             if r.values.get("story_id") == story]
+    if not found:
+        names = "、".join(sorted(str(r.values.get("name") or r.id)
+                                for r in lib.of("story"))) or "（作品がない）"
+        return f"「{story}」という作品の話がない。作品: {names}"
+
+    found.sort(key=lambda r: r.values.get("number") or 0)
+    if before is not None:
+        found = [r for r in found if (r.values.get("number") or 0) < before]
+    found = found[-count:] if count > 0 else found
+
+    out = [f"# 直前の話 / {story} / {len(found)} 話", ""]
+    for rec in found:
+        title = rec.values.get("title") or ""
+        out.append(f"## 第 {rec.values.get('number')} 話"
+                   + (f"　{title}" if title else "")
+                   + f"（{rec.values.get('letters') or 0} 字）")
+        out.append("")
+        if body:
+            out += [rec.values.get("text", ""), ""]
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- 索引
 
 def index(lib: reader.Library, world: str) -> str:
@@ -374,7 +412,28 @@ def index(lib: reader.Library, world: str) -> str:
 
 # ---------------------------------------------------------------- 雛形
 
+# 本文は上段を持たない。雛形もマークダウンの見出しから始める
+EPISODE_TEMPLATE = """<!-- 置き場所: novels/stories/<作品名>/episodes/NNN.md（三桁ゼロ埋め） -->
+<!-- **このファイルに上段（YAML）を書かない。** 原稿だけを置く。
+     話数はファイル名、題は下の見出しから台帳に入る（core/chronicle.md）。
+     書きはじめる前に、直前の 10 話を読む:
+     python3 tools/novel.py episodes --story <作品名> -->
+
+# 第 <N> 話　<サブタイトル>
+
+<!-- 作業メモ。本文には残さない
+- 変化するもの:
+- 引きの型:
+- 前話からの接続:
+-->
+
+<本文をここから。冒頭 3 行で場所・時間・誰がいるかを示す>
+"""
+
+
 def template(table: str) -> str:
+    if table == "episode":
+        return EPISODE_TEMPLATE
     fields = reader.FIELDS[table]
     head = ["---"] + [f"{k}:" for k in fields] + ["---", "",
                       f"# （{reader.LABEL[table]}の名）", "",
@@ -393,6 +452,8 @@ def template(table: str) -> str:
         "character_event":
             "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
         "term": "novels/terms/**/<語>/<語>.md",
+        "story": "novels/stories/<作品名>/meta.md",
+        "episode": "novels/stories/<作品名>/episodes/NNN.md",
     }[table]
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
 
@@ -411,9 +472,18 @@ OWNER_DIR = {
 ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
             "character": "characters", "term": "terms"}
 
+# 上段を持たないレコード。書き戻すときは `text` をそのまま原稿として書く
+BODY_ONLY = {"episode"}
+
 
 def _record_path(table: str, rec_id: str, owner_id: str | None) -> str:
     """id から置き場所を逆に組む。**id がそのまま置き場所を持っている。**"""
+    if table == "story":
+        return os.path.join(NOVELS, "stories", rec_id, "meta.md")
+    if table == "episode":
+        story, number = rec_id.rsplit("/", 1)
+        return os.path.join(NOVELS, "stories", story, "episodes",
+                            f"{number}.md")
     if table in ROOT_DIR:
         root = ROOT_DIR[table]
         if table == "kind":
@@ -480,11 +550,15 @@ def dump(engine, lib: reader.Library) -> list[str]:
                 path = existing_path.get((table, row.id)) \
                     or _record_path(table, row.id, owner_id)
                 text_body = (row.text or "").strip()
-                content = ("---\n"
-                           + yaml.safe_dump(head, allow_unicode=True,
-                                            sort_keys=False,
-                                            default_flow_style=False)
-                           + "---\n\n" + text_body + "\n")
+                if table in BODY_ONLY:
+                    # 本文は原稿がそのまま中身。上段を足さない
+                    content = text_body + "\n"
+                else:
+                    content = ("---\n"
+                               + yaml.safe_dump(head, allow_unicode=True,
+                                                sort_keys=False,
+                                                default_flow_style=False)
+                               + "---\n\n" + text_body + "\n")
                 if os.path.exists(path):
                     with open(path, encoding="utf-8") as fh:
                         if fh.read() == content:
@@ -521,6 +595,14 @@ def main(argv=None):
 
     p = sub.add_parser("template", help="雛形を出す")
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
+
+    p = sub.add_parser("episodes", help="直前の話を読む。**次の話を考える前に**")
+    p.add_argument("--story", required=True)
+    p.add_argument("--before", type=int,
+                   help="この話数より前だけ。付けなければ最新から数える")
+    p.add_argument("--count", type=int, default=10, help="何話ぶん（既定 10）")
+    p.add_argument("--list", action="store_true",
+                   help="原稿を出さず、話数と題と字数だけ並べる")
 
     p = sub.add_parser("index", help="用語索引を書き出す")
     p.add_argument("--world", required=True)
@@ -584,6 +666,11 @@ def main(argv=None):
                 return 0
         print(f"「{args.id}」が見つからない", file=sys.stderr)
         return 1
+
+    if args.command == "episodes":
+        print(episodes(lib, args.story, args.before, args.count,
+                       body=not args.list))
+        return 0
 
     if args.command == "index":
         out = os.path.join(NOVELS, "worlds", args.world, "glossary.md")
