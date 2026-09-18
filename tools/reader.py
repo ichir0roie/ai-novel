@@ -17,7 +17,7 @@ novels/
   characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md   CharacterAction（行動）
   terms/**/<語>/<語>.md                      Term（入れ子。親は上のディレクトリ）
   stories/<作品名>/meta.md                    Story（作品。企画。上段を持つ）
-  stories/<作品名>/episodes/{nnn}.md          Episode（一話。**原稿そのもの**）
+  stories/<作品名>/episodes/{話数}.md          Episode（一話。**原稿そのもの**）
 ```
 
 `{時刻}` は `{年}_{mm}_{dd}`、時刻まで要るなら `{年}_{mm}_{dd}_{hhmmss}`
@@ -497,14 +497,16 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
             parent = _parent_of(parent)
 
 
-# `001.md` のような、三桁ゼロ埋めの話数
-_NUMBERED = re.compile(r"\A(\d{3,})\Z")
+# `3.md` のような、話数だけのファイル名。**ゼロ埋めしない**
+# （`003.md` と書かれていても数として同じに読む）
+_NUMBERED = re.compile(r"\A(\d+)\Z")
 
 
 def _read_stories(lib: Library, fail, stories_dir: str) -> None:
-    """`stories/<作品名>/meta.md` と `stories/<作品名>/episodes/{nnn}.md` を読む。
+    """`stories/<作品名>/meta.md` と `stories/<作品名>/episodes/{話数}.md` を読む。
 
-    **作品の id は作品名、話の id は `<作品名>/<nnn>`。** 話の `text` は
+    **作品の id は作品名、話の id は `<作品名>/<話数>`。** 話数はファイル名の
+    数がそのまま入る（`3.md` なら 3）。**ゼロ埋めしない。** 話の `text` は
     原稿そのもので、上段は持たない（本文のファイルに上段を足さない）。
     題は本文の先頭の見出し（`# 第 3 話　…`）から読む。
 
@@ -525,15 +527,16 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
         lib.stories.append(meta)
 
         for path in _md_files(os.path.join(story_dir, "episodes")):
-            number = _stem(path)
-            if not _NUMBERED.match(number):
+            found = _NUMBERED.match(_stem(path))
+            if not found:
                 fail(path, ReadError(
-                    "本文のファイル名が三桁ゼロ埋めの話数（`003.md`）になっていない"))
+                    "本文のファイル名が話数（`3.md`）になっていない"))
                 continue
+            number = int(found.group(1))
             try:
                 rec = read_record(path, "episode", {
                     "id": f"{story.id}/{number}", "story_id": story.id,
-                    "number": int(number),
+                    "number": number,
                 })
             except (ReadError, yaml.YAMLError) as err:
                 fail(path, err)

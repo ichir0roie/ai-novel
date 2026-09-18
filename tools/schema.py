@@ -292,7 +292,7 @@ class Story(Base):
 
 class Episode(Base):
     """
-    novels/stories/{story_name}/episodes/{nnn}.md
+    novels/stories/{story_name}/episodes/{話数}.md
 
     **一話。** `text` が原稿そのもの。上段の欄は持たない
     （本文のファイルに上段を足さない。書き戻すときも原稿だけを書く）。
@@ -301,7 +301,8 @@ class Episode(Base):
     __tablename__ = "episode"
 
     story_id: Mapped[str] = mapped_column(String, ForeignKey("story.id"))
-    number: Mapped[int | None] = mapped_column(Integer, comment="話数")
+    number: Mapped[int | None] = mapped_column(
+        Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(
         String, default="", comment="サブタイトル。本文の見出しから読む")
     letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
