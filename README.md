@@ -22,17 +22,23 @@ core/
   characters.md       キャラ造形のテクニック
   dialogue.md         会話文のテクニック
   workflow.md         執筆の進め方（設定 → プロット → 本文 → 推敲）
+  chronicle.md        世界の記録の取り方と、話を尽きさせない仕組み
   checklist.md        書き上げたあとの推敲チェックリスト
   templates/          世界観・キャラ・プロット・各話のひな形
 
 tools/
   roll.py             乱数ツール（設定をアバウトに決めるとき）
   tables.json         乱数テーブル
+  chronicle.py        台帳ツール（記録・断面の取り出し・矛盾の検査）
 
 worlds/<宇宙名>/        1 ディレクトリ = 1 宇宙
   world.md            宇宙全体の設定（暦・共通現象・星どうしの関係）
   rolls.md            乱数ログ（シードと調整理由）
   glossary.md         固有名詞・用語集
+  records/            台帳。時間つきの記録（→ core/chronicle.md）
+    config.json       星・光の遅れ・物語の現在
+    場所.md 人物.md 出来事.md 行動.md 指標.md 関係.md 火種.md
+  chronicle.db        台帳を組み上げた SQLite。git には入れない
   <星名>/
     planet.md         天文・地理・空気感
     history.md        年表と争点
@@ -51,7 +57,9 @@ stories/<作品名>/
 1. `core/principles.md` と `core/workflow.md` を読む
 2. 世界観を `core/templates/world-template.md` から起こして `worlds/<名前>/` に置く
 3. 作品を `core/templates/story-meta-template.md` と `plot-template.md` から起こして `stories/<名前>/` に置く
-4. `stories/<名前>/episodes/` に本文を書く
+4. 書く前に断面を取る（`python3 tools/chronicle.py brief --star <星> --year <年>`）
+5. `stories/<名前>/episodes/` に本文を書く
+6. 書けたら台帳に戻す（`chronicle.py add` → `chronicle.py check`）
 
 ## 命名規約
 
@@ -64,4 +72,5 @@ stories/<作品名>/
 
 - 「どの世界観か」「どの作品か」をパスで指定する（例: `worlds/<宇宙名>` を使って `stories/<作品名>` の 3 話を書いて）
 - 新しく決めた設定は本文だけに置かず、必ず `worlds/` 側にも書き戻す
+- 続きを書かせるときは話数ではなく**年と場所**で指定する（例: `--star 入植星 --year 4362 の断面から 2 話`）
 - 文体の好みが変わったら `core/writing-style.md` を直す。次からの全作品に効く

@@ -7,6 +7,8 @@ worlds/<宇宙名>/
   world.md          宇宙全体の設定（暦・共通現象・星どうしの関係）
   rolls.md          乱数ログ。引いた目とシード、調整の理由
   glossary.md       固有名詞の一覧。表記ゆれ防止
+  records/          台帳。いつ・どこで・誰が・いくつ（→ core/chronicle.md）
+  chronicle.db      台帳を組み上げた SQLite。git には入れない
   <星名>/
     planet.md       天文・地理・空気感
     history.md      年表と、歴史をめぐる争点
@@ -25,3 +27,5 @@ worlds/<宇宙名>/
 - **固有名詞は `glossary.md` に登録する**
 - **名づけは日本語として自然に。** 音読み二字熟語の造語を重ねない（`core/naming.md`）
 - **アバウトな要素は乱数で決める。** `tools/roll.py`。引いた目は `rolls.md` に全部残す
+- **文章が正、台帳が従。** `records/` は文章から起こす。**台帳にしか存在しない設定を作らない**
+- **時間のあるものは台帳にも入れる。** 出来事・行動・数・関係・火種。`tools/chronicle.py`
