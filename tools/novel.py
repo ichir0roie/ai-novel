@@ -375,8 +375,8 @@ def template(table: str) -> str:
     fields = reader.FIELDS[table]
     head = ["---"] + [f"{k}:" for k in fields] + ["---", "",
                       f"# （{reader.LABEL[table]}の名）", "",
-                      "（front matter の下は人間が読む文章。",
-                      "  front matter に書いたことを繰り返さない）"]
+                      "（上段の下は人間が読む文章。",
+                      "  上段に書いたことを繰り返さない）"]
     where = {
         "place": "novels/worlds/<世界線>/**/<場所>/<場所>.md",
         "event": "novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """新しい構造のマークダウンを読んで、`tools/schema.py` のレコードに起こす。
 
-**置き場所がレコードの種類を決める。** front matter は中身だけを持つ。
+**置き場所がレコードの種類を決める。** 上段は中身だけを持つ。
 
 ```
 novels/
@@ -21,7 +21,7 @@ novels/
 
 `{時刻}` は `{年}_{mm}_{dd}`、時刻まで要るなら `{年}_{mm}_{dd}_{hhmmss}`
 （`4340_01_01_耐用年数の満了.md` / `4340_01_01_093000_耐用年数の満了.md`）。
-front matter の中は `y/mm/dd hh:mm:ss` で書く（`tools/stamp.py`）。
+上段の中は `y/mm/dd hh:mm:ss` で書く（`tools/stamp.py`）。
 
 **ディレクトリ名と同じ名前の md だけが場所のレコード。** それ以外の md は
 自由文書として読み飛ばされるので、`解釈表.md` のような読み物を隣に置いてよい。
@@ -42,7 +42,7 @@ import yaml
 import schema
 import stamp
 
-# ---------------------------------------------------------------- front matter
+# ---------------------------------------------------------------- 上段
 
 _FM = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.S)
 
@@ -50,14 +50,14 @@ _FM = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.S)
 def split_front_matter(src: str) -> tuple[dict, str]:
     """`---` で挟んだ YAML と、その下の本文に割る。
 
-    front matter が無ければ `({}, 全文)` を返す。
+    上段が無ければ `({}, 全文)` を返す。
     """
     m = _FM.match(src.lstrip("﻿"))
     if not m:
         return {}, src.strip()
     head = yaml.safe_load(m.group(1)) or {}
     if not isinstance(head, dict):
-        raise ReadError("front matter が辞書になっていない")
+        raise ReadError("上段が辞書になっていない")
     # 空欄（`没:`）は None で来る。空文字と同じ扱いにしておく
     return {k: v for k, v in head.items()}, m.group(2).strip()
 
@@ -173,7 +173,7 @@ MODELS = {
 TIME_COLUMNS = {"time", "start", "end"}
 
 # 他のレコードを指す欄。**名前で書いてあっても id へ寄せ直す。**
-# 資料に id は書かないので、front matter に入るのは常に名前のほう。
+# 資料に id は書かないので、上段に入るのは常に名前のほう。
 REFS: dict[str, dict[str, str]] = {
     "place": {"parent_id": "place"},
     "event": {"place_id": "place", "parent_event_id": "event"},
