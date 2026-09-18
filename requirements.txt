@@ -1,0 +1,4 @@
+# tools/chronicle.py が使う
+# 台帳の形は tools/schema.py、記事の front matter は tools/ledger.py
+sqlalchemy>=2.0
+pyyaml>=6.0

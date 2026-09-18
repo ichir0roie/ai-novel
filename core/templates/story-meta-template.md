@@ -1,6 +1,6 @@
 # <作品タイトル>
 
-<!-- stories/<story-id>/meta.md として使う -->
+<!-- worlds/<宇宙名>/stories/<作品名>/meta.md として使う -->
 
 | 項目 | 内容 |
 | --- | --- |

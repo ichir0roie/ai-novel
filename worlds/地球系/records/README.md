@@ -1,0 +1,40 @@
+# records / 地球系
+
+**台帳。** 文章で書いた設定を、いつ・どこで・誰が・いくつ、の形に起こしたもの。
+読み方と使いどころは `core/chronicle.md`。
+
+**表の形は `tools/schema.py`（SQLAlchemy）が決めている。列を勝手に足さない。**
+いまの形は `python3 tools/chronicle.py schema` で見られる。
+
+**ここにあるのは表だけ。** 人物・物・用語・概念は 1 ファイル 1 レコードの記事として、
+`../terms/` `../concepts/` `../<星>/characters/` `../<星>/objects/` にある。
+
+```
+config.json   星と、光の遅れと、物語の現在
+場所.md       地理。親をたどって内側・外側を決める
+出来事.md     起きたこと
+行動.md       主語のある出来事。動機・代償・結果つき
+指標.md       数で追えるもの
+関係.md       誰と誰が、どういう間柄か
+火種.md       張っているもの。話はここから生える
+```
+
+## 守ること
+
+- **文章が正、台帳が従。** 食い違ったら `worlds/地球系/` の文章側を先に直す
+- **列の見出しを変えない。** スキーマと食い違う表は取り込まれず、`check` がエラーを出す
+- **出典のない行を足さない。** どの設定ファイルから来たかを必ず書く
+- **上書きしない、追記する。** 状態が変わったら新しい年の行を足す
+- **設定にない数は乱数で振る。** `tools/roll.py`。引いた目は `../rolls.md` へ
+- セル内の `|` は `\|`。改行は使えない（`<br>` で代用）
+
+## よく使う
+
+```
+python3 tools/chronicle.py brief --star 入植星 --year 4360 --place mushvan-land
+python3 tools/chronicle.py check
+python3 tools/chronicle.py add --table event --set 年=4361 ...
+```
+
+`world.db`（`worlds/地球系/world.db`）は組み上げた結果なので git に入れない。
+消しても `build` で戻る。
