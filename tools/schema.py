@@ -34,6 +34,40 @@ class StampType(TypeDecorator):
         return Stamp.from_int(value)
 
 
+LOCATION_COLUMNS = ("location_world", "location_planet",
+                    "location_x", "location_y", "location_z")
+
+_LOCATION_TAGS = ("w", "p", "x", "y", "z")
+
+
+def _digit(value) -> str:
+    """`4.0` を `4` に寄せて、座標を見た目の揺れなく並べる。"""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value).strip()
+    return str(int(number)) if number == int(number) else repr(number)
+
+
+def location_text(values) -> str | None:
+    """**場所の一意テキスト。** `w/p/x/y/z` を並べて一本の文字列にする。
+
+    `values` は辞書でもレコードの行でもよい。欠けている桁は `-` で埋める。
+    どの桁も無ければ `None`（座標を持たない場所）。
+
+    `w4/p1/x-/y-/z-` のように、上から順に並ぶ。前方一致がそのまま
+    「同じ世界線」「同じ星」の絞り込みになる。
+    """
+    get = values.get if hasattr(values, "get") else (
+        lambda column: getattr(values, column, None))
+    parts = [get(column) for column in LOCATION_COLUMNS]
+    if all(part in (None, "") for part in parts):
+        return None
+    return "/".join(
+        tag + ("-" if part in (None, "") else _digit(part))
+        for tag, part in zip(_LOCATION_TAGS, parts))
+
+
 class Base(DeclarativeBase):
     text: Mapped[str] = mapped_column(String, default="", nullable=False)
 
@@ -53,16 +87,18 @@ class Place(Base):
     kind: Mapped[str | None] = mapped_column(String)
     parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
-    location_world: Mapped[float | None] = mapped_column(DECIMAL)
-    location_planet: Mapped[int | None] = mapped_column(Integer)
-    location_longitude: Mapped[float | None] = mapped_column(DECIMAL, comment="経度")
-    location_latitude: Mapped[float | None] = mapped_column(DECIMAL, comment="緯度")
-    location_altitude: Mapped[float | None] = mapped_column(DECIMAL, comment="高度")
-
-    # 宇宙の座標系における位置を表すためのフィールド群
+    # 位置は**一つの座標系だけ**で持つ。緯度・経度・高度は持たない
+    # （星ごとに基準が変わり、上の場所と突き合わせられないため）。
+    location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W")
+    location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P")
     location_x: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 X")
     location_y: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Y")
     location_z: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Z")
+
+    location_key: Mapped[str | None] = mapped_column(
+        String, unique=True, index=True,
+        comment="場所の一意テキスト。`w/p/x/y/z` を並べて文字列にしたもの。"
+                "md には書かない。読み込みのときに組み立てる（location_text）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -71,18 +107,36 @@ class Place(Base):
 class Event(Base):
     """
     novels/worlds/{place_name}/**/events/{yyyymmddhhmmss}_{event_name}.md
+    novels/objects/{world_name}/**/{object_name}/actions/{yyyymmddhhmmss}_{action_name}.md
+    novels/characters/{born_place_name}/**/{character_name}/actions/{yyyymmddhhmmss}_{action_name}.md
+
+    **起きたことは、ぜんぶここに入る。** 場所で起きたことも、人物・個体が
+    したことも同じ表。行動は `character_id` / `object_id` が誰かを持ち、
+    掛かり先の出来事を `parent_event_id` が指す。
+    ある時刻・ある場所の要素は `place` と結んで一度に引ける。
     """
 
     __tablename__ = "event"
 
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String, default="")
-    time: Mapped[Stamp] = mapped_column(StampType)
+    time: Mapped[Stamp] = mapped_column(StampType, index=True)
 
     parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.id"))
 
-    place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    place_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("place.id"), index=True)
     place: Mapped[Place | None] = relationship(lazy="noload")
+
+    # **行動もここに入る。** 人物・個体の行動は別表を持たない。
+    # 誰の行動かをこの二つが持ち、掛かり先の出来事は `parent_event_id`。
+    # どちらも空なら、誰の行動でもない「ただ起きたこと」。
+    character_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("character.id"), index=True,
+        comment="その行動をした人物")
+    object_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("object.id"), index=True,
+        comment="その行動をした個体（群）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -153,19 +207,6 @@ class ObjectPlace(Base):
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class ObjectAction(Base):
-    """
-    {object_name}/actions/{yyyymmddhhmmss}_{action_name}.md
-    """
-    __tablename__ = "object_event"
-
-    object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
-    event_id: Mapped[str] = mapped_column(String, ForeignKey("event.id"))
-
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
-
-
 class Character(Base):
     """
     novels/characters/{born_place_name}/**/{character_name}/{character_name}.md
@@ -229,19 +270,6 @@ class CharacterPlace(Base):
 
     character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
-
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
-
-
-class CharacterAction(Base):
-    """
-    {character_name}/actions/{yyyymmddhhmmss}_{action_name}.md
-    """
-    __tablename__ = "character_event"
-
-    character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
-    event_id: Mapped[str] = mapped_column(String, ForeignKey("event.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
