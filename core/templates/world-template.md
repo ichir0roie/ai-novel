@@ -1,6 +1,7 @@
 # 世界観: <世界観名>
 
-<!-- worlds/<world-id>/world.md として使う -->
+<!-- novels/worlds/<世界線>/<世界線>.md として使う。front matter は
+     python3 tools/novel.py template --kind 場所 で出る -->
 
 ## 一言で
 
