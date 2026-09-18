@@ -11,10 +11,11 @@
 | `structure.md` | 構成・プロット・引き・伏線 |
 | `characters.md` | キャラ造形と書き分け |
 | `dialogue.md` | 会話文の作り方 |
+| `chronicle.md` | **世界の記録の取り方と、話を尽きさせない仕組み** |
 | `checklist.md` | 推敲チェックリスト |
 | `templates/` | 各種ひな形 |
 
-Python ツールは core の外、リポジトリ直下の `tools/` にある（`tools/roll.py` など）。
+Python ツールは core の外、リポジトリ直下の `tools/` にある（`tools/roll.py`、`tools/chronicle.py`）。
 
 ## 更新のしかた
 
