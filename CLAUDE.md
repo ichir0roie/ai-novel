@@ -35,6 +35,11 @@
 - **置き場所がレコードの種類を決める**: 一つにつき一ファイル。front matter がレコード、
   その下が文章。雛形は `python3 tools/novel.py template --kind 人物`。
   どこに置くかで何のレコードかが決まる（`core/chronicle.md`）
+- **id を書かない**: レコードの id は読み込みのときに上位の id と名から採番する。
+  他のレコードを指す欄（`親` `場所` `出来事` `分類` `種族` `所属`）には**名前**を書く
+- **語は入れ子にできる**: `novels/terms/<語>/term.md` がその語、
+  その下のディレクトリがぶら下がる語（`魔力/魔力切れ/term.md`）。
+  上位の語の `世界` `星` `場所` は下位にも引き継がれる
 - **群と個人を分ける**: 種族・国・組織など**まとまりとしての振る舞い**は
   `novels/objects/`（種別と個体）。**一人ひとりの人間**は
   `novels/characters/<出身地>/<人名>/character.md`。
@@ -47,7 +52,7 @@
   `python3 tools/novel.py check` を通す。
   **どの火種の値も動かない話は、削れる話。**
 - **`glossary.md` を手で書かない**: 用語索引は記事から作る。語を足すときは
-  `novels/terms/` にファイルを作り、`python3 tools/novel.py index --world <世界線>` で作り直す
+  `novels/terms/<語>/term.md` を作り（上位の語にぶら下がるならそのディレクトリの中へ）、`python3 tools/novel.py index --world <世界線>` で作り直す
 - **欄を勝手に足さない**: front matter の欄は `tools/schema.py` が一か所で決めている。
   欄を増やしたければ `schema.py` を直す。スキーマに無い欄は `check` で止まる
 - **用語は日本語として自然に**: 読者は日本人。日本的な漢字（訓読み）・ひらがな・
