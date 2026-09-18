@@ -18,7 +18,7 @@
 
 ## テーマ
 
-<この作品が何の話か。世界の骨格（`core/chronicle.md`「世界は割り算でできている」）の
+<この作品が何の話か。世界の骨格（[core/chronicle.md](../chronicle.md)「世界は割り算でできている」）の
  どこに触るかで書くと、火種と繋がる>
 
 ## ログライン
@@ -40,7 +40,7 @@
 | | | `novels/characters/<出身地>/**/<人名>/character.md` |
 
 <!-- 種別（`novels/objects/<世界線>/<種別>.md`）を直に指してもよい。
-     群は個体、一人ひとりは人物（`core/chronicle.md`） -->
+     群は個体、一人ひとりは人物（[core/chronicle.md](../chronicle.md)） -->
 
 ## 主要な群（種族・国・組織）
 
