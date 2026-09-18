@@ -9,6 +9,8 @@ python3 tools/novel.py stories --work めぐる旅路は枯れゆく世界と
 python3 tools/novel.py read <作品名>/1
 python3 tools/novel.py write <作品名>/3 --file 下書き.md
 python3 tools/novel.py brief --place ムシュヴァン --time 4360
+python3 tools/novel.py cast --story めぐる旅路は枯れゆく世界と
+python3 tools/novel.py sync <作品名>/<話数>   モード 3 を通したあと、同期フラグを立てる
 python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
 python3 tools/novel.py template --kind 人物
@@ -339,6 +341,120 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
     return "\n".join(out)
 
 
+# ------------------------------------------------------- 顔ぶれ（書く前の材料）
+
+def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
+         count: int, full: bool) -> str:
+    """**その話に出せる顔ぶれと、それぞれの直近の動き。**
+
+    作品が立つ場所の**一つ上**を基準にして、その配下の場所に
+    その時点で居る人物・個体を集め、一人（一群）ずつ直近 `count` 件の
+    出来事を並べる。`brief` が「世界がどうなっているか」なら、
+    こちらは「誰がいて、その人に何が起きたか」を出す。
+
+    `--full` を付けないかぎり、種別に `/裏` の付いた出来事は伏せる。
+    **本文を書くあいだは付けない。**
+    """
+    story_rec = next((r for r in lib.of("story")
+                      if story in (r.id, r.values.get("name"))), None)
+    if story_rec is None:
+        names = "、".join(sorted(str(r.id) for r in lib.of("story")))
+        return f"「{story}」という作品がない。作品: {names}"
+
+    places = {r.id: r for r in lib.of("place")}
+    here = story_rec.values.get("place_id")
+    if here not in places:
+        return f"「{story}」の meta.md に、台帳にある場所が書かれていない"
+
+    # 基準は作品の立つ場所の一つ上。無ければその場所そのもの
+    base = places[here].values.get("parent_id") or here
+    if base not in places:
+        base = here
+    inside = _descendants(base, places)
+
+    if when is None:
+        when = story_rec.values.get("start")
+    if when is None:
+        return f"「{story}」の meta.md に始まりの年がない。--time で渡す"
+
+    def visible(rec):
+        return full or HIDDEN not in str(rec.values.get("kind") or "")
+
+    owners = ["object", "character"]
+    by_id = {}
+    for table in owners:
+        by_id.update({r.id: (table, r) for r in lib.of(table)})
+
+    present = []
+    for table in owners:
+        for stay in lib.of(f"{table}_place"):
+            if stay.values.get("place_id") not in inside:
+                continue
+            start, end = stay.values.get("start"), stay.values.get("end")
+            if (start and start > when) or (end and end < when):
+                continue
+            found = by_id.get(stay.values[f"{table}_id"])
+            if not found:
+                continue
+            owner = found[1]
+            if owner.values.get("end") and owner.values["end"] < when:
+                continue
+            present.append((table, owner, stay.values["place_id"]))
+
+    # 同じ者が二つの居場所で挙がることがあるので、いちばん内側の一件に寄せる
+    unique = {}
+    for table, owner, place_id in present:
+        unique.setdefault(owner.id, (table, owner, place_id))
+
+    event_by_id = {r.id: r for r in lib.of("event")}
+    deeds: dict[str, list] = {}
+    for table in owners:
+        for deed in lib.of(f"{table}_event"):
+            owner_id = deed.values.get(f"{table}_id")
+            if owner_id not in unique:
+                continue
+            at = deed.values.get("start")
+            target = event_by_id.get(deed.values.get("event_id"))
+            if not at or at > when or target is None or not visible(target):
+                continue
+            deeds.setdefault(owner_id, []).append((at, target, deed))
+
+    out = [f"# 顔ぶれ / {story} / {when.year} 年", "",
+           "基準: " + str(places[base].values.get("name"))
+           + f"（{places[here].values.get('name')} の一つ上）",
+           f"配下の場所: {len(inside)} / 直近 {count} 件ずつ"
+           + ("" if full else "（裏は伏せてある）"), ""]
+
+    if not unique:
+        out += ["（その時点で、配下の場所に誰もいない）", ""]
+        return "\n".join(out)
+
+    def label_of(table, rec):
+        if table == "character":
+            return rec.values.get("race_id") or "人物"
+        return rec.values.get("kind") or rec.values.get("kind_id") or "個体"
+
+    for owner_id, (table, owner, place_id) in sorted(
+            unique.items(), key=lambda p: str(p[1][1].values["name"])):
+        out.append(f"## {owner.values['name']}"
+                   f"（{label_of(table, owner)}）{_span(owner)}")
+        out.append(f"- いま: {places[place_id].values.get('name')}")
+        for key, label in (("desire", "欲"), ("fear", "恐れ"),
+                           ("lie", "嘘"), ("need", "必要")):
+            if owner.values.get(key):
+                out.append(f"- {label}: {owner.values[key]}")
+        rows = sorted(deeds.get(owner_id, []), key=lambda p: p[0])[-count:]
+        if rows:
+            out.append("- 直近の出来事:")
+            for at, target, _ in reversed(rows):
+                out.append(f"  - {_year(at)} {target.values['name']}"
+                           f"　[{target.values.get('kind') or '—'}]")
+        else:
+            out.append("- 直近の出来事: （まだ無い）")
+        out.append("")
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- 直前の話
 
 def episodes(lib: reader.Library, story: str, before: int | None,
@@ -371,6 +487,37 @@ def episodes(lib: reader.Library, story: str, before: int | None,
         if body:
             out += [rec.values.get("text", ""), ""]
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------- 同期
+
+SYNC_NOTE = (
+    "**未同期の話がある。** その話で起きたことが台帳へ戻っていないので、\n"
+    "いま材料を読んでも、断面も顔ぶれも古いままになる。\n"
+    "先にモード 3（世界観更新）をやる: 出来事・人物行動を書き足して\n"
+    "`python3 tools/novel.py check` を通し、そのあと\n"
+    "`python3 tools/novel.py sync <作品名>/<話数>` でフラグを立てる。\n"
+    "どうしても先に読むだけ読みたいときは `--skip-sync` を付ける。")
+
+
+def unsynced(lib: reader.Library, story: str | None = None) -> list:
+    """同期フラグの立っていない話を、話数の順に返す。"""
+    found = [r for r in lib.of("episode") if not r.values.get("synced")]
+    if story:
+        found = [r for r in found if r.values.get("story_id") == story]
+    return sorted(found, key=lambda r: (str(r.values.get("story_id")),
+                                        r.values.get("number") or 0))
+
+
+def sync_warning(lib: reader.Library, story: str | None = None) -> str:
+    """未同期があれば知らせ文を返す。無ければ空。"""
+    rows = unsynced(lib, story)
+    if not rows:
+        return ""
+    lines = [f"- {r.values.get('story_id')} / 第 {r.values.get('number')} 話"
+             + (f"　{r.values.get('title')}" if r.values.get("title") else "")
+             for r in rows]
+    return "\n".join([SYNC_NOTE, ""] + lines)
 
 
 # ---------------------------------------------------------------- 索引
@@ -477,8 +624,10 @@ OWNER_DIR = {
 ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
             "character": "characters", "term": "terms"}
 
-# 上段を持たないレコード。書き戻すときは `text` をそのまま原稿として書く
-BODY_ONLY = {"episode"}
+# 上段に、限られた欄だけを書くレコード。話は原稿が中身なので、
+# 台帳の都合で持つ `同期` だけを上段に残す（話数はファイル名、
+# 題と字数は原稿から採り直すので書かない）
+HEAD_KEYS = {"episode": ("同期",)}
 
 
 def _record_path(table: str, rec_id: str, owner_id: str | None) -> str:
@@ -554,16 +703,14 @@ def dump(engine, lib: reader.Library) -> list[str]:
                 owner_id = getattr(row, owner_col) if owner_col else None
                 path = existing_path.get((table, row.id)) \
                     or _record_path(table, row.id, owner_id)
+                if table in HEAD_KEYS:
+                    head = {k: head.get(k, False) for k in HEAD_KEYS[table]}
                 text_body = (row.text or "").strip()
-                if table in BODY_ONLY:
-                    # 本文は原稿がそのまま中身。上段を足さない
-                    content = text_body + "\n"
-                else:
-                    content = ("---\n"
-                               + yaml.safe_dump(head, allow_unicode=True,
-                                                sort_keys=False,
-                                                default_flow_style=False)
-                               + "---\n\n" + text_body + "\n")
+                content = ("---\n"
+                           + yaml.safe_dump(head, allow_unicode=True,
+                                            sort_keys=False,
+                                            default_flow_style=False)
+                           + "---\n\n" + text_body + "\n")
                 if os.path.exists(path):
                     with open(path, encoding="utf-8") as fh:
                         if fh.read() == content:
@@ -625,11 +772,31 @@ def read_episode(engine, path: str) -> str:
     raise LookupError(f"「{story}」の {number} 話は db に無い")
 
 
-def write_episode(engine, path: str, text: str) -> str:
+def set_synced(engine, path: str, value: bool) -> str:
+    """話の同期フラグを立てる・下ろす。**戻り値は id。**
+
+    立てるのは、その話の出来事・人物行動を台帳へ戻したあと
+    （モード 3）。コードは中身を作れないので、ここは人が通す関門になる。
+    """
+    from sqlalchemy.orm import Session
+
+    story, number = _split_episode(path)
+    with Session(engine) as session:
+        row = session.get(schema.Episode, f"{story}/{number}")
+        if row is None:
+            raise LookupError(f"「{story}」の {number} 話は db に無い")
+        row.synced = value
+        session.commit()
+        return row.id
+
+
+def write_episode(engine, path: str, text: str, synced: bool = False) -> str:
     """話を一件、db へ書き入れる（無ければ作る）。**戻り値は id。**
 
     マークダウンはここでは触らない。ファイルになるのは `save`（書き出し）。
-    題と字数は原稿から採り直す。
+    題と字数は原稿から採り直す。**同期フラグは既定で下りる**（手で書いた話は、
+    モード 3 を通すまで未同期）。自動生成で出来事まで一緒に積んだときだけ
+    `synced=True` で書く。
     """
     from sqlalchemy.orm import Session
 
@@ -649,6 +816,7 @@ def write_episode(engine, path: str, text: str) -> str:
         row.text = text
         row.title = reader._episode_title(text)
         row.letters = len(text)
+        row.synced = synced
         session.commit()
     return rec_id
 
@@ -674,11 +842,31 @@ def main(argv=None):
     p.add_argument("path", help="<作品名>/<話数>（`めぐる旅路…/3`）")
     p.add_argument("--file", required=True,
                    help="本文の入ったファイル。`-` で標準入力")
+    p.add_argument("--synced", action="store_true",
+                   help="出来事まで一緒に積んだ自動生成のときだけ付ける。"
+                        "手で書いたときは付けない（既定は未同期）")
+
+    p = sub.add_parser("sync", help="話の同期フラグを立てる（モード 3 のあと）")
+    p.add_argument("path", nargs="?", help="<作品名>/<話数>。省くと未同期の一覧")
+    p.add_argument("--off", action="store_true", help="逆に下ろす")
+    p.add_argument("--story", help="一覧を作品で絞る")
 
     p = sub.add_parser("brief", help="断面を出す")
+    p.add_argument("--skip-sync", action="store_true",
+                   help="未同期の話があっても止まらない")
     p.add_argument("--place", required=True)
     p.add_argument("--time", required=True)
     p.add_argument("--reach", type=int, default=60)
+    p.add_argument("--full", action="store_true",
+                   help="裏も出す。**本文を書くあいだは付けない**")
+
+    p = sub.add_parser("cast", help="その話に出せる顔ぶれと、直近の出来事")
+    p.add_argument("--skip-sync", action="store_true",
+                   help="未同期の話があっても止まらない")
+    p.add_argument("--story", required=True)
+    p.add_argument("--time", help="付けなければ作品の始まりの年")
+    p.add_argument("--count", type=int, default=5,
+                   help="一人（一群）あたり何件（既定 5）")
     p.add_argument("--full", action="store_true",
                    help="裏も出す。**本文を書くあいだは付けない**")
 
@@ -693,6 +881,8 @@ def main(argv=None):
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
 
     p = sub.add_parser("episodes", help="直前の話を読む。**次の話を考える前に**")
+    p.add_argument("--skip-sync", action="store_true",
+                   help="未同期の話があっても止まらない")
     p.add_argument("--story", required=True)
     p.add_argument("--before", type=int,
                    help="この話数より前だけ。付けなければ最新から数える")
@@ -737,9 +927,23 @@ def main(argv=None):
               f"（レコード {len(lib.records)}）")
         return 0
 
+    # **読み出す前に同期を見る。** 未同期の話があると、断面も顔ぶれも
+    # その話の前のままになる（core/workflow.md 2-0）
+    if args.command in ("brief", "cast", "episodes") and not args.skip_sync:
+        warning = sync_warning(lib, getattr(args, "story", None))
+        if warning:
+            print(warning, file=sys.stderr)
+            return 1
+
     if args.command == "brief":
         print(brief(lib, args.place, reader.parse_time(args.time),
                     args.reach, args.full))
+        return 0
+
+    if args.command == "cast":
+        print(cast(lib, args.story,
+                   reader.parse_time(args.time) if args.time else None,
+                   args.count, args.full))
         return 0
 
     if args.command == "list":
@@ -785,6 +989,23 @@ def main(argv=None):
                 print("\t".join("" if v is None else str(v) for v in row))
         return 0
 
+    if args.command == "sync":
+        if args.path is None:
+            warning = sync_warning(lib, args.story)
+            print(warning or "未同期の話はない")
+            return 1 if warning else 0
+        if not os.path.exists(DB):
+            build(lib)
+        engine = schema.open_db(DB)
+        try:
+            rec_id = set_synced(engine, args.path, not args.off)
+        except (LookupError, ValueError) as err:
+            print(err, file=sys.stderr)
+            return 1
+        print(f"{rec_id} の同期フラグを"
+              f"{'下ろした' if args.off else '立てた'}（save で md に出る）")
+        return 0
+
     if args.command in ("stories", "read", "write"):
         if not os.path.exists(DB):
             build(lib)
@@ -800,6 +1021,9 @@ def main(argv=None):
             return 0
 
         if args.command == "read":
+            warning = sync_warning(lib, _split_episode(args.path)[0])
+            if warning:
+                print(warning + "\n", file=sys.stderr)
             try:
                 print(read_episode(engine, args.path), end="")
             except (LookupError, ValueError) as err:
@@ -810,7 +1034,7 @@ def main(argv=None):
         text = (sys.stdin.read() if args.file == "-"
                 else open(args.file, encoding="utf-8").read())
         try:
-            rec_id = write_episode(engine, args.path, text)
+            rec_id = write_episode(engine, args.path, text, args.synced)
         except (LookupError, ValueError) as err:
             print(err, file=sys.stderr)
             return 1

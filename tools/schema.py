@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 
 from sqlalchemy import (
-    BigInteger, Integer, String, DECIMAL, TypeDecorator,
+    BigInteger, Boolean, Integer, String, DECIMAL, TypeDecorator,
     create_engine, ForeignKey,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -294,8 +294,8 @@ class Episode(Base):
     """
     novels/stories/{story_name}/episodes/{話数}.md
 
-    **一話。** `text` が原稿そのもの。上段の欄は持たない
-    （本文のファイルに上段を足さない。書き戻すときも原稿だけを書く）。
+    **一話。** `text` が原稿そのもの。上段は `同期` だけを持つ。
+    話数はファイル名、題と字数は原稿から採る（書き戻すときも足さない）。
     """
 
     __tablename__ = "episode"
@@ -306,6 +306,11 @@ class Episode(Base):
     title: Mapped[str] = mapped_column(
         String, default="", comment="サブタイトル。本文の見出しから読む")
     letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
+    synced: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="同期フラグ。この話の出来事・行動が台帳へ戻してあるか。"
+                "自動生成時はオン、手で書いたときはオフ。"
+                "オフの話があるあいだは、次の話の材料を読み出せない")
 
 
 
