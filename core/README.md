@@ -15,11 +15,12 @@
 | `checklist.md` | 推敲チェックリスト |
 | `templates/` | 各種ひな形 |
 
-Python ツールは core の外、リポジトリ直下の `tools/` にある（`tools/roll.py`、`tools/chronicle.py`）。
+Python ツールは core の外、リポジトリ直下の `tools/` にある
+（`roll.py`、`chronicle.py`、`schema.py`、`ledger.py`）。
 
 ## 更新のしかた
 
 書いていて「次からはこうしよう」と思ったことは、その場でここに追記する。
-作品固有の判断は `stories/<作品名>/meta.md` へ、世界観固有の判断は `worlds/` へ。
+作品固有の判断は `worlds/<宇宙>/stories/<作品名>/meta.md` へ、世界観固有の判断は `worlds/<宇宙>/` へ。
 
 うまくいかなかった書き方も残す価値がある。禁じ手として書いておくと同じ失敗を繰り返さない。

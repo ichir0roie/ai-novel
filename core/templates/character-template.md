@@ -8,7 +8,7 @@
 | 所属 | |
 | 年齢 / 外見年齢 | |
 | 一人称 / 二人称 | |
-| 初登場 | <stories/<作品名>/episodes/NNN.md> |
+| 初登場 | <stories/<作品名>/episodes/NNN.md（この宇宙の中）> |
 
 ## 一言で
 

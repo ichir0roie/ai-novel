@@ -1,0 +1,2 @@
+# tools/chronicle.py が使う。台帳の形は tools/schema.py で定義している
+sqlalchemy>=2.0
