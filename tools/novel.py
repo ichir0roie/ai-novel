@@ -3,7 +3,11 @@
 
 ```
 python3 tools/novel.py check                 不備を探す。あればコード 1 で止まる
-python3 tools/novel.py build                 novels/novel.db を組み直す
+python3 tools/novel.py load                  **作業開始時。** md を db へ読み込む
+python3 tools/novel.py save                  **作業終了時。** db を md へ書き出す
+python3 tools/novel.py stories --work めぐる旅路は枯れゆく世界と
+python3 tools/novel.py read <作品名>/1
+python3 tools/novel.py write <作品名>/3 --file 下書き.md
 python3 tools/novel.py brief --place ムシュヴァン --time 4360
 python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
@@ -13,6 +17,7 @@ python3 tools/novel.py episodes --story めぐる旅路は枯れゆく世界と 
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 ```
 
+**`novels/` のマークダウンは直に開かない。** 読むのも書くのも、この入口を通す。
 形は `tools/schema.py` が一か所で決めている。読み方は `tools/reader.py`。
 """
 from __future__ import annotations
@@ -570,6 +575,84 @@ def dump(engine, lib: reader.Library) -> list[str]:
     return written
 
 
+# ------------------------------------------------------------ 本文（stories）
+
+def story_rows(engine) -> list:
+    """db の作品をぜんぶ返す（`schema.Story` の行）。"""
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as session:
+        rows = session.query(schema.Story).order_by(schema.Story.id).all()
+        session.expunge_all()
+        return rows
+
+
+def episode_rows(engine, story: str | None = None) -> list:
+    """db の話を返す（`schema.Episode` の行）。`story` で作品を絞れる。"""
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as session:
+        query = session.query(schema.Episode)
+        if story:
+            query = query.filter(schema.Episode.story_id == story)
+        rows = query.order_by(schema.Episode.story_id,
+                              schema.Episode.number).all()
+        session.expunge_all()
+        return rows
+
+
+def _split_episode(path: str) -> tuple[str, int]:
+    """`stories/<作品>/episodes/3.md` も `<作品>/3` も、作品名と話数へ解く。"""
+    rel = path.replace(os.sep, "/").strip("/")
+    if rel.startswith("stories/"):
+        rel = rel[len("stories/"):]
+    rel = rel.replace("/episodes/", "/")
+    if rel.endswith(".md"):
+        rel = rel[:-len(".md")]
+    story, _, number = rel.rpartition("/")
+    if not story or not number.isdigit():
+        raise ValueError("話の指し方は `<作品名>/<話数>` "
+                         "（`stories/<作品名>/episodes/3.md` でもよい）")
+    return story, int(number)
+
+
+def read_episode(engine, path: str) -> str:
+    """話を一件、原稿のまま読む。無ければ `LookupError`。"""
+    story, number = _split_episode(path)
+    for row in episode_rows(engine, story):
+        if row.number == number:
+            return row.text
+    raise LookupError(f"「{story}」の {number} 話は db に無い")
+
+
+def write_episode(engine, path: str, text: str) -> str:
+    """話を一件、db へ書き入れる（無ければ作る）。**戻り値は id。**
+
+    マークダウンはここでは触らない。ファイルになるのは `save`（書き出し）。
+    題と字数は原稿から採り直す。
+    """
+    from sqlalchemy.orm import Session
+
+    story, number = _split_episode(path)
+    if not text.endswith("\n"):
+        text += "\n"
+
+    with Session(engine) as session:
+        if session.get(schema.Story, story) is None:
+            raise LookupError(f"「{story}」という作品が db に無い。"
+                              "先に meta.md を作る")
+        rec_id = f"{story}/{number}"
+        row = session.get(schema.Episode, rec_id)
+        if row is None:
+            row = schema.Episode(id=rec_id, story_id=story, number=number)
+            session.add(row)
+        row.text = text
+        row.title = reader._episode_title(text)
+        row.letters = len(text)
+        session.commit()
+    return rec_id
+
+
 # ---------------------------------------------------------------- 入口
 
 def main(argv=None):
@@ -577,7 +660,20 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="command", required=True)
 
     sub.add_parser("check", help="不備を探す")
-    sub.add_parser("build", help="novels/novel.db を組み直す")
+    sub.add_parser("load", help="**作業開始時。** マークダウンを db へ読み込む")
+    sub.add_parser("build", help="load と同じ（旧い呼び名）")
+    sub.add_parser("save", help="**作業終了時。** db をマークダウンへ書き出す")
+
+    p = sub.add_parser("stories", help="作品と話の一覧を出す")
+    p.add_argument("--work", help="作品名で絞る")
+
+    p = sub.add_parser("read", help="話を一件読む（db から）")
+    p.add_argument("path", help="<作品名>/<話数>（`めぐる旅路…/3`）")
+
+    p = sub.add_parser("write", help="話を一件書く（db へ）")
+    p.add_argument("path", help="<作品名>/<話数>（`めぐる旅路…/3`）")
+    p.add_argument("--file", required=True,
+                   help="本文の入ったファイル。`-` で標準入力")
 
     p = sub.add_parser("brief", help="断面を出す")
     p.add_argument("--place", required=True)
@@ -631,13 +727,14 @@ def main(argv=None):
         print(f"error {len(errors)} 件")
         return 1 if errors else 0
 
-    if args.command == "build":
+    if args.command in ("build", "load"):
         errors = inspect(lib)
         if errors:
             print("error が残っているので組めない。check を先に通す", file=sys.stderr)
             return 1
         build(lib)
-        print(f"{os.path.relpath(DB, REPO)} を組み直した")
+        print(f"{os.path.relpath(DB, REPO)} を組み直した"
+              f"（レコード {len(lib.records)}）")
         return 0
 
     if args.command == "brief":
@@ -688,11 +785,55 @@ def main(argv=None):
                 print("\t".join("" if v is None else str(v) for v in row))
         return 0
 
+    if args.command in ("stories", "read", "write"):
+        if not os.path.exists(DB):
+            build(lib)
+        engine = schema.open_db(DB)
+
+        if args.command == "stories":
+            for row in story_rows(engine):
+                if args.work and args.work != row.id:
+                    continue
+                print(f"{row.id}\t{row.world_id or ''}")
+                for ep in episode_rows(engine, row.id):
+                    print(f"  {ep.number}\t{ep.title}\t{ep.letters} 字")
+            return 0
+
+        if args.command == "read":
+            try:
+                print(read_episode(engine, args.path), end="")
+            except (LookupError, ValueError) as err:
+                print(err, file=sys.stderr)
+                return 1
+            return 0
+
+        text = (sys.stdin.read() if args.file == "-"
+                else open(args.file, encoding="utf-8").read())
+        try:
+            rec_id = write_episode(engine, args.path, text)
+        except (LookupError, ValueError) as err:
+            print(err, file=sys.stderr)
+            return 1
+        print(f"{rec_id} を db へ書いた（save で md に出る）")
+        return 0
+
+    if args.command == "save":
+        if not os.path.exists(DB):
+            print("先に load して db を組む", file=sys.stderr)
+            return 1
+        engine = schema.open_db(DB)
+        written = dump(engine, lib)
+        for path in written:
+            print(f"更新: {path}")
+        print(f"{len(written)} 件を書き出した" if written else "変更なし")
+        return 0
+
     if args.command == "dump":
         if not os.path.exists(DB):
             print("先に build して db を組む", file=sys.stderr)
             return 1
-        written = dump(schema.open_db(DB), lib)
+        engine = schema.open_db(DB)
+        written = dump(engine, lib)
         for path in written:
             print(f"更新: {path}")
         print(f"{len(written)} 件を書き直した" if written else "変更なし")

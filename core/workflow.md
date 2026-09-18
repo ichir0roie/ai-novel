@@ -29,6 +29,19 @@
 
 置き場所の決まりは chronicle.md。形は `tools/schema.py` が決めている。
 
+## どのモードでも共通：md は python 越しにしか触らない
+
+`novels/` のマークダウンを直に開かない。**作業の始めに読み込み、終わりに書き出す。**
+
+```
+python3 tools/novel.py load     はじめに一度。md を novels/novel.db へ入れる
+python3 tools/novel.py save     おわりに一度。db を md へ書き出す
+```
+
+作業中は db 相手に読み書きする。設定は `brief` `list` `show` `sql` で読み、
+本文は `stories` `read` `write` で読み書きする（一覧は CLAUDE.md）。
+入口が足りなければ `tools/` に関数を足す。md を直に開いて済ませない。
+
 ---
 
 # 1 世界観構成モード
