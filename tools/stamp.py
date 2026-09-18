@@ -87,7 +87,7 @@ class Stamp:
             if len(text) > 6:
                 raise StampError(
                     f"年として長すぎる: {text}。"
-                    f"日付まで書くなら y/m/d hh:mm:ss の形にする")
+                    f"日付まで書くなら y/mm/dd hh:mm:ss の形にする")
             return cls(int(text))
 
         parts = [p for p in re.split(r"[-/ :T]", text) if p != ""]
@@ -98,7 +98,7 @@ class Stamp:
 
     @classmethod
     def from_stem(cls, stem: str) -> "Stamp | None":
-        """ファイル名の頭（`4340_1_1` / `4340_1_1_093000`）を読む。"""
+        """ファイル名の頭（`4340_01_01` / `4340_01_01_093000`）を読む。"""
         m = _STEM.match(stem)
         if not m:
             return None
@@ -131,16 +131,16 @@ class Stamp:
     def stem(self) -> str:
         """ファイル名の頭。**0 時ちょうどなら時刻を書かない。**
 
-        `4340_1_1` / `4340_1_1_093000`
+        `4340_01_01` / `4340_01_01_093000`
         """
-        head = f"{self.year}_{self.month}_{self.day}"
+        head = f"{self.year}_{self.month:02d}_{self.day:02d}"
         if (self.hour, self.minute, self.second) == (0, 0, 0):
             return head
         return f"{head}_{self.hour:02d}{self.minute:02d}{self.second:02d}"
 
     def __str__(self) -> str:
-        """**`y/m/d hh:mm:ss`。** 中でも外でもこの書き方で通す。"""
-        return (f"{self.year}/{self.month}/{self.day} "
+        """**`y/mm/dd hh:mm:ss`。** 中でも外でもこの書き方で通す。"""
+        return (f"{self.year}/{self.month:02d}/{self.day:02d} "
                 f"{self.hour:02d}:{self.minute:02d}:{self.second:02d}")
 
     def __repr__(self) -> str:

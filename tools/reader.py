@@ -19,9 +19,9 @@ novels/
   stories/<作品>/…                           本文。台帳には入らない
 ```
 
-`{時刻}` は `{年}_{月}_{日}`、時刻まで要るなら `{年}_{月}_{日}_{hhmmss}`
-（`4340_1_1_耐用年数の満了.md` / `4340_1_1_093000_耐用年数の満了.md`）。
-front matter の中は `y/m/d hh:mm:ss` で書く（`tools/stamp.py`）。
+`{時刻}` は `{年}_{mm}_{dd}`、時刻まで要るなら `{年}_{mm}_{dd}_{hhmmss}`
+（`4340_01_01_耐用年数の満了.md` / `4340_01_01_093000_耐用年数の満了.md`）。
+front matter の中は `y/mm/dd hh:mm:ss` で書く（`tools/stamp.py`）。
 
 **ディレクトリ名と同じ名前の md だけが場所のレコード。** それ以外の md は
 自由文書として読み飛ばされるので、`解釈表.md` のような読み物を隣に置いてよい。
@@ -90,13 +90,13 @@ _STAMPED = re.compile(r"\A(\d+_\d{1,2}_\d{1,2}(?:_\d{6})?)_(.+)\Z")
 
 
 def split_stamped_name(stem: str) -> tuple[stamp.Stamp, str]:
-    """`4340_1_1_耐用年数の満了` を時刻と名に割る。"""
+    """`4340_01_01_耐用年数の満了` を時刻と名に割る。"""
     m = _STAMPED.match(stem)
     when = stamp.Stamp.from_stem(m.group(1)) if m else None
     if when is None:
         raise ReadError(
-            "ファイル名が {年}_{月}_{日}_{名}.md "
-            "（時刻まで入れるなら {年}_{月}_{日}_{hhmmss}_{名}.md）になっていない")
+            "ファイル名が {年}_{mm}_{dd}_{名}.md "
+            "（時刻まで入れるなら {年}_{mm}_{dd}_{hhmmss}_{名}.md）になっていない")
     return when, m.group(2)
 
 
