@@ -4,7 +4,7 @@
 ```
 python3 tools/novel.py check                 不備を探す。あればコード 1 で止まる
 python3 tools/novel.py build                 novels/novel.db を組み直す
-python3 tools/novel.py brief --place 霧湊大陸 --time 4360
+python3 tools/novel.py brief --place ムシュヴァン --time 4360
 python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
 python3 tools/novel.py template --kind 人物
