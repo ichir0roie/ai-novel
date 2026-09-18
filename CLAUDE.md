@@ -12,6 +12,38 @@
 直そうとして、既存の手順と矛盾する・情報が足りないと分かったら、
 **その場で作者に相談する。** 憶測で決めない。
 
+## novels/ は python 越しにしか触らない
+
+**`novels/` のマークダウンを直に開かない。読むのも書くのも `tools/novel.py` を通す。**
+エディタで開く、`cat` で覗く、直接書き換える——どれもしない。
+（`core/` と `tools/` は普通に読み書きしてよい。ここでの話は `novels/` だけ）
+
+```
+作業開始時  python3 tools/novel.py load     md を全部 novels/novel.db へ読み込む
+（作業中）  読むのも書くのも db 相手。下の表の入口を使う
+作業終了時  python3 tools/novel.py save     db を md へ書き出す
+```
+
+**始めに `load`、終わりに `save`。** これを飛ばすと、db と md が食い違う。
+
+| したいこと           | 使う入口                                                      |
+| -------------------- | ------------------------------------------------------------- |
+| 断面を読む           | `novel.py brief --place <場所> --time <年>`                    |
+| 一覧を見る           | `novel.py list --kind <種類> [--world <世界線>]`               |
+| 設定を一件読む       | `novel.py show <名前または id>`                                |
+| 直前の話を読む       | `novel.py episodes --story <作品名>`                            |
+| 作品と話の一覧       | `novel.py stories [--work <作品名>]`                           |
+| 話を一件読む         | `novel.py read <作品名>/<話数>`                                |
+| 話を書く・直す       | `novel.py write <作品名>/<話数> --file <下書き>`                |
+| 設定を足す・直す     | `novel.py sql "INSERT …" / "UPDATE …"`（そのあと `save`）      |
+| 込み入った問い合わせ | `novel.py sql "SELECT …"`                                      |
+
+下書きは scratch（リポジトリの外）に置いて `write` で流し込む。
+**`novels/` の下に手でファイルを作らない。**
+
+足りない読み方が出てきたら、その場で `tools/` に関数を足す。
+md を直に開いて済ませない（それが一番「あとで効かなくなる」やり方）。
+
 ## まず、どのモードかを決める
 
 作業は三つに分かれている。**一度に一つだけやる**（workflow.md）。
@@ -34,11 +66,12 @@
 - writing-style.md — 文体の方針
 - naming.md — 用語と名づけの基準
 - 対象作品の直前 10 話（`novel.py episodes --story <作品名>`）
-- 対象作品の `novels/stories/<作品名>/meta.md` と `plot.md`
-- その作品が立つ世界線の `novels/worlds/<世界線>/` の各ファイル
+- 対象作品の企画（`novel.py show <作品名>`）と `plot.md`
+- その作品が立つ世界線の断面（`novel.py brief`）
 
 ## 守ること
 
+- **md を直に開かない**: 上の通り。`load` で始めて `save` で終える
 - **次の話を考える前に、直前の 10 話を読む**:
   `python3 tools/novel.py episodes --story <作品名>` で直近 10 話の原稿が出る。
   **展開を考えるのはそのあと**（workflow.md 2-1）。前話の引きを拾い落とさない
@@ -92,6 +125,7 @@
 
 ## 作業の締め
 
+- **`python3 tools/novel.py save` で db を md へ書き出す**（これを忘れると仕事が消える）
 - 記録をいじったら `python3 tools/novel.py check` を通してから終える（error 0）
 - 語を足したら `python3 tools/novel.py index --world <世界線>` を走らせる
 - 作業が終わったら、claude webで動作している場合、以下を実施。
@@ -100,6 +134,7 @@
 
 ## やらないこと
 
+- `novels/` のマークダウンを直に読む・直に書き換える
 - 頼まれていない話数を勝手に書き足す
 - 既存の原稿を「ついでに」推敲して書き換える（指示があったときだけ）
 - プロットにない大きな展開の追加（提案は歓迎、無断実装は不可）
