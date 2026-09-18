@@ -112,7 +112,7 @@ python3 tools/novel.py index --world <世界線>      # 用語索引を作り直
 その時点の世界を一枚に出す。
 
 ```
-python3 tools/novel.py brief --place 霧湊大陸 --time 4360
+python3 tools/novel.py brief --place ムシュヴァン --time 4360
 ```
 
 いま数がどちらへ動いているか、まだ終わっていない出来事は何か、

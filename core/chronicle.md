@@ -231,7 +231,7 @@ front matter の `世界` が持つ（下位の語は上位から引き継ぐ）
 その話が立つ**場所と年**を決めて、断面を出す。設定ファイルを読み直すより先にこれ。
 
 ```
-python3 tools/novel.py brief --place 霧湊大陸 --time 4360
+python3 tools/novel.py brief --place ムシュヴァン --time 4360
 ```
 
 出るもの。
@@ -261,7 +261,7 @@ python3 tools/novel.py brief --place 霧湊大陸 --time 4360
 workflow.md「3 世界観更新モード」を見る。**文章に書き戻したら、記録にも足す。**
 
 ```
-novels/worlds/SFファンタジー/霧湊大陸/events/4361_03_01_登録の値が二倍になる.md
+novels/worlds/SFファンタジー/ムシュヴァン/events/4361_03_01_登録の値が二倍になる.md
 ```
 
 ```markdown
