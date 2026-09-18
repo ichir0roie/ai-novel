@@ -30,8 +30,6 @@ import decimal
 import os
 import sys
 
-import yaml
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import reader  # noqa: E402
@@ -702,9 +700,9 @@ def index(lib: reader.Library, world: str) -> str:
 
 # ---------------------------------------------------------------- 雛形
 
-# 本文は上段を持たない。雛形もマークダウンの見出しから始める
+# 本文はデータを持たない。雛形もマークダウンの見出しから始める
 EPISODE_TEMPLATE = """<!-- 置き場所: novels/stories/<作品名>/episodes/<話数>.md（`3.md`。ゼロ埋めしない） -->
-<!-- **このファイルに上段（YAML）を書かない。** 原稿だけを置く。
+<!-- **このファイルにデータ（`# data`）を書かない。** 原稿だけを置く。
      話数はファイル名、題は下の見出しから台帳に入る（core/chronicle.md）。
      書きはじめる前に、直前の 10 話を読む:
      python3 tools/novel.py episodes --story <作品名> -->
@@ -725,14 +723,14 @@ def template(table: str) -> str:
     if table == "episode":
         return EPISODE_TEMPLATE
     fields = reader.FIELDS[table]
-    head = ["---"] + [f"{k}:" for k in fields] + ["---", "",
+    head = ["# data"] + [f"{k}:" for k in fields] + ["# text", "",
                       f"# （{reader.LABEL[table]}の名）", "",
-                      "（上段の下は人間が読む文章。",
-                      "  上段に書いたことを繰り返さない）"]
+                      "（データの下は人間が読む文章。",
+                      "  データに書いたことを繰り返さない）"]
     where = {
         "place": "novels/worlds/<世界線>/**/<場所>/<場所>.md",
         "event": ("novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md"
-                  "（行動なら <個体>/actions/ か <人名>/actions/ の下）"),
+                  "（行動なら <個体>/events/ か <人名>/events/ の下）"),
         "kind": "novels/objects/<世界線>/<種別>.md",
         "object": "novels/objects/<世界線>/**/<個体>/<個体>.md",
         "object_place": "novels/objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md",
@@ -754,10 +752,10 @@ OWNER_DIR = {
     "character_place": ("character_id", "places", "characters"),
 }
 
-# 出来事は**持ち主が三通り**ある。行動は人物・個体の `actions/` へ、
+# 出来事は**持ち主が三通り**ある。行動は人物・個体の `events/` へ、
 # それ以外は場所の `events/` へ戻す。上から先に当たったものを使う
-EVENT_OWNER = (("character_id", "actions", "characters"),
-               ("object_id", "actions", "objects"),
+EVENT_OWNER = (("character_id", "events", "characters"),
+               ("object_id", "events", "objects"),
                ("place_id", "events", "worlds"))
 
 
@@ -778,8 +776,8 @@ def _owner_dir(table: str, row) -> tuple[str | None, str, str]:
 ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
             "character": "characters", "term": "terms"}
 
-# 上段に、限られた欄だけを書くレコード。話は原稿が中身なので、
-# 台帳の都合で持つ `同期` だけを上段に残す（話数はファイル名、
+# データに、限られた欄だけを書くレコード。話は原稿が中身なので、
+# 台帳の都合で持つ `同期` だけをデータに残す（話数はファイル名、
 # 題と字数は原稿から採り直すので書かない）
 HEAD_KEYS = {"episode": ("同期",)}
 
@@ -809,7 +807,7 @@ def _record_path(table: str, rec_id: str, row) -> str:
 def dump(engine, lib: reader.Library) -> list[str]:
     """DB の行をマークダウンへ書き戻す。**書き出したパスを返す。**
 
-    上段の欄は `reader.FIELDS` を逆に辿って作る。他を指す欄は、
+    データの欄は `reader.FIELDS` を逆に辿って作る。他を指す欄は、
     **指し先の実際の `name`** に戻す（id の末尾ではない。出来事などは
     id の末尾が時刻つきのファイル名なので、id の末尾＝名前ではない）。
     時刻は `y/mm/dd hh:mm:ss` で書く。内容が変わらないファイルは書き直さない。
@@ -855,17 +853,17 @@ def dump(engine, lib: reader.Library) -> list[str]:
                             value = int(value)
                     elif isinstance(value, float) and value == int(value):
                         value = int(value)
+                    elif isinstance(value, bool):
+                        value = "true" if value else "false"
                     head[key] = value
                 path = existing_path.get((table, row.id)) \
                     or _record_path(table, row.id, row)
                 if table in HEAD_KEYS:
                     head = {k: head.get(k, False) for k in HEAD_KEYS[table]}
                 text_body = (row.text or "").strip()
-                content = ("---\n"
-                           + yaml.safe_dump(head, allow_unicode=True,
-                                            sort_keys=False,
-                                            default_flow_style=False)
-                           + "---\n\n" + text_body + "\n")
+                content = ("# data\n"
+                           + "".join(f"{k}: {v}\n" for k, v in head.items())
+                           + "# text\n\n" + text_body + "\n")
                 if os.path.exists(path):
                     with open(path, encoding="utf-8") as fh:
                         if fh.read() == content:

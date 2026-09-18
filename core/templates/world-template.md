@@ -1,13 +1,13 @@
 # 世界観: <世界観名>
 
-<!-- novels/worlds/<世界線>/<世界線>.md として使う。front matter は
+<!-- novels/worlds/<世界線>/<世界線>.md として使う。データ（`# data`）は
      python3 tools/novel.py template --kind 場所 で出る。
      世界線の根に要るのは三つだけ。座標の欄は星より下でしか使わない -->
 
-```yaml
----
+```
+# data
 種別: 世界線
----
+# text
 ```
 
 ## 一言で

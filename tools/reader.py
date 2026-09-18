@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """新しい構造のマークダウンを読んで、`tools/schema.py` のレコードに起こす。
 
-**置き場所がレコードの種類を決める。** 上段は中身だけを持つ。
+**置き場所がレコードの種類を決める。** データは中身だけを持つ。
 
 ```
 novels/
@@ -11,18 +11,18 @@ novels/
   objects/<世界線>/<種別>.md                  Kind（種別）
   objects/<世界線>/**/<個体>/<個体>.md         Object（個体。群として振る舞うもの）
   objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md  ObjectPlace（居場所の推移）
-  objects/<世界線>/**/<個体>/actions/{時刻}_{名}.md   Event（行動。個体つきの出来事）
+  objects/<世界線>/**/<個体>/events/{時刻}_{名}.md   Event（行動。個体つきの出来事）
   characters/<出身地>/**/<人名>/<人名>.md      Character（人物。一人ひとり）
   characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md  CharacterPlace（居場所の推移）
-  characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md   Event（行動。人物つきの出来事）
+  characters/<出身地>/**/<人名>/events/{時刻}_{名}.md   Event（行動。人物つきの出来事）
   terms/**/<語>/<語>.md                      Term（入れ子。親は上のディレクトリ）
-  stories/<作品名>/meta.md                    Story（作品。企画。上段を持つ）
+  stories/<作品名>/meta.md                    Story（作品。企画。データを持つ）
   stories/<作品名>/episodes/{話数}.md          Episode（一話。**原稿そのもの**）
 ```
 
 `{時刻}` は `{年}_{mm}_{dd}`、時刻まで要るなら `{年}_{mm}_{dd}_{hhmmss}`
 （`4340_01_01_耐用年数の満了.md` / `4340_01_01_093000_耐用年数の満了.md`）。
-上段の中は `y/mm/dd hh:mm:ss` で書く（`tools/stamp.py`）。
+データの中は `y/mm/dd hh:mm:ss` で書く（`tools/stamp.py`）。
 
 **ディレクトリ名と同じ名前の md だけが場所のレコード。** それ以外の md は
 自由文書として読み飛ばされるので、`解釈表.md` のような読み物を隣に置いてよい。
@@ -38,29 +38,32 @@ import os
 import re
 from dataclasses import dataclass, field
 
-import yaml
-
 import schema
 import stamp
 
-# ---------------------------------------------------------------- 上段
+# ---------------------------------------------------------------- データ
 
-_FM = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.S)
+_FM = re.compile(r"\A# data\s*\n(.*?)\n?# text\s*\n?(.*)\Z", re.S)
 
 
 def split_front_matter(src: str) -> tuple[dict, str]:
-    """`---` で挟んだ YAML と、その下の本文に割る。
+    """`# data` と `# text` で分けた欄と、その下の本文に割る。
 
-    上段が無ければ `({}, 全文)` を返す。
+    データが無ければ `({}, 全文)` を返す。
     """
     m = _FM.match(src.lstrip("﻿"))
     if not m:
         return {}, src.strip()
-    head = yaml.safe_load(m.group(1)) or {}
-    if not isinstance(head, dict):
-        raise ReadError("上段が辞書になっていない")
-    # 空欄（`没:`）は None で来る。空文字と同じ扱いにしておく
-    return {k: v for k, v in head.items()}, m.group(2).strip()
+    head: dict = {}
+    for line in m.group(1).splitlines():
+        if not line.strip():
+            continue
+        key, sep, value = line.partition(":")
+        if not sep:
+            raise ReadError(f"データの行が「欄:値」になっていない: {line!r}")
+        # 空欄（`没:`）は空文字。無かったことにしておく
+        head[key.strip()] = value.strip()
+    return head, m.group(2).strip()
 
 
 class ReadError(Exception):
@@ -154,7 +157,7 @@ FIELDS: dict[str, dict[str, str]] = {
         "名": "name", "世界": "world_id", "場所": "place_id",
         "語り": "narration", "状態": "state", "始": "start", "終": "end",
     },
-    # 本文の上段は `同期` だけ。話数はファイル名、題と字数は原稿から読む
+    # 本文のデータは `同期` だけ。話数はファイル名、題と字数は原稿から読む
     "episode": {"話数": "number", "題": "title", "字数": "letters",
                 "同期": "synced"},
 }
@@ -181,7 +184,7 @@ MODELS = {
 TIME_COLUMNS = {"time", "start", "end"}
 
 # 他のレコードを指す欄。**名前で書いてあっても id へ寄せ直す。**
-# 資料に id は書かないので、上段に入るのは常に名前のほう。
+# 資料に id は書かないので、データに入るのは常に名前のほう。
 REFS: dict[str, dict[str, str]] = {
     "place": {"parent_id": "place"},
     "event": {"place_id": "place", "parent_event_id": "event",
@@ -299,13 +302,13 @@ def _place_dirs(world_dir: str):
 
 def _read_owners(lib, fail, *, root, table, owner_column,
                  sub_tables, defaults):
-    """`<入れ物>/**/<名>/<名>.md` と、その下の `places/` `actions/` を読む。
+    """`<入れ物>/**/<名>/<名>.md` と、その下の `places/` `events/` を読む。
 
     個体（`objects/`）と人物（`characters/`）は、置き場所と欄が違うだけで
     形は同じ。**一か所で読む。** マーカーは `<場所>/<場所>.md` と同じく、
     ディレクトリ名と同じ名前の md。
 
-    **`actions/` は出来事（`event`）になる。** 行動の別表は持たない。
+    **`events/` は出来事（`event`）になる。** 行動の別表は持たない。
     誰の行動かは `character_id` / `object_id`、掛かり先は `親`（`出来事`）。
     """
     place_table, event_table = sub_tables
@@ -323,14 +326,14 @@ def _read_owners(lib, fail, *, root, table, owner_column,
             trail = os.path.relpath(current, root).replace(os.sep, "/")
             try:
                 owner = read_record(path, table, defaults(top, name, trail))
-            except (ReadError, yaml.YAMLError) as err:
+            except ReadError as err:
                 fail(path, err)
                 continue
             lib.records.append(owner)
 
             for sub, sub_table, ref in (
                 ("places", place_table, "place_id"),
-                ("actions", event_table, "parent_event_id"),
+                ("events", event_table, "parent_event_id"),
             ):
                 for item in _stamped_files(os.path.join(current, sub)):
                     try:
@@ -344,7 +347,7 @@ def _read_owners(lib, fail, *, root, table, owner_column,
                             # 場所は掛かり先の出来事から継ぐ（_inherit_places）
                             base.update(name=label, time=when)
                         lib.records.append(read_record(item, sub_table, base))
-                    except (ReadError, yaml.YAMLError) as err:
+                    except ReadError as err:
                         fail(item, err)
 
 
@@ -373,7 +376,7 @@ def read_library(novels_dir: str) -> Library:
                     "name": name,
                     **({"parent_id": parent} if parent else {}),
                 })
-            except (ReadError, yaml.YAMLError) as err:
+            except ReadError as err:
                 fail(path, err)
                 continue
             place_id_of_dir[place_dir] = rec.id
@@ -388,7 +391,7 @@ def read_library(novels_dir: str) -> Library:
                     "id": f"{place_id}/{_stem(path)}", "name": name,
                     "time": when, "place_id": place_id,
                 }))
-            except (ReadError, yaml.YAMLError) as err:
+            except ReadError as err:
                 fail(path, err)
 
     # --- 種別 -------------------------------------------------------------
@@ -398,7 +401,7 @@ def read_library(novels_dir: str) -> Library:
                 "id": f"{world}/{_stem(path)}", "name": _stem(path),
                 "root_place_id": world,
             }))
-        except (ReadError, yaml.YAMLError) as err:
+        except ReadError as err:
             fail(path, err)
 
     # --- 個体と、その居場所・行動 -----------------------------------------
@@ -526,7 +529,7 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
                     "name": name,
                     **({"parent_term_id": container_parent} if container_parent else {}),
                 })
-            except (ReadError, yaml.YAMLError) as err:
+            except ReadError as err:
                 fail(path, err)
             else:
                 own_id = rec.id
@@ -548,7 +551,7 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
                     **({"parent_term_id": effective_parent}
                        if effective_parent else {}),
                 })
-            except (ReadError, yaml.YAMLError) as err:
+            except ReadError as err:
                 fail(path, err)
                 continue
             lib.records.append(rec)
@@ -586,7 +589,7 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
 
     **作品の id は作品名、話の id は `<作品名>/<話数>`。** 話数はファイル名の
     数がそのまま入る（`3.md` なら 3）。**ゼロ埋めしない。** 話の `text` は
-    原稿そのもので、上段は持たない（本文のファイルに上段を足さない）。
+    原稿そのもので、データは持たない（本文のファイルにデータを足さない）。
     題は本文の先頭の見出し（`# 第 3 話　…`）から読む。
 
     `meta.md` の無いディレクトリは作品として採らない。企画を書く前の
@@ -599,7 +602,7 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
             continue
         try:
             story = read_record(meta, "story", {"id": name, "name": name})
-        except (ReadError, yaml.YAMLError) as err:
+        except ReadError as err:
             fail(meta, err)
             continue
         lib.records.append(story)
@@ -617,7 +620,7 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
                     "id": f"{story.id}/{number}", "story_id": story.id,
                     "number": number, "synced": False,
                 })
-            except (ReadError, yaml.YAMLError) as err:
+            except ReadError as err:
                 fail(path, err)
                 continue
             body = rec.values.get("text", "")

@@ -50,12 +50,12 @@ def _digit(value) -> str:
 
 
 def location_text(values) -> str | None:
-    """**場所の一意テキスト。** `w/p/x/y/z` を並べて一本の文字列にする。
+    """**場所の一意テキスト。** `w/p/lon/lat/alt` を並べて一本の文字列にする。
 
     `values` は辞書でもレコードの行でもよい。欠けている桁は `-` で埋める。
     どの桁も無ければ `None`（座標を持たない場所）。
 
-    `w4/p1/x-/y-/z-` のように、上から順に並ぶ。前方一致がそのまま
+    `w4/p1/lon-/lat-/alt-` のように、上から順に並ぶ。前方一致がそのまま
     「同じ世界線」「同じ星」の絞り込みになる。
     """
     get = values.get if hasattr(values, "get") else (
@@ -91,13 +91,13 @@ class Place(Base):
     # （星ごとに基準が変わり、上の場所と突き合わせられないため）。
     location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W")
     location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P")
-    location_x: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 X")
-    location_y: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Y")
-    location_z: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Z")
+    location_longitude: Mapped[float | None] = mapped_column(DECIMAL, comment="経度 X")
+    location_latitude: Mapped[float | None] = mapped_column(DECIMAL, comment="緯度 Y")
+    location_altitude: Mapped[float | None] = mapped_column(DECIMAL, comment="高度 Z")
 
     location_key: Mapped[str | None] = mapped_column(
         String, unique=True, index=True,
-        comment="場所の一意テキスト。`w/p/x/y/z` を並べて文字列にしたもの。"
+        comment="場所の一意テキスト。`w/p/lon/lat/alt` を並べて文字列にしたもの。"
                 "md には書かない。読み込みのときに組み立てる（location_text）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
@@ -107,8 +107,8 @@ class Place(Base):
 class Event(Base):
     """
     novels/worlds/{place_name}/**/events/{yyyymmddhhmmss}_{event_name}.md
-    novels/objects/{world_name}/**/{object_name}/actions/{yyyymmddhhmmss}_{action_name}.md
-    novels/characters/{born_place_name}/**/{character_name}/actions/{yyyymmddhhmmss}_{action_name}.md
+    novels/objects/{world_name}/**/{object_name}/events/{yyyymmddhhmmss}_{action_name}.md
+    novels/characters/{born_place_name}/**/{character_name}/events/{yyyymmddhhmmss}_{action_name}.md
 
     **起きたことは、ぜんぶここに入る。** 場所で起きたことも、人物・個体が
     したことも同じ表。行動は `character_id` / `object_id` が誰かを持ち、
@@ -322,7 +322,7 @@ class Episode(Base):
     """
     novels/stories/{story_name}/episodes/{話数}.md
 
-    **一話。** `text` が原稿そのもの。上段は `同期` だけを持つ。
+    **一話。** `text` が原稿そのもの。データは `同期` だけを持つ。
     話数はファイル名、題と字数は原稿から採る（書き戻すときも足さない）。
     """
 
@@ -339,7 +339,6 @@ class Episode(Base):
         comment="同期フラグ。この話の出来事・行動が台帳へ戻してあるか。"
                 "自動生成時はオン、手で書いたときはオフ。"
                 "オフの話があるあいだは、次の話の材料を読み出せない")
-
 
 
 def create_db(path):
