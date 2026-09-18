@@ -7,7 +7,7 @@
 
 ## 設定側の名と、作中の名を分ける
 
-**設定側**（`novels/worlds/` `characters/` `actors/` `terms/`）と**本文側**（`novels/stories/`）では、
+**設定側**（`novels/worlds/` `objects/` `characters/` `terms/`）と**本文側**（`novels/stories/`）では、
 名づけの基準が逆になる。**先にどちら側の名かを決める。**
 
 | | 基準 | 例 |
