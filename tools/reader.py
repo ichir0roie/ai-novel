@@ -170,6 +170,9 @@ MODELS = {
     "term": schema.Term,
 }
 
+# 台帳の外。本文の md をそのまま持つ
+DOCUMENT_MODEL = schema.Document
+
 TIME_COLUMNS = {"time", "start", "end"}
 
 # 他のレコードを指す欄。**名前で書いてあっても id へ寄せ直す。**
@@ -213,7 +216,7 @@ class Record:
         return self.values.get("id", "")
 
     def instance(self):
-        return MODELS[self.table](**self.values)
+        return (MODELS.get(self.table) or DOCUMENT_MODEL)(**self.values)
 
 
 @dataclass
@@ -224,6 +227,7 @@ class Library:
     records: list[Record] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)
     stories: list[str] = field(default_factory=list)
+    documents: list[Record] = field(default_factory=list)
 
     def of(self, table: str) -> list[Record]:
         return [r for r in self.records if r.table == table]
@@ -402,15 +406,46 @@ def read_library(novels_dir: str) -> Library:
     # --- 語（入れ子）------------------------------------------------------
     _read_terms(lib, fail, os.path.join(novels_dir, "terms"))
 
-    # --- 本文（読むだけ。台帳には入れない） -------------------------------
+    # --- 本文（中身ごと db へ入れる） -------------------------------------
     stories_dir = os.path.join(novels_dir, "stories")
     for current, dirs, files in os.walk(stories_dir):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-        lib.stories += [os.path.join(current, f)
-                        for f in sorted(files) if f.endswith(".md")]
+        for name in sorted(f for f in files if f.endswith(".md")):
+            path = os.path.join(current, name)
+            lib.stories.append(path)
+            try:
+                lib.documents.append(read_document(path, novels_dir))
+            except OSError as err:
+                fail(path, err)
 
     _resolve_refs(lib)
     return lib
+
+
+def read_document(path: str, novels_dir: str) -> Record:
+    """本文の md を一件、中身ごと読む。**上段は無い。ファイルの中身がすべて。**
+
+    id は `novels/` からの相対パス。作品名と種類（`meta` `plot` `episode`
+    `other`）は置き場所から決まる。話数は `episodes/NNN.md` の NNN。
+    """
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+
+    rel = os.path.relpath(path, novels_dir).replace(os.sep, "/")
+    parts = rel.split("/")
+    story = parts[1] if len(parts) > 2 else ""
+    stem = _stem(path)
+    if len(parts) > 3 and parts[2] == "episodes":
+        kind, number = "episode", int(stem) if stem.isdigit() else None
+    elif stem in ("meta", "plot"):
+        kind, number = stem, None
+    else:
+        kind, number = "other", None
+
+    return Record(table="document", path=path, values={
+        "id": rel, "story": story, "kind": kind,
+        "number": number, "text": text,
+    })
 
 
 def _read_terms(lib: Library, fail, terms_dir: str) -> None:
