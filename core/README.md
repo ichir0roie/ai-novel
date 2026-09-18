@@ -16,7 +16,9 @@
 | `templates/` | 各種ひな形 |
 
 Python ツールは core の外、リポジトリ直下の `tools/` にある
-（`schema.py`、`reader.py`、`novel.py`、`roll.py`）。
+（`schema.py`、`stamp.py`、`reader.py`、`novel.py`、`roll.py`）。
+**front matter の欄も、置き場所の決まりも、この四つが決めている。**
+core はその使い方を書くところで、欄を増やす場所ではない。
 
 ## 更新のしかた
 
