@@ -47,7 +47,7 @@ tools/
 
 ## 三つのモード
 
-作業は**一度に一つだけ**やる。詳しくは `core/workflow.md`。
+作業は**一度に一つだけ**やる。詳しくは [core/workflow.md](core/workflow.md)。
 
 |                            | 何をするか                                                 |
 | -------------------------- | ---------------------------------------------------------- |
@@ -63,10 +63,10 @@ tools/
 pip install -r requirements.txt
 ```
 
-1. `core/principles.md` と `core/workflow.md` を読む
-2. 世界を起こす（モード 1）。`core/templates/world-template.md` から
+1. [core/principles.md](core/principles.md) と [core/workflow.md](core/workflow.md) を読む
+2. 世界を起こす（モード 1）。[core/templates/world-template.md](core/templates/world-template.md) から
    `novels/worlds/<世界線>/<世界線>.md` を書く
-3. 作品を起こす。`core/templates/story-meta-template.md` と `plot-template.md` から
+3. 作品を起こす。[core/templates/story-meta-template.md](core/templates/story-meta-template.md) と `plot-template.md` から
    `novels/stories/<作品名>/` に置く
 4. **書く前に断面を取る**（`python3 tools/novel.py brief --place <場所> --time <年>`）
 5. `novels/stories/<作品名>/episodes/` に本文を書く（モード 2）
@@ -76,7 +76,7 @@ pip install -r requirements.txt
 
 - 世界線・場所・種別・個体・人物・語のディレクトリ名とファイル名は**日本語でよい**。
   **名前から id を採番する**ので、中身がひと目で分かる名前を優先する。
-  **id は資料に書かない**（`core/chronicle.md`）
+  **id は資料に書かない**（[core/chronicle.md](core/chronicle.md)）
 - 出来事・行動・居場所は `{年}_{mm}_{dd}_{名}.md`。時刻まで要るなら
   `{年}_{mm}_{dd}_{hhmmss}_{名}.md`（`4360_07_12_着陸.md` / `4360_07_12_093000_着陸.md`）。
   front matter の中は `y/mm/dd hh:mm:ss`。**年に上限はない**（`tools/stamp.py`）
@@ -91,4 +91,4 @@ pip install -r requirements.txt
 - 新しく決めた設定は本文だけに置かず、必ずモード 3 で世界の側へ戻す
 - 続きを書かせるときは話数ではなく**年と場所**で指定する
   （例: `--place 霧湊大陸 --time 4362` の断面から 2 話）
-- 文体の好みが変わったら `core/writing-style.md` を直す。次からの全作品に効く
+- 文体の好みが変わったら [core/writing-style.md](core/writing-style.md) を直す。次からの全作品に効く

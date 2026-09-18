@@ -4,7 +4,7 @@
 
 ## まず、どのモードかを決める
 
-作業は三つに分かれている。**一度に一つだけやる**（`core/workflow.md`）。
+作業は三つに分かれている。**一度に一つだけやる**（[core/workflow.md](core/workflow.md)）。
 
 | モード | 何をするか | 触っていいところ |
 | --- | --- | --- |
@@ -18,11 +18,11 @@
 
 ## 書く前に必ず読む
 
-- `core/principles.md` — 何のために書くか。迷ったらこれが最優先
-- `core/workflow.md` — **三つのモードと、それぞれの手順**
-- `core/chronicle.md` — 記録の取り方と、話を尽きさせない仕組み
-- `core/writing-style.md` — 文体の方針
-- `core/naming.md` — 用語と名づけの基準
+- [core/principles.md](core/principles.md) — 何のために書くか。迷ったらこれが最優先
+- [core/workflow.md](core/workflow.md) — **三つのモードと、それぞれの手順**
+- [core/chronicle.md](core/chronicle.md) — 記録の取り方と、話を尽きさせない仕組み
+- [core/writing-style.md](core/writing-style.md) — 文体の方針
+- [core/naming.md](core/naming.md) — 用語と名づけの基準
 - 対象作品の `novels/stories/<作品名>/meta.md` と `plot.md`
 - その作品が立つ世界線の `novels/worlds/<世界線>/` の各ファイル
 
@@ -34,7 +34,7 @@
   **本文を書くあいだは `--full` を付けない**（住人が知らないことを書いてしまう）
 - **置き場所がレコードの種類を決める**: 一つにつき一ファイル。front matter がレコード、
   その下が文章。雛形は `python3 tools/novel.py template --kind 人物`。
-  どこに置くかで何のレコードかが決まる（`core/chronicle.md`）
+  どこに置くかで何のレコードかが決まる（[core/chronicle.md](core/chronicle.md)）
 - **id を書かない**: レコードの id は読み込みのときに上位の id と名から採番する。
   他のレコードを指す欄（`親` `場所` `出来事` `分類` `種族` `所属`）には**名前**を書く
 - **語は入れ子にできる**: `novels/terms/<語>/term.md` がその語、
@@ -56,8 +56,8 @@
 - **欄を勝手に足さない**: front matter の欄は `tools/schema.py` が一か所で決めている。
   欄を増やしたければ `schema.py` を直す。スキーマに無い欄は `check` で止まる
 - **用語は日本語として自然に**: 読者は日本人。日本的な漢字（訓読み）・ひらがな・
-  カタカナ英語で名づける。音読み二字熟語の造語を重ねない（`core/naming.md`）
-- **なろう系テンプレを使わない**: 禁止事項の具体リストは `core/principles.md`。構造として避ける
+  カタカナ英語で名づける。音読み二字熟語の造語を重ねない（[core/naming.md](core/naming.md)）
+- **なろう系テンプレを使わない**: 禁止事項の具体リストは [core/principles.md](core/principles.md)。構造として避ける
 - **アバウトな要素は乱数で決める**: `tools/roll.py` を使い、引いた目を
   `novels/worlds/<世界線>/rolls.md` に残す。AI の第一想起で埋めない
 - **同じ世界線の中で矛盾しない**: 暦・共通現象・星どうしの関係は星をまたいで一致させる。
