@@ -14,6 +14,8 @@ AI にラノベを書いてもらうためのプロジェクト。
 
 ```
 core/
+  principles.md       プロジェクトの目的と禁止事項（最優先）
+  naming.md           用語と名づけの基準（日本語として自然に）
   writing-style.md    文体の基本方針
   structure.md        構成・プロットのテクニック
   characters.md       キャラ造形のテクニック
@@ -21,12 +23,18 @@ core/
   workflow.md         執筆の進め方（設定 → プロット → 本文 → 推敲）
   checklist.md        書き上げたあとの推敲チェックリスト
   templates/          世界観・キャラ・プロット・各話のひな形
+  tools/roll.py       乱数ツール（設定をアバウトに決めるとき）
 
-worlds/<世界観名>/
-  world.md            世界観の中核設定
-  characters/*.md     登場人物
+worlds/<宇宙名>/        1 ディレクトリ = 1 宇宙
+  world.md            宇宙全体の設定（暦・共通現象・星どうしの関係）
+  rolls.md            乱数ログ（シードと調整理由）
   glossary.md         固有名詞・用語集
-  objects/*.md        アイテム・組織・地名などの個別設定
+  <星名>/
+    planet.md         天文・地理・空気感
+    history.md        年表と争点
+    society.md        種族・国家・制度
+    characters/*.md   登場人物
+    objects/*.md      アイテム・組織・地名などの個別設定
 
 stories/<作品名>/
   meta.md             企画（ログライン・ターゲット・使う世界観）
@@ -34,9 +42,21 @@ stories/<作品名>/
   episodes/001.md     本文（1ファイル 1話）
 ```
 
+## いま作っている宇宙
+
+`worlds/ebb/` —— **引き潮宇宙**。同じ時代、271 光年離れた二つの星。互いを知らない。
+
+- 〈**シオヒ**〉（SF）: 重力 1.6 G、赤い塵の空、極地だけが居住可能。
+  失われた機械を掘り返して使い、〈延べ〉を受けた人間が死ななくなった星
+- 〈**潟**〉（ファンタジー）: 書いた文字が術になり、書くたびに土地が死ぬ星。
+  書けるのは四種族のうち一種だけ
+
+両星は 606 年前と 225 年前、**説明のつかない出来事を同じ瞬間に経験している**。
+どちらの星もそれを知らない。読者だけが二作を読んで気づく。
+
 ## 書きはじめかた
 
-1. `core/workflow.md` を読む
+1. `core/principles.md` と `core/workflow.md` を読む
 2. 世界観を `core/templates/world-template.md` から起こして `worlds/<名前>/` に置く
 3. 作品を `core/templates/story-meta-template.md` と `plot-template.md` から起こして `stories/<名前>/` に置く
 4. `stories/<名前>/episodes/` に本文を書く

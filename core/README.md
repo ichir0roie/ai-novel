@@ -4,13 +4,17 @@
 
 | ファイル | 内容 |
 | --- | --- |
+| `principles.md` | **プロジェクトの目的と禁止事項。最優先** |
 | `workflow.md` | 企画から推敲までの進め方 |
 | `writing-style.md` | 文体の既定値。作品ごとに上書き可 |
+| `naming.md` | **用語と名づけの基準。日本語として自然に** |
 | `structure.md` | 構成・プロット・引き・伏線 |
 | `characters.md` | キャラ造形と書き分け |
 | `dialogue.md` | 会話文の作り方 |
 | `checklist.md` | 推敲チェックリスト |
 | `templates/` | 各種ひな形 |
+| `tools/roll.py` | 乱数ツール。設定をアバウトに決めるときに使う |
+| `tools/tables.json` | 乱数テーブル。項目は自由に増やしてよい |
 
 ## 更新のしかた
 
