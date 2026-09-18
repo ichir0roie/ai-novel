@@ -364,8 +364,14 @@ pip install -r requirements.txt     # SQLAlchemy と PyYAML が要る
 （`場所` `出来事` `種別` `個体` `居場所` `行動` `人物` `人物居場所` `人物行動` `語`）。
 | `index --world <世界線>` | 用語索引を `novels/worlds/<世界線>/glossary.md` に書き出す |
 | `sql "SELECT …"` | 直接問い合わせる |
+| `dump` | db の行をマークダウンへ書き戻す。**内容が変わらないファイルは書き直さない** |
 
 `sql` は、断面では出ない問いに使う。
+
+`dump` は、db を直接いじった（または `sql` で更新した）ときに使う。
+置き場所はまず今のマークダウンから探し、見つからない新しい行だけ
+`novels/<worlds|objects|characters|terms>/` に id から素直な場所を組んで置く。
+**それでも、変更は作業の終わりに必ずマークダウンへ書き戻す**（前節）。
 
 ```
 python3 tools/novel.py sql \
