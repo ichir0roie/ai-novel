@@ -1,6 +1,6 @@
 # キャラ造形のテクニック
 
-**決めたことの置き場所は `novels/characters/<出身地>/<人名>/character.md`。**
+**決めたことの置き場所は `novels/characters/<出身地>/**/<人名>/character.md`。**
 ここは「何を決めるか」の話で、「どこに書くか」は `core/chronicle.md` にある。
 
 ## キャラは「欲」と「嘘」でできている
@@ -44,5 +44,5 @@
 - 同じ作品内で頭文字が被らないようにする（読者が混同する）
 - 音の長さを散らす（2 音、3 音、4 音を混ぜる）
 - 決めた表記を `novels/terms/**/<語>/term.md` として必ずファイルにする
-- 人物そのものは `novels/characters/<出身地>/<人名>/character.md` に立てる。
+- 人物そのものは `novels/characters/<出身地>/**/<人名>/character.md` に立てる。
   **語（呼び名）と人物（振る舞い）は別のレコード**（`core/chronicle.md`）
