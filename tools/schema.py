@@ -52,7 +52,8 @@ class Row:
     src — その行がどのファイルの何行目から来たか。**検査の出力で効く**
     """
 
-    pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pk: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True)
     src: Mapped[str] = mapped_column(String, default="", info=DERIVED)
 
     source = "table"    # "table"（records/*.md の表）か "entry"（1 ファイル 1 レコード）
@@ -91,8 +92,20 @@ class Place(Row, Base):
     name: Mapped[str] = mapped_column(String, info=md("名", req=True))
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
     kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
-    parent: Mapped[str] = mapped_column(String, default="", info=md("親", ref="place"))
+    parent: Mapped[str] = mapped_column(
+        String, default="", info=md("親", ref="place"))
     note: Mapped[str] = mapped_column(String, default="", info=md("備考"))
+
+    x: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=md("X座標", NUM))
+    y: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=md("Y座標", NUM))
+    z: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=md("Z座標", NUM))
+    p: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=md("惑星座標", NUM))
+    w: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=md("世界座標", NUM))
 
 
 class Event(Row, Base):
@@ -103,16 +116,21 @@ class Event(Row, Base):
 
     id: Mapped[str] = mapped_column(String, info=md("id", req=True))
     t0: Mapped[str] = mapped_column(String, info=md("年", STAMP, req=True))
-    t0_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    t0_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     t1: Mapped[str] = mapped_column(String, default="", info=md("終年", STAMP))
-    t1_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    t1_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("場所", ref="place"))
+    place: Mapped[str] = mapped_column(
+        String, default="", info=md("場所", ref="place"))
     kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
-    scale: Mapped[float | None] = mapped_column(Float, nullable=True, info=md("規模", NUM))
+    scale: Mapped[float | None] = mapped_column(
+        Float, nullable=True, info=md("規模", NUM))
     visibility: Mapped[str] = mapped_column(String, default="", info=md("公開"))
     summary: Mapped[str] = mapped_column(String, info=md("出来事", req=True))
-    actors: Mapped[str] = mapped_column(String, default="", info=md("関与", ref="actor"))
+    actors: Mapped[str] = mapped_column(
+        String, default="", info=md("関与", ref="actor"))
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
 
@@ -124,9 +142,12 @@ class Act(Row, Base):
 
     id: Mapped[str] = mapped_column(String, info=md("id", req=True))
     t0: Mapped[str] = mapped_column(String, info=md("年", STAMP, req=True))
-    t0_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
-    actor: Mapped[str] = mapped_column(String, info=md("人物", req=True, ref="actor"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("場所", ref="place"))
+    t0_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
+    actor: Mapped[str] = mapped_column(
+        String, info=md("人物", req=True, ref="actor"))
+    place: Mapped[str] = mapped_column(
+        String, default="", info=md("場所", ref="place"))
     deed: Mapped[str] = mapped_column(String, info=md("行動", req=True))
     motive: Mapped[str] = mapped_column(String, default="", info=md("動機"))
     cost: Mapped[str] = mapped_column(String, default="", info=md("代償"))
@@ -142,11 +163,14 @@ class Metric(Row, Base):
     uniq = ("t0", "star", "place", "name")
 
     t0: Mapped[str] = mapped_column(String, info=md("年", STAMP, req=True))
-    t0_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    t0_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("場所", ref="place"))
+    place: Mapped[str] = mapped_column(
+        String, default="", info=md("場所", ref="place"))
     name: Mapped[str] = mapped_column(String, info=md("指標", req=True))
-    value: Mapped[float | None] = mapped_column(Float, nullable=True, info=md("値", NUM, req=True))
+    value: Mapped[float | None] = mapped_column(
+        Float, nullable=True, info=md("値", NUM, req=True))
     unit: Mapped[str] = mapped_column(String, default="", info=md("単位"))
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
@@ -158,13 +182,18 @@ class Bond(Row, Base):
     uniq = ("t0", "a", "b", "kind")
 
     t0: Mapped[str] = mapped_column(String, info=md("年", STAMP, req=True))
-    t0_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    t0_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     t1: Mapped[str] = mapped_column(String, default="", info=md("終年", STAMP))
-    t1_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
-    a: Mapped[str] = mapped_column(String, info=md("人物A", req=True, ref="actor"))
-    b: Mapped[str] = mapped_column(String, info=md("人物B", req=True, ref="actor"))
+    t1_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
+    a: Mapped[str] = mapped_column(
+        String, info=md("人物A", req=True, ref="actor"))
+    b: Mapped[str] = mapped_column(
+        String, info=md("人物B", req=True, ref="actor"))
     kind: Mapped[str] = mapped_column(String, info=md("関係", req=True))
-    level: Mapped[float | None] = mapped_column(Float, nullable=True, info=md("強度", NUM))
+    level: Mapped[float | None] = mapped_column(
+        Float, nullable=True, info=md("強度", NUM))
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
 
@@ -178,12 +207,15 @@ class Tension(Row, Base):
 
     id: Mapped[str] = mapped_column(String, info=md("id", req=True))
     t0: Mapped[str] = mapped_column(String, info=md("年", STAMP, req=True))
-    t0_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    t0_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("場所", ref="place"))
+    place: Mapped[str] = mapped_column(
+        String, default="", info=md("場所", ref="place"))
     name: Mapped[str] = mapped_column(String, default="", info=md("名"))
     axis: Mapped[str] = mapped_column(String, default="", info=md("対立軸"))
-    level: Mapped[float | None] = mapped_column(Float, nullable=True, info=md("値", NUM, req=True))
+    level: Mapped[float | None] = mapped_column(
+        Float, nullable=True, info=md("値", NUM, req=True))
     edge: Mapped[str] = mapped_column(String, default="", info=md("限界で起きること"))
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
@@ -204,11 +236,15 @@ class Actor(EntryCols, Row, Base):
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
     line: Mapped[str] = mapped_column(String, default="", info=md("系統"))
     born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
-    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    born_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
-    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
-    org: Mapped[str] = mapped_column(String, default="", info=md("所属", ref="actor"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("居所", ref="place"))
+    died_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
+    org: Mapped[str] = mapped_column(
+        String, default="", info=md("所属", ref="actor"))
+    place: Mapped[str] = mapped_column(
+        String, default="", info=md("居所", ref="place"))
     note: Mapped[str] = mapped_column(String, default="", info=md("一言"))
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
@@ -225,11 +261,14 @@ class Thing(EntryCols, Row, Base):
     read: Mapped[str] = mapped_column(String, default="", info=md("読み"))
     kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
-    place: Mapped[str] = mapped_column(String, default="", info=md("場所", ref="place"))
+    place: Mapped[str] = mapped_column(
+        String, default="", info=md("場所", ref="place"))
     born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
-    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    born_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
-    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    died_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     note: Mapped[str] = mapped_column(String, default="", info=md("一言"))
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
@@ -248,9 +287,11 @@ class Term(EntryCols, Row, Base):
     kind: Mapped[str] = mapped_column(String, default="", info=md("種別"))
     star: Mapped[str] = mapped_column(String, default="", info=md("星"))
     born: Mapped[str] = mapped_column(String, default="", info=md("生", STAMP))
-    born_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    born_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     died: Mapped[str] = mapped_column(String, default="", info=md("没", STAMP))
-    died_k: Mapped[int | None] = mapped_column(Integer, nullable=True, info=DERIVED)
+    died_k: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, info=DERIVED)
     formal: Mapped[str] = mapped_column(String, default="", info=md("正式名称"))
     common: Mapped[str] = mapped_column(String, default="", info=md("通称"))
     face: Mapped[str] = mapped_column(String, default="", info=md("表"))
@@ -260,24 +301,11 @@ class Term(EntryCols, Row, Base):
     ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
 
 
-class Concept(EntryCols, Row, Base):
-    __tablename__ = "concept"
-    entry_kind, ja = "概念", "概念"
-    dir_hint = "concepts/"
-    about = "その世界がどう動いているかの考え方。星をまたいで効く"
-    key_col, id_prefix = "id", "cn"
-
-    id: Mapped[str] = mapped_column(String, info=md("id", req=True))
-    name: Mapped[str] = mapped_column(String, info=md("名", req=True))
-    star: Mapped[str] = mapped_column(String, default="", info=md("星"))
-    summary: Mapped[str] = mapped_column(String, info=md("一言", req=True))
-    ref: Mapped[str] = mapped_column(String, default="", info=md("出典"))
-
-
 TABLES = (Place, Event, Act, Metric, Bond, Tension)
-ENTRIES = (Actor, Thing, Term, Concept)
+ENTRIES = (Actor, Thing, Term)
 # 組み上げる順。場所と人物が先（他がここの id を指すため）
-LEDGERS = (Place, Actor, Thing, Term, Concept, Event, Act, Metric, Bond, Tension)
+LEDGERS = (Place, Actor, Thing, Term,
+           Event, Act, Metric, Bond, Tension)
 
 ENTRY_KEY = "記録"     # front matter のこのキーで、どの記事かを決める
 
