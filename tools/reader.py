@@ -160,8 +160,9 @@ FIELDS: dict[str, dict[str, str]] = {
         "名": "name", "世界": "world_id", "場所": "place_id",
         "語り": "narration", "状態": "state", "始": "start", "終": "end",
     },
-    # 本文のファイルには上段を書かない。話数・題・字数は原稿から読む
-    "episode": {"話数": "number", "題": "title", "字数": "letters"},
+    # 本文の上段は `同期` だけ。話数はファイル名、題と字数は原稿から読む
+    "episode": {"話数": "number", "題": "title", "字数": "letters",
+                "同期": "synced"},
 }
 
 MODELS = {
@@ -210,6 +211,10 @@ LABEL = {
 
 # 数で持つ欄。文字で書かれていても数へ寄せ直す
 NUMBER_COLUMNS = {"height", "world_influence", "number", "letters"}
+
+# 真偽で持つ欄。`オン` `済` `yes` のような書き方も受ける
+BOOL_COLUMNS = {"synced"}
+TRUE_WORDS = {"true", "yes", "on", "1", "オン", "済", "はい", "有"}
 
 
 # ---------------------------------------------------------------- 読んだ結果
@@ -264,6 +269,10 @@ def read_record(path: str, table: str, defaults: dict) -> Record:
         if values.get(column) is not None and not isinstance(
                 values[column], stamp.Stamp):
             values[column] = parse_time(values[column])
+
+    for column in BOOL_COLUMNS:
+        if column in values and not isinstance(values[column], bool):
+            values[column] = str(values[column]).strip().lower() in TRUE_WORDS
 
     for column in NUMBER_COLUMNS:
         if column in values and not isinstance(values[column], (int, float)):
@@ -536,7 +545,7 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
             try:
                 rec = read_record(path, "episode", {
                     "id": f"{story.id}/{number}", "story_id": story.id,
-                    "number": number,
+                    "number": number, "synced": False,
                 })
             except (ReadError, yaml.YAMLError) as err:
                 fail(path, err)
