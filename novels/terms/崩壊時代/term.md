@@ -1,10 +1,10 @@
 ---
 名: 崩壊時代
 種別: 時代/設定側
-世界: SFファンタジー世界線
+世界: SFファンタジー
 星: 地球
 場所:
-出典: novels/worlds/SFファンタジー世界線/地球/history.md
+出典: novels/worlds/SFファンタジー/地球/history.md
 ---
 
 # 崩壊時代

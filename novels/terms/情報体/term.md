@@ -1,10 +1,10 @@
 ---
 名: 情報体
 種別: 制度
-世界: SFファンタジー世界線
+世界: SFファンタジー
 星: 地球
 場所:
-出典: novels/worlds/SFファンタジー世界線/地球/history.md
+出典: novels/worlds/SFファンタジー/地球/history.md
 ---
 
 # 情報体

@@ -5,10 +5,10 @@
 python3 tools/novel.py check                 不備を探す。あればコード 1 で止まる
 python3 tools/novel.py build                 novels/novel.db を組み直す
 python3 tools/novel.py brief --place 霧湊大陸 --time 4360
-python3 tools/novel.py list --kind 語 --world SFファンタジー世界線
+python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
 python3 tools/novel.py template --kind 人物
-python3 tools/novel.py index --world SFファンタジー世界線
+python3 tools/novel.py index --world SFファンタジー
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 ```
 
@@ -351,7 +351,7 @@ def index(lib: reader.Library, world: str) -> str:
         while rec is not None and rec.id not in seen:
             seen.add(rec.id)
             chain.append(str(rec.values.get("name") or rec.id))
-            rec = terms.get(str(rec.values.get("parent_id") or ""))
+            rec = terms.get(str(rec.values.get("parent_term_id") or ""))
         return " › ".join(reversed(chain))
 
     groups: dict[str, list[reader.Record]] = {}

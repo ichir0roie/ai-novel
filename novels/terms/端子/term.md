@@ -1,10 +1,10 @@
 ---
 名: 端子
 種別: 道具
-世界: SFファンタジー世界線
+世界: SFファンタジー
 星: 地球
 場所: 地球
-出典: novels/worlds/SFファンタジー世界線/地球/history.md
+出典: novels/worlds/SFファンタジー/地球/history.md
 ---
 
 # 端子
