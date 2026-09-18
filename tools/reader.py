@@ -123,6 +123,7 @@ FIELDS: dict[str, dict[str, str]] = {
     "object": {
         "名": "name", "読み": "read", "種別": "kind",
         "分類": "kind_id", "世界": "root_place_name",
+        "世界影響力": "world_influence",
         "始": "start", "終": "end",
     },
     "object_place": {
@@ -140,6 +141,7 @@ FIELDS: dict[str, dict[str, str]] = {
         "性格": "personality", "感情": "emotion", "思想": "thought",
         "欲": "desire", "嘘": "lie", "必要": "need", "恐れ": "fear",
         "能力": "ability", "代償": "cost",
+        "世界影響力": "world_influence",
         "生": "start", "没": "end",
     },
     "character_place": {
@@ -195,7 +197,7 @@ LABEL = {
 }
 
 # 数で持つ欄。文字で書かれていても数へ寄せ直す
-NUMBER_COLUMNS = {"height"}
+NUMBER_COLUMNS = {"height", "world_influence"}
 
 
 # ---------------------------------------------------------------- 読んだ結果
