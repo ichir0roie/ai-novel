@@ -117,7 +117,7 @@ class Kind(Base):
 
 class Object(Base):
     """
-    novels/worlds/**/{place_name/objects/{object_name}object.md
+    novels/objects/{world_name}/**/{object_name}/{object_name}.md
 
     **種族・組織・仕組みなど、まとまりとして振る舞うもの。**
     一人ひとりの人間は `Character` が持つ。ここは群としての行動を持つ。
@@ -165,7 +165,7 @@ class ObjectAction(Base):
 
 class Character(Base):
     """
-    novels/characters/{born_place_name}/**/{character_name}/character.md
+    novels/characters/{born_place_name}/**/{character_name}/{character_name}.md
 
     **一人ひとりの人間。** 本文で一人称・二人称・三人称を書き分けるために、
     ここがいちばん細かい。群としての振る舞いは `Object` の側にある。
@@ -243,9 +243,9 @@ class CharacterAction(Base):
 
 class Term(Base):
     """
-    novels/terms/**/{term_name}/term.md
+    novels/terms/**/{term_name}/{term_name}.md
 
-    **入れ子。** ディレクトリが上下を表す。`{term_name}/term.md` がその語、
+    **入れ子。** ディレクトリが上下を表す。`{term_name}/{term_name}.md` がその語、
     その下のディレクトリがその語にぶら下がる語。
     """
     __tablename__ = "term"

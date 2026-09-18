@@ -4,7 +4,7 @@
 
 ```
 novels/characters/<出身地>/**/<人名>/
-  character.md                 人物のレコード
+  <人名>.md                    人物のレコード
   places/{時刻}_{場所}.md      居場所の推移
   actions/{時刻}_{名}.md       行動。**動機と代償と結果をそろえて**
 ```

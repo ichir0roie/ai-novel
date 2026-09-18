@@ -1,6 +1,6 @@
 # <人物名>
 
-<!-- novels/characters/<出身地>/**/<人名>/character.md として使う。
+<!-- novels/characters/<出身地>/**/<人名>/<人名>.md として使う。
      front matter は python3 tools/novel.py template --kind 人物 で出る。
      **欄は front matter が持つ。** この文書で繰り返さない。
      ここに書くのは、欄に入りきらないものだけ -->
