@@ -8,10 +8,13 @@ novels/
   worlds/<世界>/<世界>.md                    Place（その世界の根）
   worlds/<世界線>/**/<場所>/<場所>.md          Place（ディレクトリ名と同じ名の md）
   worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md   Event
-  characters/<世界>/<種別>.md                Character（種別）
-  actors/<世界線>/**/<個体>/actor.md           Actor（個体）
-  actors/<世界線>/**/<個体>/places/{時刻}_{場所}.md  ActorPlace（居場所の推移）
-  actors/<世界線>/**/<個体>/actions/{時刻}_{名}.md   Action（行動）
+  objects/<世界線>/<種別>.md                  Kind（種別）
+  objects/<世界線>/**/<個体>/object.md         Object（個体。群として振る舞うもの）
+  objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md  ObjectPlace（居場所の推移）
+  objects/<世界線>/**/<個体>/actions/{時刻}_{名}.md   ObjectAction（行動）
+  characters/<出身地>/**/<人名>/character.md   Character（人物。一人ひとり）
+  characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md  CharacterPlace（居場所の推移）
+  characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md   CharacterAction（行動）
   terms/<語>.md                              Term
   stories/<作品>/…                           本文。台帳には入らない
 ```
@@ -127,22 +130,42 @@ FIELDS: dict[str, dict[str, str]] = {
         "親": "parent_event_id", "場所": "place_id",
         "始": "start", "終": "end",
     },
-    "character": {
+    "kind": {
         **COMMON,
         "名": "name", "読み": "read", "種別": "kind",
         "世界": "root_place_id", "始": "start", "終": "end",
     },
-    "actor": {
+    "object": {
         **COMMON,
         "名": "name", "読み": "read", "種別": "kind",
-        "分類": "character_id", "世界": "root_place_name",
+        "分類": "kind_id", "世界": "root_place_name",
         "始": "start", "終": "end",
     },
-    "actor_place": {
+    "object_place": {
         **COMMON,
         "場所": "place_id", "始": "start", "終": "end",
     },
-    "actor_event": {
+    "object_event": {
+        **COMMON,
+        "出来事": "event_id", "始": "start", "終": "end",
+    },
+    "character": {
+        **COMMON,
+        "名": "name", "読み": "read",
+        "出身": "born_place_id", "種族": "race_id", "所属": "belong_id",
+        "性別": "sex", "背丈": "height", "体格": "build", "見た目": "looks",
+        "一人称": "first_person", "二人称": "second_person",
+        "三人称": "third_person", "口調": "tone",
+        "性格": "personality", "感情": "emotion", "思想": "thought",
+        "欲": "desire", "嘘": "lie", "必要": "need", "恐れ": "fear",
+        "能力": "ability", "代償": "cost",
+        "生": "start", "没": "end",
+    },
+    "character_place": {
+        **COMMON,
+        "場所": "place_id", "始": "start", "終": "end",
+    },
+    "character_event": {
         **COMMON,
         "出来事": "event_id", "始": "start", "終": "end",
     },
@@ -157,10 +180,13 @@ FIELDS: dict[str, dict[str, str]] = {
 MODELS = {
     "place": schema.Place,
     "event": schema.Event,
+    "kind": schema.Kind,
+    "object": schema.Object,
+    "object_place": schema.ObjectPlace,
+    "object_event": schema.ObjectAction,
     "character": schema.Character,
-    "actor": schema.Actor,
-    "actor_place": schema.ActorPlace,
-    "actor_event": schema.Action,
+    "character_place": schema.CharacterPlace,
+    "character_event": schema.CharacterAction,
     "term": schema.Term,
 }
 
@@ -170,16 +196,23 @@ TIME_COLUMNS = {"time", "start", "end"}
 PLACE_REFS = {
     "place": {"parent_id"},
     "event": {"place_id"},
-    "character": {"root_place_id"},
-    "actor": {"root_place_name"},
-    "actor_place": {"place_id"},
+    "kind": {"root_place_id"},
+    "object": {"root_place_name"},
+    "object_place": {"place_id"},
+    "character": {"born_place_id"},
+    "character_place": {"place_id"},
     "term": {"restrict_world_id", "restrict_planet_id", "restrict_place_id"},
 }
 
 LABEL = {
-    "place": "場所", "event": "出来事", "character": "種別", "actor": "個体",
-    "actor_place": "居場所", "actor_event": "行動", "term": "語",
+    "place": "場所", "event": "出来事", "kind": "種別", "object": "個体",
+    "object_place": "居場所", "object_event": "行動",
+    "character": "人物", "character_place": "人物居場所",
+    "character_event": "人物行動", "term": "語",
 }
+
+# 数で持つ欄。文字で書かれていても数へ寄せ直す
+NUMBER_COLUMNS = {"height"}
 
 
 # ---------------------------------------------------------------- 読んだ結果
@@ -234,6 +267,13 @@ def read_record(path: str, table: str, defaults: dict) -> Record:
         if isinstance(values.get(column), (str, int)):
             values[column] = parse_time(values[column])
 
+    for column in NUMBER_COLUMNS:
+        if column in values and not isinstance(values[column], (int, float)):
+            digits = re.sub(r"[^\d.]", "", str(values[column]))
+            if not digits:
+                raise ReadError(f"{column} を数として読めない: {values[column]!r}")
+            values[column] = float(digits)
+
     values["text"] = body
     values.setdefault("src", "")
     for column in ("name", "read", "kind"):
@@ -253,6 +293,47 @@ def _place_dirs(world_dir: str):
         if f"{name}.md" in files:
             found.append(current)
     return found
+
+
+def _read_owners(lib, fail, *, root, marker, table, owner_column,
+                 sub_tables, defaults):
+    """`<入れ物>/**/<名>/{marker}` と、その下の `places/` `actions/` を読む。
+
+    個体（`objects/`）と人物（`characters/`）は、置き場所と欄が違うだけで
+    形は同じ。**一か所で読む。**
+    """
+    place_table, event_table = sub_tables
+    for top in sorted(_listdir(root)):
+        top_dir = os.path.join(root, top)
+        if not os.path.isdir(top_dir):
+            continue
+        for current, dirs, files in os.walk(top_dir):
+            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+            if marker not in files:
+                continue
+            name = os.path.basename(current)
+            path = os.path.join(current, marker)
+            try:
+                owner = read_record(path, table, defaults(top, name))
+            except (ReadError, yaml.YAMLError) as err:
+                fail(path, err)
+                continue
+            lib.records.append(owner)
+
+            for sub, sub_table, ref in (
+                ("places", place_table, "place_id"),
+                ("actions", event_table, "event_id"),
+            ):
+                for item in _stamped_files(os.path.join(current, sub)):
+                    try:
+                        when, label = split_stamped_name(_stem(item))
+                        lib.records.append(read_record(item, sub_table, {
+                            "id": f"{owner.id}/{_stem(item)}",
+                            owner_column: owner.id, "start": when,
+                            **({ref: label} if sub_table == place_table else {}),
+                        }))
+                    except (ReadError, yaml.YAMLError) as err:
+                        fail(item, err)
 
 
 def read_library(novels_dir: str) -> Library:
@@ -298,49 +379,35 @@ def read_library(novels_dir: str) -> Library:
                 fail(path, err)
 
     # --- 種別 -------------------------------------------------------------
-    for world, path in _world_files(os.path.join(novels_dir, "characters")):
+    for world, path in _world_files(os.path.join(novels_dir, "objects")):
         try:
-            lib.records.append(read_record(path, "character", {
+            lib.records.append(read_record(path, "kind", {
                 "id": _stem(path), "name": _stem(path), "root_place_id": world,
             }))
         except (ReadError, yaml.YAMLError) as err:
             fail(path, err)
 
     # --- 個体と、その居場所・行動 -----------------------------------------
-    actors_dir = os.path.join(novels_dir, "actors")
-    for world in sorted(_listdir(actors_dir)):
-        world_dir = os.path.join(actors_dir, world)
-        if not os.path.isdir(world_dir):
-            continue
-        for current, dirs, files in os.walk(world_dir):
-            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-            if "actor.md" not in files:
-                continue
-            name = os.path.basename(current)
-            path = os.path.join(current, "actor.md")
-            try:
-                actor = read_record(path, "actor", {
-                    "id": name, "name": name, "root_place_name": world,
-                })
-            except (ReadError, yaml.YAMLError) as err:
-                fail(path, err)
-                continue
-            lib.records.append(actor)
+    _read_owners(
+        lib, fail,
+        root=os.path.join(novels_dir, "objects"),
+        marker="object.md", table="object", owner_column="object_id",
+        sub_tables=("object_place", "object_event"),
+        defaults=lambda world, name: {
+            "id": name, "name": name, "root_place_name": world,
+        },
+    )
 
-            for sub, table, ref in (
-                ("places", "actor_place", "place_id"),
-                ("actions", "actor_event", "event_id"),
-            ):
-                for item in _stamped_files(os.path.join(current, sub)):
-                    try:
-                        when, label = split_stamped_name(_stem(item))
-                        lib.records.append(read_record(item, table, {
-                            "id": f"{actor.id}/{_stem(item)}",
-                            "actor_id": actor.id, "start": when,
-                            **({ref: label} if table == "actor_place" else {}),
-                        }))
-                    except (ReadError, yaml.YAMLError) as err:
-                        fail(item, err)
+    # --- 人物と、その居場所・行動 -----------------------------------------
+    _read_owners(
+        lib, fail,
+        root=os.path.join(novels_dir, "characters"),
+        marker="character.md", table="character", owner_column="character_id",
+        sub_tables=("character_place", "character_event"),
+        defaults=lambda born, name: {
+            "id": name, "name": name, "born_place_id": born,
+        },
+    )
 
     # --- 語 ---------------------------------------------------------------
     for path in _md_files(os.path.join(novels_dir, "terms")):

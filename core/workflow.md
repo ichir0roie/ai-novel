@@ -11,17 +11,18 @@
   └──────────────┘   └──────────────┘   └──────────────┘
          ↑                                      │
          └──────────────────────────────────────┘
-   worlds / characters      stories            起きたことを
-   / actors / terms を作る   を書く             世界の側へ戻す
+   worlds / objects         stories            起きたことを
+   / characters / terms      を書く             世界の側へ戻す
+   を作る
 ```
 
 1 は最初の一度だけ。**あとは 2 と 3 をひたすら回す。**
 
 | | 読むもの | 書くもの |
 | --- | --- | --- |
-| **1 世界観構成** | `core/` と、あれば既存の世界 | `novels/worlds` `characters` `actors` `terms` |
+| **1 世界観構成** | `core/` と、あれば既存の世界 | `novels/worlds` `objects` `characters` `terms` |
 | **2 ストーリー生成** | 断面（`brief`） | `novels/stories` |
-| **3 世界観更新** | 書いた本文 | `novels/worlds` `characters` `actors` `terms` |
+| **3 世界観更新** | 書いた本文 | `novels/worlds` `objects` `characters` `terms` |
 
 **2 のあいだは世界の側を触らない。3 のあいだは本文を触らない。**
 本文を書いている途中で設定を作りたくなったら、メモに書き出して 3 まで持ち越す。
@@ -32,7 +33,7 @@
 
 # 1 世界観構成モード
 
-**`novels/worlds` `characters` `actors` `terms` を作るところまで。**
+**`novels/worlds` `objects` `characters` `terms` を作るところまで。**
 このモードでは `novels/stories` を一行も書かない。
 
 ## 1-1 企画を先に決める
@@ -56,10 +57,14 @@
 | --- | --- | --- |
 | 1 | **世界線**（いちばん外の場所） | `novels/worlds/<世界線>/<世界線>.md` |
 | 2 | **星・大陸・地形**（場所の木） | `novels/worlds/<世界線>/**/<場所>/<場所>.md` |
-| 3 | **種別**（系統・国・組織・仕組み） | `novels/characters/<世界線>/<種別>.md` |
-| 4 | **個体**（その種別の、名前のあるもの） | `novels/actors/<世界線>/**/<個体>/actor.md` |
-| 5 | **出来事**（年表・指標・関係・火種） | `<場所>/events/{時刻}_{名}.md` |
-| 6 | **語** | `novels/terms/<語>.md` |
+| 3 | **種別**（系統・国・組織・仕組み） | `novels/objects/<世界線>/<種別>.md` |
+| 4 | **個体**（その種別の、名前のある群） | `novels/objects/<世界線>/**/<個体>/object.md` |
+| 5 | **人物**（一人ひとりの人間） | `novels/characters/<出身地>/**/<人名>/character.md` |
+| 6 | **出来事**（年表・指標・関係・火種） | `<場所>/events/{時刻}_{名}.md` |
+| 7 | **語** | `novels/terms/<語>.md` |
+
+**5 は作品が決まってから。** 世界だけ作るあいだ、人物は要らない。
+群としての振る舞い（4）と、一人ひとりの中身（5）を混ぜない（`core/chronicle.md`）。
 
 雛形は `python3 tools/novel.py template --kind 場所` で出る。
 
@@ -86,7 +91,7 @@ python3 tools/novel.py index --world <世界線>      # 用語索引を作り直
 
 # 2 ストーリー生成モード
 
-**`novels/worlds` `characters` `actors` `terms` を元に、`novels/stories` を書く。**
+**`novels/worlds` `objects` `characters` `terms` を元に、`novels/stories` を書く。**
 このモードでは世界の側を一行も書き換えない。
 
 ## 2-1 プロット
@@ -112,6 +117,16 @@ python3 tools/novel.py brief --place 霧湊大陸 --time 4360
 
 > **`--full` を付けない。** 付けると住人が知らないことまで出て、
 > それを本文に書いてしまう。裏を設計するときだけ付ける。
+
+断面の「その場にいる者」には、個体（群）と人物が並んで出る。
+**その話で喋る人物は、断面のあとに一件ずつ読んでおく。**
+
+```
+python3 tools/novel.py show <人名>
+```
+
+一人称・二人称・三人称・口調がここにある。**本文の呼び方はこれに従う。**
+書きながら決め直さない。決め直したくなったら、それはモード 3 の仕事である。
 
 ## 2-3 本文
 
@@ -145,9 +160,11 @@ python3 tools/novel.py brief --place 霧湊大陸 --time 4360
 **文章が正で、台帳が従。** 順番を逆にしない。
 
 - 新しく出した場所 → `novels/worlds/<世界線>/**/<場所>/<場所>.md`
-- 新しく出した種別 → `novels/characters/<世界線>/<種別>.md`
-- 新しく出した個体 → `novels/actors/<世界線>/**/<個体>/actor.md`。
+- 新しく出した種別 → `novels/objects/<世界線>/<種別>.md`
+- 新しく出した個体（群） → `novels/objects/<世界線>/**/<個体>/object.md`。
   **本文に名前を出した時点で登録する**
+- 新しく出した人物 → `novels/characters/<出身地>/**/<人名>/character.md`。
+  **台詞を一つでも喋らせたら登録する。** 一人称・二人称・三人称を必ず埋める
 - 新しく出した語 → `novels/terms/<語>.md`
 
 既存の設定と食い違う本文を書いてしまったら、**先に設定側を直す**か、
@@ -163,8 +180,10 @@ python3 tools/novel.py brief --place 霧湊大陸 --time 4360
 | 動いた数 | 同上。種別 `指標` |
 | 変わった間柄 | 同上。種別 `関係` |
 | 動いた火種 | 同上。種別 `火種/値`、親に火種の id |
-| 主要人物がやったこと | `<個体>/actions/{時刻}_{名}.md`。**動機と代償と結果をそろえて** |
-| 人が移った先 | `<個体>/places/{時刻}_{場所}.md` |
+| 主要人物がやったこと | `<人名>/actions/{時刻}_{名}.md`。**動機と代償と結果をそろえて** |
+| 人が移った先 | `<人名>/places/{時刻}_{場所}.md` |
+| 群が動いたこと | `<個体>/actions/{時刻}_{名}.md`・`<個体>/places/{時刻}_{場所}.md` |
+| 人物が変わったこと | `<人名>/character.md`。**嘘を捨てたなら `嘘` と `必要` を直す** |
 
 **どの火種の値も動かない話は、削れる話。** 2-3 の「変化するもの」と同じ判定を、
 台帳の側から当てている。
