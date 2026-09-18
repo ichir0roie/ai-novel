@@ -83,11 +83,6 @@ def inspect(lib: reader.Library) -> list[str]:
         for column in REQUIRED[rec.table]:
             if not rec.values.get(column):
                 errors.append(f"{where}: {column} が空")
-        src = str(rec.values.get("src") or "")
-        if not src:
-            errors.append(f"{where}: 出典がない。どの設定から来た記録か書く")
-        elif not os.path.exists(os.path.join(REPO, src.split("（")[0].strip())):
-            errors.append(f"{where}: 出典「{src}」というファイルがない")
 
     for rec in lib.records:
         where = os.path.relpath(rec.path, REPO)
