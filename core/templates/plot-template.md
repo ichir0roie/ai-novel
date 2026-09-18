@@ -1,6 +1,6 @@
 # プロット: <作品タイトル>
 
-<!-- worlds/<宇宙名>/stories/<作品名>/plot.md として使う -->
+<!-- novels/stories/<作品名>/plot.md として使う -->
 
 ## 結末
 

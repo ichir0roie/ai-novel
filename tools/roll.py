@@ -8,7 +8,7 @@
     python3 tools/roll.py --num 0.6 1.6 --step 0.05 --label 重力
     python3 tools/roll.py --seed 12345         シードを指定して再現
 
-引いた目は worlds/<宇宙名>/rolls.md に記録すること。詳しくは core/principles.md。
+引いた目は novels/worlds/<世界線>/rolls.md に記録すること。詳しくは core/principles.md。
 """
 import argparse
 import json

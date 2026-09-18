@@ -1,4 +1,4 @@
-# tools/chronicle.py が使う
-# 台帳の形は tools/schema.py、記事の front matter は tools/ledger.py
+# tools/novel.py が使う
+# 記録の形は tools/schema.py、マークダウンの読み取りは tools/reader.py
 sqlalchemy>=2.0
 pyyaml>=6.0

@@ -1,6 +1,7 @@
 # <キャラクター名>
 
-<!-- worlds/<world-id>/characters/<name>.md として使う -->
+<!-- novels/actors/<世界線>/**/<個体>/actor.md として使う。front matter は
+     python3 tools/novel.py template --kind 個体 で出る -->
 
 | 項目 | 内容 |
 | --- | --- |
@@ -8,7 +9,7 @@
 | 所属 | |
 | 年齢 / 外見年齢 | |
 | 一人称 / 二人称 | |
-| 初登場 | <stories/<作品名>/episodes/NNN.md（この宇宙の中）> |
+| 初登場 | <novels/stories/<作品名>/episodes/NNN.md> |
 
 ## 一言で
 
