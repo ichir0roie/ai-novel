@@ -13,7 +13,7 @@ novels/characters/<出身地>/**/<人名>/
   front matter の `出身` を省くと、このディレクトリ名が入る
 - **入れ子が所属を表す。** 家や一門でまとめたければ、その下に置いてよい
 - 雛形は `python3 tools/novel.py template --kind 人物`。
-  書き方は [core/templates/character-template.md](../../core/templates/character-template.md)、造形は [core/characters.md](../../core/characters.md)
+  書き方は [](../../core/templates/character-template.md)、造形は [](../../core/characters.md)
 
 ## 群と分ける
 
@@ -29,6 +29,6 @@ novels/characters/<出身地>/**/<人名>/
 
 `一人称` `二人称` `三人称` `口調` は、**台詞と地の文の呼び方をそのまま決める**。
 決めたら途中で変えない。変えたくなったら、本文より先にここを直す
-（[core/workflow.md](../../core/workflow.md) 3 世界観更新モード）。
+（[](../../core/workflow.md) 3 世界観更新モード）。
 
 `能力` を書いたら `代償` を必ず書く。**制限のない能力は物語を殺す。**
