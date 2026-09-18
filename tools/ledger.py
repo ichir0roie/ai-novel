@@ -7,14 +7,17 @@
 
 読み方と使いどころは core/chronicle.md。
 """
+import glob
 import json
 import os
 import re
 
+import yaml
 from sqlalchemy.orm import Session
 
 import schema
-from schema import LEDGERS, NUM, STAMP, by_header, headers, md_cols
+from schema import (ENTRIES, ENTRY_KEY, LEDGERS, NUM, STAMP, TABLES,
+                    by_header, headers, md_cols)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORLDS_DIR = os.path.join(ROOT, "worlds")
@@ -154,6 +157,69 @@ def parse_ledger(wdir, model):
     return rows, notes
 
 
+FRONT_MATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.DOTALL)
+
+
+def read_entry_file(path):
+    """front matter と本文に割る。front matter がなければ (None, 本文)。"""
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    m = FRONT_MATTER.match(text)
+    if not m:
+        return None, text
+    head = yaml.safe_load(m.group(1)) or {}
+    if not isinstance(head, dict):
+        raise ValueError("front matter が辞書になっていない")
+    return head, text[m.end():]
+
+
+def scan_entries(wdir):
+    """宇宙の中の md を全部見て、front matter に「記録」がある記事を集める。
+
+    **置き場所は問わない。** どの台帳に入るかは front matter の「記録」で決まる。
+    ディレクトリは人間の整理用。
+    """
+    rows = {m.__tablename__: [] for m in ENTRIES}
+    notes = []
+    for path in sorted(glob.glob(os.path.join(wdir, "**", "*.md"), recursive=True)):
+        rel = os.path.relpath(path, ROOT)
+        if f"{os.sep}{RECORDS}{os.sep}" in path or f"{os.sep}stories{os.sep}" in path:
+            continue
+        try:
+            head, body = read_entry_file(path)
+        except (yaml.YAMLError, ValueError) as exc:
+            notes.append(("エラー", rel, f"front matter が読めない: {exc}"))
+            continue
+        if head is None:
+            continue
+        kind = str(head.get(ENTRY_KEY, "")).strip()
+        if not kind:
+            notes.append(("エラー", rel,
+                          f"front matter に「{ENTRY_KEY}」がない。"
+                          f"入れるなら {'／'.join(m.entry_kind for m in ENTRIES)} のどれか"))
+            continue
+        try:
+            model = schema.entry_model(kind)
+        except KeyError:
+            notes.append(("エラー", rel,
+                          f"知らない「{ENTRY_KEY}」: {kind}"
+                          f"（{'／'.join(m.entry_kind for m in ENTRIES)}）"))
+            continue
+
+        allowed = set(headers(model))
+        unknown = [k for k in head if k != ENTRY_KEY and k not in allowed]
+        if unknown:
+            notes.append(("エラー", rel,
+                          f"{model.ja}に知らないキーがある: {'、'.join(map(str, unknown))}"
+                          f"／使えるのは {'、'.join(headers(model))}"))
+        rec = {"src": rel, "path": rel, "body": body.strip()}
+        for col in md_cols(model):
+            value = head.get(col.info["md"], "")
+            rec[col.name] = "" if value is None else str(value).strip()
+        rows[model.__tablename__].append(rec)
+    return rows, notes
+
+
 def apply_inherit(model, rows):
     """火種のように、同じ id の二行目以降で定義列を省けるようにする。"""
     if not (model.inherit and model.key_col):
@@ -172,11 +238,14 @@ def apply_inherit(model, rows):
 def read_world(wdir):
     """全台帳を読む。{テーブル名: [行]} と気づいたこと。DB には触らない。"""
     data, notes = {}, []
-    for model in LEDGERS:
+    for model in TABLES:
         rows, note = parse_ledger(wdir, model)
         apply_inherit(model, rows)
         data[model.__tablename__] = rows
         notes += note
+    entries, note = scan_entries(wdir)
+    data.update(entries)
+    notes += note
     return data, notes
 
 
@@ -194,6 +263,10 @@ def to_instance(model, rec):
             values[col.name] = raw
         if kind == STAMP:
             values[f"{col.name}_k"] = stamp_key(raw)
+    # 記事だけが持つ、マークダウンに書かない列（ファイルの場所と本文）
+    for extra in ("path", "body"):
+        if extra in rec and hasattr(model, extra):
+            values[extra] = rec[extra]
     return model(**values)
 
 

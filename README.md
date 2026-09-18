@@ -39,14 +39,19 @@ worlds/<宇宙名>/        1 ディレクトリ = 1 宇宙。**作品もこの�
   world.md            宇宙全体の設定（暦・共通現象・星どうしの関係）
   rolls.md            乱数ログ（シードと調整理由）
   glossary.md         固有名詞・用語集
-  records/            台帳。時間つきの記録（→ core/chronicle.md）
+  glossary.md         用語の索引。自動生成（chronicle.py index）
+  records/            台帳（表）。時間つきの記録（→ core/chronicle.md）
     config.json       星・光の遅れ・物語の現在
-    場所.md 人物.md 出来事.md 行動.md 指標.md 関係.md 火種.md
+    場所.md 出来事.md 行動.md 指標.md 関係.md 火種.md
+  terms/<語>.md        用語。**1 レコード 1 ファイル**（front matter ＋ 文章）
+  concepts/<名>.md     概念。同上
   stories/<作品名>/     本文
     meta.md           企画
     plot.md           全体プロット
     episodes/001.md   1 ファイル 1 話
-  <星名>/             天文・歴史・社会・登場人物
+  <星名>/             天文・歴史・社会
+    characters/       人物・組織・国。**1 レコード 1 ファイル**
+    objects/          道具・現象・施設。同上
   world.db            台帳を組み上げた SQLite。git には入れない
   <星名>/
     planet.md         天文・地理・空気感
@@ -87,5 +92,6 @@ pip install -r requirements.txt
 
 - 「どの宇宙か」「どの作品か」をパスで指定する（例: `worlds/<宇宙名>/stories/<作品名>` の 3 話を書いて）
 - 新しく決めた設定は本文だけに置かず、必ず `worlds/` 側にも書き戻す
+- キャラ・物・用語・概念は **1 つにつき 1 ファイル**。`chronicle.py template --kind 人物` で雛形が出る
 - 続きを書かせるときは話数ではなく**年と場所**で指定する（例: `--star 入植星 --year 4362 の断面から 2 話`）
 - 文体の好みが変わったら `core/writing-style.md` を直す。次からの全作品に効く

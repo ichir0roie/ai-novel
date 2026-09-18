@@ -29,8 +29,9 @@ import ledger                                                    # noqa: E402
 import schema                                                    # noqa: E402
 from ledger import (ROOT, back_years, db_path, delay_between,    # noqa: E402
                     load_config, resolve_star, stamp_key, world_dir, year_of)
-from schema import (LEDGERS, Act, Actor, Bond, Event, Metric,    # noqa: E402
-                    Place, Tension, headers, md_cols)
+from schema import (ENTRIES, ENTRY_KEY, LEDGERS, TABLES, Act,   # noqa: E402
+                    Actor, Bond, Concept, Event, Metric, Place,
+                    Tension, Term, Thing, headers, md_cols)
 
 
 # ----------------------------------------------------------------------- 検査
@@ -274,7 +275,8 @@ def brief(world, star, year, place=None, span=None, full=False):
                                 mine(Actor)).order_by(Actor.id)).all()
         here = [a for a in rows if in_scope(a.place)]
         if here:
-            w("| id | 名 | 種別 | 系統 | 齢／いつから | 所属 | 居所 | 備考 |")
+            w("<!-- 詳しくは右のファイルを読む。`chronicle.py entry <id>` でも引ける -->")
+            w("| id | 名 | 種別 | 系統 | 齢／いつから | 居所 | 一言 | ファイル |")
             w("| --- | --- | --- | --- | --- | --- | --- | --- |")
             for a in here:
                 if not a.born_k:
@@ -284,7 +286,7 @@ def brief(world, star, year, place=None, span=None, full=False):
                 else:
                     age = f"{year_of(a.born_k)} 年〜"
                 w(f"| {a.id} | {a.name} | {a.kind or '—'} | {a.line or '—'} | {age} "
-                  f"| {a.org or '—'} | {a.place or '—'} | {a.note or '—'} |")
+                  f"| {a.place or '—'} | {a.note or '—'} | `{a.path}` |")
         else:
             w("台帳にまだ誰もいない。")
         w("")
@@ -326,6 +328,31 @@ def brief(world, star, year, place=None, span=None, full=False):
         else:
             w("台帳にまだない。")
         w("")
+
+        # 6.5 この年に使える語
+        rows = session.scalars(
+            select(Term).where((Term.born_k.is_(None)) | (Term.born_k <= hi),
+                               (Term.died_k.is_(None)) | (Term.died_k >= lo),
+                               (Term.star == star) | (Term.star == ""))
+            .order_by(Term.kind, Term.id)).all()
+        live = [t for t in rows if t.state not in ("設定側", "候補")]
+        dead = session.scalars(
+            select(Term).where(Term.died_k.is_not(None), Term.died_k < lo,
+                               (Term.star == star) | (Term.star == ""))
+            .order_by(Term.died_k)).all()
+        if live:
+            w("## 6.5 この年に使える語")
+            w("")
+            w("<!-- 本文に出してよい語。ここにない語を作ったら terms/ に足す -->")
+            w("| 語 | 読み | 種別 | 表での意味 |")
+            w("| --- | --- | --- | --- |")
+            for t in live:
+                w(f"| {t.name} | {t.read or '—'} | {t.kind or '—'} "
+                  f"| {t.face or t.common or '—'} |")
+            w("")
+            if dead:
+                w("**この年にはもう死語**: " + "、".join(f"{t.name}（〜{t.died}）" for t in dead))
+                w("")
 
         # 7. 他の星
         others = [s for s in cfg.get("星", {}) if s != star]
@@ -401,7 +428,13 @@ def add(world, table, sets, no_build=False):
         model = schema.find(table)
     except KeyError:
         raise SystemExit(f"そんな台帳はない: {table}"
-                         f"（{'、'.join(m.__tablename__ for m in LEDGERS)}）")
+                         f"（{'、'.join(m.__tablename__ for m in TABLES)}）")
+    if model.source == "entry":
+        raise SystemExit(
+            f"{model.ja}は 1 ファイル 1 レコード。add では足せない。\n"
+            f"  1. python3 tools/chronicle.py template --kind {model.entry_kind}\n"
+            f"  2. 出てきた雛形を {model.dir_hint or '好きな場所'} に書く（本文も書く）\n"
+            f"  3. python3 tools/chronicle.py build")
     wdir = world_dir(world)
     allowed = headers(model)
 
@@ -439,7 +472,7 @@ def init(world):
     rdir = os.path.join(wdir, ledger.RECORDS)
     os.makedirs(rdir, exist_ok=True)
     made = []
-    for model in LEDGERS:
+    for model in TABLES:
         path = os.path.join(rdir, model.md_file)
         if os.path.exists(path):
             continue
@@ -452,7 +485,8 @@ def init(world):
             fh.write('{\n  "宇宙": "%s",\n  "現在": null,\n  "既定の射程": 60,\n'
                      '  "星": {},\n  "光の遅れ": []\n}\n' % world)
         made.append(os.path.relpath(cfg, ROOT))
-    os.makedirs(os.path.join(wdir, "stories"), exist_ok=True)
+    for sub_dir in ("stories", "terms", "concepts"):
+        os.makedirs(os.path.join(wdir, sub_dir), exist_ok=True)
     if made:
         print("作った:")
         for path in made:
@@ -462,21 +496,162 @@ def init(world):
     print(f"つぎ: {os.path.relpath(cfg, ROOT)} に星と光の遅れを書く")
 
 
-def show_schema():
-    print("台帳の形。tools/schema.py が決めている。**マークダウンの列見出しは、これと一致していること。**")
+def template(kind):
+    """記事の雛形を出す。**front matter がレコード、その下が文章。**"""
+    try:
+        model = schema.entry_model(kind)
+    except KeyError:
+        raise SystemExit(f"知らない記録: {kind}"
+                         f"（{'／'.join(m.entry_kind for m in ENTRIES)}）")
+    print("---")
+    print(f"{ENTRY_KEY}: {model.entry_kind}")
+    for col in md_cols(model):
+        mark = "" if not col.info["req"] else "      # 必須"
+        print(f"{col.info['md']}:{mark}")
+    print("---")
     print()
-    for model in LEDGERS:
-        print(f"## {model.ja}　`{model.__tablename__}`　`records/{model.md_file}`")
+    print(f"# <{model.ja}の名>")
+    print()
+    print("<ここから下が文章。front matter に入りきらないことを書く。>")
+    print("<レコードは front matter、読み物は本文。**同じことを二度書かない**。>")
+    print()
+    print(f"<!-- 置き場所の目安: worlds/<宇宙>/{model.dir_hint or ''} -->", end="")
+    print(f" <!-- {model.about} -->")
+
+
+def show_entry(world, ident):
+    """記事を一件、front matter ごと出す。"""
+    with session_for(world) as session:
+        for model in ENTRIES:
+            hit = session.scalars(
+                select(model).where((model.id == ident) | (model.name == ident))).first()
+            if hit is None:
+                continue
+            print(f"# {hit.name}　`{hit.id}`　{model.ja}")
+            print()
+            print(f"<!-- {hit.path} -->")
+            print()
+            print("| | |")
+            print("| --- | --- |")
+            for col in md_cols(model):
+                value = getattr(hit, col.name, "")
+                if value not in ("", None) and col.name != "name":
+                    print(f"| {col.info['md']} | {value} |")
+            print()
+            print(hit.body or "（本文なし）")
+            return
+    raise SystemExit(f"その記事がない: {ident}")
+
+
+def list_entries(world, kind=None, star=None, year=None):
+    """記事の一覧。種類・星・年で絞れる。"""
+    cfg = load_config(world)
+    star = resolve_star(cfg, star)
+    models = [schema.entry_model(kind)] if kind else list(ENTRIES)
+    lo = hi = None
+    if year:
+        lo, hi = stamp_key(year), stamp_key(year, end=True)
+    with session_for(world) as session:
+        for model in models:
+            stmt = select(model)
+            if star:
+                stmt = stmt.where((model.star == star) | (model.star == ""))
+            if hi is not None and hasattr(model, "born_k"):
+                stmt = stmt.where((model.born_k.is_(None)) | (model.born_k <= hi),
+                                  (model.died_k.is_(None)) | (model.died_k >= lo))
+            rows = session.scalars(stmt.order_by(model.id)).all()
+            if not rows:
+                continue
+            print(f"## {model.ja}（{len(rows)} 件）")
+            print()
+            print("| id | 名 | 種別 | 星 | ファイル |")
+            print("| --- | --- | --- | --- | --- |")
+            for r in rows:
+                print(f"| {r.id} | {r.name} | {getattr(r, 'kind', '') or '—'} "
+                      f"| {r.star or '—'} | {r.path} |")
+            print()
+
+
+INDEX_START = "<!-- chronicle:index start -->"
+INDEX_END = "<!-- chronicle:index end -->"
+
+INDEX_COLS = {
+    "actor": ("名", "読み", "種別", "星", "一言"),
+    "thing": ("名", "読み", "種別", "星", "一言"),
+    "term": ("名", "読み", "種別", "星", "表", "裏", "状態"),
+    "concept": ("名", "星", "一言"),
+}
+
+
+def build_index(world):
+    """記事の索引を作る。**glossary.md の中身はこれで置き換える。**"""
+    out = [INDEX_START, "",
+           "<!-- ここは自動生成。手で書かない。"
+           "`python3 tools/chronicle.py index` で作り直す -->", ""]
+    with session_for(world) as session:
+        for model in ENTRIES:
+            rows = session.scalars(select(model).order_by(model.star, model.id)).all()
+            if not rows:
+                continue
+            keys = INDEX_COLS[model.__tablename__]
+            cols = {c.info["md"]: c.name for c in md_cols(model)}
+            out.append(f"## {model.ja}（{len(rows)} 件）")
+            out.append("")
+            out.append("| " + " | ".join(keys) + " | ファイル |")
+            out.append("| " + " | ".join("---" for _ in keys) + " | --- |")
+            for r in rows:
+                cells = [str(getattr(r, cols[k], "") or "—").replace("|", "\\|") for k in keys]
+                out.append("| " + " | ".join(cells) + f" | `{r.path}` |")
+            out.append("")
+    out.append(INDEX_END)
+    return "\n".join(out)
+
+
+def write_index(world):
+    path = os.path.join(world_dir(world), "glossary.md")
+    if not os.path.exists(path):
+        raise SystemExit(f"{os.path.relpath(path, ROOT)} がない")
+    text = open(path, encoding="utf-8").read()
+    if INDEX_START not in text or INDEX_END not in text:
+        raise SystemExit(f"{os.path.relpath(path, ROOT)} に "
+                         f"{INDEX_START} と {INDEX_END} の印がない")
+    head = text.split(INDEX_START)[0]
+    tail = text.split(INDEX_END, 1)[1]
+    open(path, "w", encoding="utf-8").write(head + build_index(world) + tail)
+    print(f"索引を作り直した: {os.path.relpath(path, ROOT)}")
+
+
+def show_schema():
+    print("台帳の形。**tools/schema.py が決めている。**")
+    print()
+    print("入れ物は二種類ある。")
+    print()
+    print("| | 何で書くか | 何を入れるか |")
+    print("| --- | --- | --- |")
+    print("| 表 | `records/*.md` の表。一行 = 一レコード | 行が短くて数が多いもの |")
+    print("| 記事 | **1 ファイル = 1 レコード。** front matter ＋ 本文 | 文章のつくもの |")
+    print()
+    for group, title, note in (
+            (TABLES, "表", "**列見出しがこれと一致していること。** 食い違う表は取り込まれず、`check` が止める"),
+            (ENTRIES, "記事", f"front matter の `{ENTRY_KEY}:` でどの台帳に入るかが決まる。**置き場所は問わない**")):
+        print(f"# {title}")
         print()
-        print(f"{model.about}")
+        print(note)
         print()
-        print("| 列 | 種類 | 必須 | 参照 |")
-        print("| --- | --- | --- | --- |")
-        for col in md_cols(model):
-            info = col.info
-            print(f"| {info['md']} | {info['kind']} | {'○' if info['req'] else ''} "
-                  f"| {schema.find(info['ref']).ja if info['ref'] else ''} |")
-        print()
+        for model in group:
+            where = (f"`records/{model.md_file}`" if model.md_file
+                     else f"`{ENTRY_KEY}: {model.entry_kind}`　置き場所の目安 `{model.dir_hint}`")
+            print(f"## {model.ja}　`{model.__tablename__}`　{where}")
+            print()
+            print(f"{model.about}")
+            print()
+            print(f"| {'列' if model.source == 'table' else 'キー'} | 種類 | 必須 | 参照 |")
+            print("| --- | --- | --- | --- |")
+            for col in md_cols(model):
+                info = col.info
+                print(f"| {info['md']} | {info['kind']} | {'○' if info['req'] else ''} "
+                      f"| {schema.find(info['ref']).ja if info['ref'] else ''} |")
+            print()
 
 
 # ------------------------------------------------------------------------ 本体
@@ -508,13 +683,25 @@ def main():
     s.add_argument("--place")
 
     a = cmd("add", "台帳に一行足す")
-    a.add_argument("--table", required=True, help="、".join(m.__tablename__ for m in LEDGERS))
+    a.add_argument("--table", required=True, help="、".join(m.__tablename__ for m in TABLES))
     a.add_argument("--set", action="append", default=[], metavar="列=値")
     a.add_argument("--no-build", action="store_true")
 
     q = cmd("sql", "DB に直接問い合わせる")
     q.add_argument("query")
 
+    t = cmd("template", "記事（1 ファイル 1 レコード）の雛形を出す")
+    t.add_argument("--kind", required=True, help="／".join(m.entry_kind for m in ENTRIES))
+
+    e = cmd("entry", "記事を一件読む")
+    e.add_argument("ident", help="id か名")
+
+    ls = cmd("list", "記事の一覧")
+    ls.add_argument("--kind", help="／".join(m.entry_kind for m in ENTRIES))
+    ls.add_argument("--star")
+    ls.add_argument("--year", help="その年に存在していたものだけ")
+
+    cmd("index", "記事の索引を glossary.md に書き出す")
     cmd("worlds", "宇宙の一覧")
     cmd("schema", "台帳の形を表示する")
 
@@ -522,6 +709,8 @@ def main():
 
     if args.cmd == "schema":
         return show_schema()
+    if args.cmd == "template":
+        return template(args.kind)
     if args.cmd == "worlds":
         for name in sorted(os.listdir(ledger.WORLDS_DIR)):
             if not os.path.isdir(os.path.join(ledger.WORLDS_DIR, name)):
@@ -546,6 +735,12 @@ def main():
         series(world, args.metric, args.star, args.place)
     elif args.cmd == "add":
         add(world, args.table, args.set, args.no_build)
+    elif args.cmd == "entry":
+        show_entry(world, args.ident)
+    elif args.cmd == "list":
+        list_entries(world, args.kind, args.star, args.year)
+    elif args.cmd == "index":
+        write_index(world)
     elif args.cmd == "sql":
         with session_for(world) as session:
             result = session.execute(__import__("sqlalchemy").text(args.query))
