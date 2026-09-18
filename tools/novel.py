@@ -191,6 +191,10 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
     if here is None:
         return f"「{place}」という場所がない。list --kind 場所 で見る"
 
+    # **断面も年で見る。** `--time 4354` は 4354 年いっぱい。月日で切ると、
+    # その年の後半に起きたことが、書いたばかりでも断面に出てこない
+    when = stamp.Stamp(when.year, 12, 31, 23, 59, 59)
+
     chain = _lineage(here, places)
     inside = _descendants(here, places)
     scope = inside | set(chain)
@@ -352,8 +356,8 @@ def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
     出来事を並べる。`brief` が「世界がどうなっているか」なら、
     こちらは「誰がいて、その人に何が起きたか」を出す。
 
-    `--full` を付けないかぎり、種別に `/裏` の付いた出来事は伏せる。
-    **本文を書くあいだは付けない。**
+    年で見る（`--time 4354` はその年いっぱい）。`--full` を付けないかぎり、
+    種別に `/裏` の付いた出来事は伏せる。**本文を書くあいだは付けない。**
     """
     story_rec = next((r for r in lib.of("story")
                       if story in (r.id, r.values.get("name"))), None)
@@ -376,6 +380,10 @@ def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
         when = story_rec.values.get("start")
     if when is None:
         return f"「{story}」の meta.md に始まりの年がない。--time で渡す"
+
+    # **顔ぶれは年で見る。** `--time 4354` は 4354 年いっぱいを指す。
+    # 月日まで刻むと、同じ年の後半に起きたことが材料から落ちる
+    when = stamp.Stamp(when.year, 12, 31, 23, 59, 59)
 
     def visible(rec):
         return full or HIDDEN not in str(rec.values.get("kind") or "")
@@ -985,8 +993,14 @@ def main(argv=None):
             build(lib)
         from sqlalchemy import text
         with schema.open_db(DB).connect() as conn:
-            for row in conn.execute(text(args.query)):
-                print("\t".join("" if v is None else str(v) for v in row))
+            result = conn.execute(text(args.query))
+            if result.returns_rows:
+                for row in result:
+                    print("\t".join("" if v is None else str(v) for v in row))
+            else:
+                # INSERT / UPDATE / DELETE。**通したら残す**（そのあと save）
+                conn.commit()
+                print(f"{result.rowcount} 行（save で md に出る）")
         return 0
 
     if args.command == "sync":
