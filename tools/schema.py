@@ -16,7 +16,9 @@ class Base(DeclarativeBase):
 
     text: Mapped[str] = mapped_column(String, default="", nullable=False, comment="front matter の下の本文")
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, comment="主キー,md内に記載される。")
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True,
+        comment="主キー。md には書かない。読み込むときに上位のレコードの id と名から採番する")
 
 
 class Place(Base):
@@ -220,12 +222,18 @@ class CharacterAction(Base):
 
 class Term(Base):
     """
-    novels/terms/{term_name}.md
+    novels/terms/**/{term_name}/term.md
+
+    **入れ子。** ディレクトリが上下を表す。`{term_name}/term.md` がその語、
+    その下のディレクトリがその語にぶら下がる語。
     """
     __tablename__ = "term"
 
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
+
+    parent_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
     restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
     restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))

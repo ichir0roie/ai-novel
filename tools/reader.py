@@ -15,7 +15,7 @@ novels/
   characters/<出身地>/**/<人名>/character.md   Character（人物。一人ひとり）
   characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md  CharacterPlace（居場所の推移）
   characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md   CharacterAction（行動）
-  terms/<語>.md                              Term
+  terms/**/<語>/term.md                      Term（入れ子。親は上のディレクトリ）
   stories/<作品>/…                           本文。台帳には入らない
 ```
 
@@ -24,6 +24,11 @@ novels/
 
 **ディレクトリ名と同じ名前の md だけが場所のレコード。** それ以外の md は
 自由文書として読み飛ばされるので、`解釈表.md` のような読み物を隣に置いてよい。
+
+**id は資料に書かない。** 読むときに、上位のレコードの id と自分の名から
+ここで採番する（`入植星/森`、`森/43400101000000_耐用年数の満了`）。
+他のレコードを指す欄（`親` `場所` `出来事` `分類` `種族` `所属`）には
+**名前を書く。** 名前から id へは読み込みのときに寄せ直す。
 """
 from __future__ import annotations
 
@@ -112,7 +117,7 @@ def split_stamped_name(stem: str) -> tuple[datetime.datetime, str]:
 
 # ---------------------------------------------------------------- 欄の対応表
 
-COMMON = {"id": "id", "出典": "src"}
+COMMON = {"出典": "src"}
 
 FIELDS: dict[str, dict[str, str]] = {
     "place": {
@@ -192,16 +197,21 @@ MODELS = {
 
 TIME_COLUMNS = {"time", "start", "end"}
 
-# 場所を指す欄。名前で書いてあっても id へ寄せ直す
-PLACE_REFS = {
-    "place": {"parent_id"},
-    "event": {"place_id"},
-    "kind": {"root_place_id"},
-    "object": {"root_place_name"},
-    "object_place": {"place_id"},
-    "character": {"born_place_id"},
-    "character_place": {"place_id"},
-    "term": {"restrict_world_id", "restrict_planet_id", "restrict_place_id"},
+# 他のレコードを指す欄。**名前で書いてあっても id へ寄せ直す。**
+# 資料に id は書かないので、front matter に入るのは常に名前のほう。
+REFS: dict[str, dict[str, str]] = {
+    "place": {"parent_id": "place"},
+    "event": {"place_id": "place", "parent_event_id": "event"},
+    "kind": {"root_place_id": "place"},
+    "object": {"root_place_name": "place", "kind_id": "kind"},
+    "object_place": {"place_id": "place"},
+    "object_event": {"event_id": "event"},
+    "character": {"born_place_id": "place", "race_id": "kind",
+                  "belong_id": "object"},
+    "character_place": {"place_id": "place"},
+    "character_event": {"event_id": "event"},
+    "term": {"parent_id": "term", "restrict_world_id": "place",
+             "restrict_planet_id": "place", "restrict_place_id": "place"},
 }
 
 LABEL = {
@@ -313,8 +323,9 @@ def _read_owners(lib, fail, *, root, marker, table, owner_column,
                 continue
             name = os.path.basename(current)
             path = os.path.join(current, marker)
+            trail = os.path.relpath(current, root).replace(os.sep, "/")
             try:
-                owner = read_record(path, table, defaults(top, name))
+                owner = read_record(path, table, defaults(top, name, trail))
             except (ReadError, yaml.YAMLError) as err:
                 fail(path, err)
                 continue
@@ -357,7 +368,8 @@ def read_library(novels_dir: str) -> Library:
             parent = place_id_of_dir.get(os.path.dirname(place_dir))
             try:
                 rec = read_record(path, "place", {
-                    "id": name, "name": name,
+                    "id": f"{parent}/{name}" if parent else name,
+                    "name": name,
                     **({"parent_id": parent} if parent else {}),
                 })
             except (ReadError, yaml.YAMLError) as err:
@@ -372,7 +384,7 @@ def read_library(novels_dir: str) -> Library:
             try:
                 when, name = split_stamped_name(_stem(path))
                 lib.records.append(read_record(path, "event", {
-                    "id": _stem(path), "name": name,
+                    "id": f"{place_id}/{_stem(path)}", "name": name,
                     "time": when, "place_id": place_id,
                 }))
             except (ReadError, yaml.YAMLError) as err:
@@ -382,7 +394,8 @@ def read_library(novels_dir: str) -> Library:
     for world, path in _world_files(os.path.join(novels_dir, "objects")):
         try:
             lib.records.append(read_record(path, "kind", {
-                "id": _stem(path), "name": _stem(path), "root_place_id": world,
+                "id": f"{world}/{_stem(path)}", "name": _stem(path),
+                "root_place_id": world,
             }))
         except (ReadError, yaml.YAMLError) as err:
             fail(path, err)
@@ -393,8 +406,8 @@ def read_library(novels_dir: str) -> Library:
         root=os.path.join(novels_dir, "objects"),
         marker="object.md", table="object", owner_column="object_id",
         sub_tables=("object_place", "object_event"),
-        defaults=lambda world, name: {
-            "id": name, "name": name, "root_place_name": world,
+        defaults=lambda world, name, trail: {
+            "id": trail, "name": name, "root_place_name": world,
         },
     )
 
@@ -404,19 +417,13 @@ def read_library(novels_dir: str) -> Library:
         root=os.path.join(novels_dir, "characters"),
         marker="character.md", table="character", owner_column="character_id",
         sub_tables=("character_place", "character_event"),
-        defaults=lambda born, name: {
-            "id": name, "name": name, "born_place_id": born,
+        defaults=lambda born, name, trail: {
+            "id": trail, "name": name, "born_place_id": born,
         },
     )
 
-    # --- 語 ---------------------------------------------------------------
-    for path in _md_files(os.path.join(novels_dir, "terms")):
-        try:
-            lib.records.append(read_record(path, "term", {
-                "id": _stem(path), "name": _stem(path),
-            }))
-        except (ReadError, yaml.YAMLError) as err:
-            fail(path, err)
+    # --- 語（入れ子）------------------------------------------------------
+    _read_terms(lib, fail, os.path.join(novels_dir, "terms"))
 
     # --- 本文（読むだけ。台帳には入れない） -------------------------------
     stories_dir = os.path.join(novels_dir, "stories")
@@ -425,26 +432,79 @@ def read_library(novels_dir: str) -> Library:
         lib.stories += [os.path.join(current, f)
                         for f in sorted(files) if f.endswith(".md")]
 
-    _resolve_place_refs(lib)
+    _resolve_refs(lib)
     return lib
 
 
-def _resolve_place_refs(lib: Library) -> None:
-    """場所を名前で書いてある欄を、id へ寄せ直す。"""
-    by_name: dict[str, list[str]] = {}
-    known = set()
-    for rec in lib.of("place"):
-        known.add(rec.id)
-        by_name.setdefault(str(rec.values.get("name") or ""), []).append(rec.id)
+TERM_MARKER = "term.md"
+
+
+def _read_terms(lib: Library, fail, terms_dir: str) -> None:
+    """`terms/**/<語>/term.md` を、浅いほうから読む。
+
+    **入れ子が上下を表す。** `魔力/魔力切れ/term.md` と置けば、
+    魔力切れは魔力にぶら下がる。id は親の id と語の名から採番する。
+    """
+    parent_of_dir: dict[str, str] = {}
+    for current, dirs, files in os.walk(terms_dir):
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        if TERM_MARKER not in files:
+            continue
+        name = os.path.basename(current)
+        path = os.path.join(current, TERM_MARKER)
+        parent = parent_of_dir.get(os.path.dirname(current))
+        try:
+            rec = read_record(path, "term", {
+                "id": f"{parent}/{name}" if parent else name,
+                "name": name,
+                **({"parent_id": parent} if parent else {}),
+            })
+        except (ReadError, yaml.YAMLError) as err:
+            fail(path, err)
+            continue
+        parent_of_dir[current] = rec.id
+        lib.records.append(rec)
+
+    # 上の語で決めた縛りは、下の語も引き継ぐ
+    by_id = {r.id: r for r in lib.of("term")}
+    for rec in lib.of("term"):
+        parent = by_id.get(str(rec.values.get("parent_id") or ""))
+        while parent is not None:
+            for column in ("restrict_world_id", "restrict_planet_id",
+                           "restrict_place_id"):
+                if not rec.values.get(column) and parent.values.get(column):
+                    rec.values[column] = parent.values[column]
+            parent = by_id.get(str(parent.values.get("parent_id") or ""))
+
+
+def _resolve_refs(lib: Library) -> None:
+    """他のレコードを名前で指している欄を、採番した id へ寄せ直す。
+
+    同じ名が二つあって決められないときは、不備として上げる。
+    **黙って片方を選ばない。**
+    """
+    known: dict[str, set[str]] = {}
+    by_name: dict[str, dict[str, list[str]]] = {}
+    for table in MODELS:
+        known[table] = {r.id for r in lib.of(table)}
+        names: dict[str, list[str]] = {}
+        for rec in lib.of(table):
+            names.setdefault(str(rec.values.get("name") or ""), []).append(rec.id)
+        by_name[table] = names
 
     for rec in lib.records:
-        for column in PLACE_REFS.get(rec.table, ()):
+        for column, table in REFS.get(rec.table, {}).items():
             value = rec.values.get(column)
-            if not value or value in known:
+            if not value or value in known[table]:
                 continue
-            hits = by_name.get(str(value), [])
+            hits = by_name[table].get(str(value), [])
             if len(hits) == 1:
                 rec.values[column] = hits[0]
+            elif len(hits) > 1:
+                lib.problems.append(
+                    f"{os.path.relpath(rec.path, lib.root)}: "
+                    f"{column} の「{value}」が{LABEL[table]}に {len(hits)} 件ある。"
+                    f"名を分ける")
 
 
 # ---------------------------------------------------------------- 小道具

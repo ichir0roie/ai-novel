@@ -53,20 +53,17 @@ REQUIRED = {
     "term": ("name",),
 }
 
-REFS = {
-    "place": {"parent_id": "place"},
-    "event": {"place_id": "place", "parent_event_id": "event"},
-    "kind": {"root_place_id": "place"},
-    "object": {"kind_id": "kind", "root_place_name": "place"},
-    "object_place": {"object_id": "object", "place_id": "place"},
-    "object_event": {"object_id": "object", "event_id": "event"},
-    "character": {"born_place_id": "place", "race_id": "kind",
-                  "belong_id": "object"},
-    "character_place": {"character_id": "character", "place_id": "place"},
-    "character_event": {"character_id": "character", "event_id": "event"},
-    "term": {"restrict_world_id": "place", "restrict_planet_id": "place",
-             "restrict_place_id": "place"},
+# 指し先の対応は `reader.REFS` が持っている。ここで足すのは、
+# 読み込みのときに構造から埋まる持ち主の欄だけ
+OWNER_REFS = {
+    "object_place": {"object_id": "object"},
+    "object_event": {"object_id": "object"},
+    "character_place": {"character_id": "character"},
+    "character_event": {"character_id": "character"},
 }
+
+REFS = {table: {**reader.REFS.get(table, {}), **OWNER_REFS.get(table, {})}
+        for table in reader.MODELS}
 
 
 def inspect(lib: reader.Library) -> list[str]:
@@ -345,21 +342,34 @@ def index(lib: reader.Library, world: str) -> str:
             "**中身はここにない。** 一語一ファイルで `novels/terms/` にある。",
             "語を足すときは、索引ではなくファイルのほうを作る。", ""]
 
+    place_name = {r.id: str(r.values.get("name") or r.id) for r in lib.of("place")}
+    terms = {r.id: r for r in lib.of("term")}
+
+    def path_of(rec) -> str:
+        """上位の語からたどった並び。`魔力 › 魔力切れ`"""
+        chain, seen = [], set()
+        while rec is not None and rec.id not in seen:
+            seen.add(rec.id)
+            chain.append(str(rec.values.get("name") or rec.id))
+            rec = terms.get(str(rec.values.get("parent_id") or ""))
+        return " › ".join(reversed(chain))
+
     groups: dict[str, list[reader.Record]] = {}
     for rec in lib.of("term"):
         limit = rec.values.get("restrict_world_id")
-        if limit and limit != world:
+        if limit and place_name.get(limit, limit) != world:
             continue
         groups.setdefault(str(rec.values.get("kind") or "その他"), []).append(rec)
 
     for kind in sorted(groups):
         rows += [f"## {kind}", "", "| 語 | 星 | 一言 |", "| --- | --- | --- |"]
-        for rec in sorted(groups[kind], key=lambda r: str(r.values["name"])):
+        for rec in sorted(groups[kind], key=path_of):
             summary = next((l.strip() for l in rec.values.get("text", "").splitlines()
                             if l.strip() and not l.startswith("#")
                             and not l.startswith("|")), "")
             star = rec.values.get("restrict_planet_id") or "—"
-            rows.append(f"| {rec.values['name']} | {star} | {summary[:70]} |")
+            rows.append(f"| {path_of(rec)} | {place_name.get(star, star)} "
+                        f"| {summary[:70]} |")
         rows.append("")
     return "\n".join(rows)
 
@@ -384,7 +394,7 @@ def template(table: str) -> str:
             "novels/characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md",
         "character_event":
             "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
-        "term": "novels/terms/<語>.md",
+        "term": "novels/terms/**/<語>/term.md",
     }[table]
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
 
