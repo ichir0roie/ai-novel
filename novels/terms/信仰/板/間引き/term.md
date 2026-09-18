@@ -1,5 +1,5 @@
 ---
-出典: novels/worlds/SFファンタジー/入植星/history.md
+出典: novels/worlds/SFファンタジー/入植星/入植星.md
 名: 間引き
 種別: 制度
 世界: SFファンタジー

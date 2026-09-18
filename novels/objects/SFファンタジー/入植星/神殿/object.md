@@ -5,7 +5,7 @@
 分類: 組織
 始: 3800/01/01 00:00:00
 終:
-出典: novels/worlds/SFファンタジー/入植星/history.md
+出典: novels/worlds/SFファンタジー/入植星/入植星.md
 ---
 
 # 神殿
