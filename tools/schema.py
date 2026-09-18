@@ -12,11 +12,11 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    src: Mapped[str] = mapped_column(String, default="", nullable=False, comment="出典。どの md から来たか")
+    src: Mapped[str] = mapped_column(String, default="", nullable=False)
 
-    text: Mapped[str] = mapped_column(String, default="", nullable=False, comment="front matter の下の本文")
+    text: Mapped[str] = mapped_column(String, default="", nullable=False)
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, comment="主キー,md内に記載される。")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
 
 class Place(Base):
@@ -94,7 +94,7 @@ class Kind(Base):
 
 class Object(Base):
     """
-    novels/objects/{root_place_name}/**/{object_name}/object.md
+    novels/worlds/**/{place_name/objects/{object_name}object.md
 
     **種族・組織・仕組みなど、まとまりとして振る舞うもの。**
     一人ひとりの人間は `Character` が持つ。ここは群としての行動を持つ。
@@ -220,7 +220,7 @@ class CharacterAction(Base):
 
 class Term(Base):
     """
-    novels/terms/{term_name}.md
+    novels/terms/**/{term_name}.md
     """
     __tablename__ = "term"
 
@@ -230,6 +230,8 @@ class Term(Base):
     restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
     restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
     restrict_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+
+    parent_term_id: Mapped[str | None] = mapped_column(String, ForeignKey("term.id"))
 
 
 def create_db(path):
