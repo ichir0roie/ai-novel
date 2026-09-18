@@ -10,6 +10,7 @@ python3 tools/novel.py read <作品名>/1
 python3 tools/novel.py write <作品名>/3 --file 下書き.md
 python3 tools/novel.py brief --place ムシュヴァン --time 4360
 python3 tools/novel.py cast --story めぐる旅路は枯れゆく世界と
+python3 tools/novel.py scene --place フリステ --time 4360
 python3 tools/novel.py sync <作品名>/<話数>   モード 3 を通したあと、同期フラグを立てる
 python3 tools/novel.py list --kind 語 --world SFファンタジー
 python3 tools/novel.py show 采配
@@ -57,10 +58,8 @@ REQUIRED = {
     "kind": ("name", "kind"),
     "object": ("name", "kind_id"),
     "object_place": ("object_id", "place_id"),
-    "object_event": ("object_id", "event_id"),
     "character": ("name", "read", "born_place_id"),
     "character_place": ("character_id", "place_id"),
-    "character_event": ("character_id", "event_id"),
     "term": ("name",),
     "story": ("name",),
     "episode": ("story_id", "number"),
@@ -70,9 +69,7 @@ REQUIRED = {
 # 読み込みのときに構造から埋まる持ち主の欄だけ
 OWNER_REFS = {
     "object_place": {"object_id": "object"},
-    "object_event": {"object_id": "object"},
     "character_place": {"character_id": "character"},
-    "character_event": {"character_id": "character"},
 }
 
 REFS = {table: {**reader.REFS.get(table, {}), **OWNER_REFS.get(table, {})}
@@ -116,8 +113,7 @@ def build(lib: reader.Library, path: str = DB):
 
     engine = schema.create_db(path)
     order = ["place", "kind", "object", "character", "event",
-             "object_place", "object_event",
-             "character_place", "character_event", "term",
+             "object_place", "character_place", "term",
              "story", "episode"]
     with Session(engine) as session:
         for table in order:
@@ -141,6 +137,20 @@ def _span(rec) -> str:
     if start:
         return f"{_year(start)}〜"
     return f"〜{_year(end)}" if end else ""
+
+
+def _actor_of(rec):
+    """出来事が誰の行動かを返す。`("character", id)` / `("object", id)`。
+
+    どちらも空なら `None`（誰の行動でもない、ただ起きたこと）。
+    **行動は出来事の一種。** 別表は持たない（tools/schema.py）。
+    """
+    for table, column in (("character", "character_id"),
+                          ("object", "object_id")):
+        owner = rec.values.get(column) if hasattr(rec, "values") else None
+        if owner:
+            return table, owner
+    return None
 
 
 def _lineage(place_id: str, places: dict) -> list[str]:
@@ -216,6 +226,8 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
     for rec in lib.of("event"):
         if rec.values.get("place_id") not in scope or not visible(rec):
             continue
+        if _actor_of(rec):
+            continue          # 行動は 5 節へ回す
         at = rec.values.get("time")
         if at and at > when:
             continue
@@ -264,16 +276,21 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
 
     event_by_id = {r.id: r for r in lib.of("event")}
     deeds = []
-    for table in owners:
-        for deed in lib.of(f"{table}_event"):
-            at = deed.values.get("start")
-            target = event_by_id.get(deed.values.get("event_id"))
-            if not at or at > when or (when.year - at.year) > reach:
-                continue
-            if target is None or target.values.get("place_id") not in scope:
-                continue
-            if visible(target) and kind_of(target) != "関係":
-                deeds.append((table, deed, target))
+    for deed in lib.of("event"):
+        actor = _actor_of(deed)
+        if not actor or actor[1] not in by_id:
+            continue
+        at = deed.values.get("time") or deed.values.get("start")
+        if not at or at > when or (when.year - at.year) > reach:
+            continue
+        if deed.values.get("place_id") not in scope:
+            continue
+        target = event_by_id.get(deed.values.get("parent_event_id"))
+        if not visible(deed) or (target is not None and not visible(target)):
+            continue
+        if kind_of(target or deed) == "関係":
+            continue
+        deeds.append((actor[1], deed, target or deed))
 
     # --- その場で使える語 -------------------------------------------------
     words = []
@@ -326,9 +343,10 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
         for t, o, s in sorted(present, key=lambda p: str(p[1].values["name"]))])
 
     section("5 この射程での行動（何を失ったか）", [
-        f"- {_year(d.values['start'])} "
-        f"{by_id[d.values[f'{t}_id']][1].values['name']}: {e.values['name']}"
-        for t, d, e in sorted(deeds, key=lambda p: p[1].values["start"])])
+        f"- {_year(d.values['time'])} "
+        f"{by_id[a][1].values['name']}: {d.values['name']}"
+        + (f"　← {e.values['name']}" if e is not d else "")
+        for a, d, e in sorted(deeds, key=lambda p: p[1].values["time"])])
 
     section("6 張っている火種（次の一手の候補）", [
         f"- {r.values['name']}{wide(r)}"
@@ -416,16 +434,15 @@ def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
 
     event_by_id = {r.id: r for r in lib.of("event")}
     deeds: dict[str, list] = {}
-    for table in owners:
-        for deed in lib.of(f"{table}_event"):
-            owner_id = deed.values.get(f"{table}_id")
-            if owner_id not in unique:
-                continue
-            at = deed.values.get("start")
-            target = event_by_id.get(deed.values.get("event_id"))
-            if not at or at > when or target is None or not visible(target):
-                continue
-            deeds.setdefault(owner_id, []).append((at, target, deed))
+    for deed in lib.of("event"):
+        actor = _actor_of(deed)
+        if not actor or actor[1] not in unique:
+            continue
+        at = deed.values.get("time") or deed.values.get("start")
+        target = event_by_id.get(deed.values.get("parent_event_id")) or deed
+        if not at or at > when or not visible(deed) or not visible(target):
+            continue
+        deeds.setdefault(actor[1], []).append((at, target, deed))
 
     out = [f"# 顔ぶれ / {story} / {when.year} 年", "",
            "基準: " + str(places[base].values.get("name"))
@@ -460,6 +477,119 @@ def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
         else:
             out.append("- 直近の出来事: （まだ無い）")
         out.append("")
+    return "\n".join(out)
+
+
+# --------------------------------------------- その場・その時（結合で一度に）
+
+# 場所（と配下）・出来事・人物／個体を一度に結ぶ。**場所が要**。
+# 配下は `parent_id` を再帰でたどる。出来事は場所を持っているので、
+# ここに人物・個体を外部結合すれば「誰が何をしたか」までそろう
+_SCOPE_CTE = """
+WITH RECURSIVE inside(id) AS (
+    SELECT id FROM place WHERE id = :root
+    UNION ALL
+    SELECT p.id FROM place p JOIN inside ON p.parent_id = inside.id
+),
+up(id, parent_id) AS (
+    SELECT id, parent_id FROM place WHERE id = :root
+    UNION ALL
+    SELECT p.id, p.parent_id FROM place p JOIN up ON p.id = up.parent_id
+),
+scope(id) AS (SELECT id FROM inside UNION SELECT id FROM up)
+"""
+
+# 場所（配下と、上にさかのぼった分）・出来事・人物／個体を一度に結ぶ。
+# **場所が要。** 出来事は場所を持っているので、ここに人物・個体を
+# 外部結合すれば「誰が何をしたか」までそろう
+_SCENE_SQL = _SCOPE_CTE + """
+SELECT p.name         AS place_name,
+       p.location_key AS location_key,
+       e.time         AS time,
+       e.name         AS event_name,
+       e.kind         AS kind,
+       c.name         AS character_name,
+       o.name         AS object_name,
+       (e.place_id NOT IN (SELECT id FROM inside)) AS wide
+FROM event e
+JOIN scope              ON scope.id = e.place_id
+JOIN place p            ON p.id = e.place_id
+LEFT JOIN "character" c ON c.id = e.character_id
+LEFT JOIN "object" o    ON o.id = e.object_id
+WHERE e.time <= :until AND e.time >= :since
+ORDER BY e.time, p.name, e.name
+"""
+
+# その時そこに居た者。居場所の表を場所で絞り、期間で切る
+_PRESENT_SQL = _SCOPE_CTE + """
+SELECT who.name, who.kind, p.name,
+       (who.place_id NOT IN (SELECT id FROM inside)) AS wide
+FROM (
+    SELECT s.place_id, s.start, s.end, c.name AS name, '人物' AS kind
+    FROM character_place s JOIN "character" c ON c.id = s.character_id
+    UNION ALL
+    SELECT s.place_id, s.start, s.end, o.name AS name, '個体' AS kind
+    FROM object_place s JOIN "object" o ON o.id = s.object_id
+) AS who
+JOIN scope   ON scope.id = who.place_id
+JOIN place p ON p.id = who.place_id
+WHERE (who.start IS NULL OR who.start <= :until)
+  AND (who.end IS NULL OR who.end >= :until)
+ORDER BY who.kind, who.name
+"""
+
+
+def _place_root(engine, needle: str) -> tuple[str, str] | None:
+    """場所を、id・名前・一意テキスト（`location_key`）のどれでも引く。"""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        row = conn.execute(text(
+            "SELECT id, name FROM place "
+            "WHERE id = :n OR name = :n OR location_key = :n LIMIT 1"
+        ), {"n": needle}).fetchone()
+    return (row[0], row[1]) if row else None
+
+
+def scene(engine, place: str, when: stamp.Stamp, reach: int) -> str:
+    """**場所と時刻を指定して、そこの要素を一度に引く。**
+
+    場所・出来事・人物／個体を db の側で結合して取る
+    （`brief` が読み物なのに対し、こちらは素の行）。
+    場所は名前でも id でも、一意テキスト（`w4/p1/x-/y-/z-`）でもよい。
+    """
+    from sqlalchemy import text
+
+    found = _place_root(engine, place)
+    if found is None:
+        return f"「{place}」という場所がない。list --kind 場所 で見る"
+    root, name = found
+
+    until = stamp.Stamp(when.year, 12, 31, 23, 59, 59).to_int()
+    since = stamp.Stamp(when.year - reach, 1, 1, 0, 0, 0).to_int()
+
+    out = [f"# その場 / {name} / {when.year} 年（射程 {reach} 年）", ""]
+    with engine.connect() as conn:
+        present = conn.execute(text(_PRESENT_SQL),
+                               {"root": root, "until": until}).fetchall()
+        rows = conn.execute(text(_SCENE_SQL), {
+            "root": root, "until": until, "since": since}).fetchall()
+
+    out.append("## 居る者")
+    out += [f"- {who}（{kind}）@ {where}" + ("（広域）" if wide else "")
+            for who, kind, where, wide in present] or ["（なし）"]
+    out += ["", "## 出来事と行動"]
+    if not rows:
+        out.append("（なし）")
+    for row in rows:
+        actor = row.character_name or row.object_name
+        at = stamp.Stamp.from_int(row.time)
+        out.append(
+            f"- {at.year} {row.place_name}" + ("（広域）" if row.wide else "")
+            + (f"[{row.location_key}]" if row.location_key else "")
+            + f": {row.event_name}"
+            + (f"　← {actor}" if actor else "")
+            + (f"　[{row.kind}]" if row.kind else ""))
     return "\n".join(out)
 
 
@@ -601,16 +731,14 @@ def template(table: str) -> str:
                       "  上段に書いたことを繰り返さない）"]
     where = {
         "place": "novels/worlds/<世界線>/**/<場所>/<場所>.md",
-        "event": "novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md",
+        "event": ("novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md"
+                  "（行動なら <個体>/actions/ か <人名>/actions/ の下）"),
         "kind": "novels/objects/<世界線>/<種別>.md",
         "object": "novels/objects/<世界線>/**/<個体>/<個体>.md",
         "object_place": "novels/objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md",
-        "object_event": "novels/objects/<世界線>/**/<個体>/actions/{時刻}_{名}.md",
         "character": "novels/characters/<出身地>/**/<人名>/<人名>.md",
         "character_place":
             "novels/characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md",
-        "character_event":
-            "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
         "term": "novels/terms/**/<語>/<語>.md",
         "story": "novels/stories/<作品名>/meta.md",
         "episode": "novels/stories/<作品名>/episodes/<話数>.md",
@@ -622,12 +750,30 @@ def template(table: str) -> str:
 
 # サブレコード種別 → (持ち主の列, サブディレクトリ, ルート)
 OWNER_DIR = {
-    "event": ("place_id", "events", "worlds"),
     "object_place": ("object_id", "places", "objects"),
-    "object_event": ("object_id", "actions", "objects"),
     "character_place": ("character_id", "places", "characters"),
-    "character_event": ("character_id", "actions", "characters"),
 }
+
+# 出来事は**持ち主が三通り**ある。行動は人物・個体の `actions/` へ、
+# それ以外は場所の `events/` へ戻す。上から先に当たったものを使う
+EVENT_OWNER = (("character_id", "actions", "characters"),
+               ("object_id", "actions", "objects"),
+               ("place_id", "events", "worlds"))
+
+
+def _owner_dir(table: str, row) -> tuple[str | None, str, str]:
+    """その行の (持ち主 id, サブディレクトリ, ルート) を返す。"""
+    if table == "event":
+        for column, subdir, root in EVENT_OWNER:
+            owner = getattr(row, column, None) if not isinstance(row, dict) \
+                else row.get(column)
+            if owner:
+                return owner, subdir, root
+        return None, "events", "worlds"
+    column, subdir, root = OWNER_DIR[table]
+    owner = getattr(row, column, None) if not isinstance(row, dict) \
+        else row.get(column)
+    return owner, subdir, root
 
 ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
             "character": "characters", "term": "terms"}
@@ -638,7 +784,7 @@ ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
 HEAD_KEYS = {"episode": ("同期",)}
 
 
-def _record_path(table: str, rec_id: str, owner_id: str | None) -> str:
+def _record_path(table: str, rec_id: str, row) -> str:
     """id から置き場所を逆に組む。**id がそのまま置き場所を持っている。**"""
     if table == "story":
         return os.path.join(NOVELS, "stories", rec_id, "meta.md")
@@ -652,8 +798,11 @@ def _record_path(table: str, rec_id: str, owner_id: str | None) -> str:
             return os.path.join(NOVELS, root, f"{rec_id}.md")
         base = rec_id.rsplit("/", 1)[-1]
         return os.path.join(NOVELS, root, rec_id, f"{base}.md")
-    _, subdir, root = OWNER_DIR[table]
-    stem = rec_id[len(owner_id) + 1:]
+    owner_id, subdir, root = _owner_dir(table, row)
+    if not owner_id:
+        raise ValueError(f"{table} の「{rec_id}」に持ち主がない")
+    stem = rec_id[len(owner_id) + 1:] if rec_id.startswith(owner_id + "/") \
+        else rec_id.rsplit("/", 1)[-1]
     return os.path.join(NOVELS, root, owner_id, subdir, f"{stem}.md")
 
 
@@ -687,7 +836,6 @@ def dump(engine, lib: reader.Library) -> list[str]:
 
         written = []
         for table, model in reader.MODELS.items():
-            owner_col = OWNER_DIR.get(table, (None,))[0]
             for row in session.query(model).order_by(model.id):
                 head = {}
                 for key, column in reader.FIELDS[table].items():
@@ -708,9 +856,8 @@ def dump(engine, lib: reader.Library) -> list[str]:
                     elif isinstance(value, float) and value == int(value):
                         value = int(value)
                     head[key] = value
-                owner_id = getattr(row, owner_col) if owner_col else None
                 path = existing_path.get((table, row.id)) \
-                    or _record_path(table, row.id, owner_id)
+                    or _record_path(table, row.id, row)
                 if table in HEAD_KEYS:
                     head = {k: head.get(k, False) for k in HEAD_KEYS[table]}
                 text_body = (row.text or "").strip()
@@ -878,6 +1025,12 @@ def main(argv=None):
     p.add_argument("--full", action="store_true",
                    help="裏も出す。**本文を書くあいだは付けない**")
 
+    p = sub.add_parser("scene", help="場所と時刻を指定して、そこの要素を結合で引く")
+    p.add_argument("--place", required=True,
+                   help="場所の名前・id・一意テキスト（`w4/p1/x-/y-/z-`）")
+    p.add_argument("--time", required=True)
+    p.add_argument("--reach", type=int, default=60)
+
     p = sub.add_parser("list", help="一覧")
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
     p.add_argument("--world")
@@ -952,6 +1105,13 @@ def main(argv=None):
         print(cast(lib, args.story,
                    reader.parse_time(args.time) if args.time else None,
                    args.count, args.full))
+        return 0
+
+    if args.command == "scene":
+        if not os.path.exists(DB):
+            build(lib)
+        print(scene(schema.open_db(DB), args.place,
+                    reader.parse_time(args.time), args.reach))
         return 0
 
     if args.command == "list":
