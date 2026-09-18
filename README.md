@@ -35,7 +35,7 @@ novels/
   characters/<出身地>/ 一人ひとりの人間。感情・思想・性格・背丈・能力・性別・
                        種族・一人称・二人称・三人称まで持つ、いちばん細かい記録
   terms/               語（`<語>/<語>.md`。入れ子にできる）
-  stories/<作品名>/     本文。meta.md / plot.md / episodes/NNN.md
+  stories/<作品名>/     本文。meta.md / plot.md / episodes/<話数>.md
   novel.db             組み上げた SQLite。git には入れない
 
 tools/
@@ -82,7 +82,7 @@ pip install -r requirements.txt
   `{年}_{mm}_{dd}_{hhmmss}_{名}.md`（`4360_07_12_着陸.md` / `4360_07_12_093000_着陸.md`）。
   front matter の中は `y/mm/dd hh:mm:ss`。**年に上限はない**（`tools/stamp.py`）
 - スクリプトなど日本語が扱いにくいものは半角英数とハイフン（例: `tools/roll.py`）
-- 各話ファイルは 3 桁ゼロ埋め（`001.md`, `002.md`）
+- 各話ファイルは話数だけ（`1.md`, `2.md`）。**ゼロ埋めしない**
 
 ## AI に依頼するときのコツ
 

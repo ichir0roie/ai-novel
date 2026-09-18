@@ -267,24 +267,46 @@ class Term(Base):
         String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
 
-class Document(Base):
+class Story(Base):
     """
-    novels/stories/**/*.md
+    novels/stories/{story_name}/meta.md
 
-    **本文と、その作品の資料（`meta.md` `plot.md`）。** 台帳のレコードと違い、
-    上段（front matter）を持たない。ファイルの中身をそのまま一行として持つ。
-    id は `novels/` からの相対パス（`stories/<作品>/episodes/001.md`）。
-
-    マークダウンを直に開かずに済ませるためのテーブル。読むのも書くのも
-    `tools/novel.py` の `read` / `write` を通す。
+    **作品。** 本文の入れ物。どの世界線のどこに立つかをここが持つ。
+    作品は世界線をまたがない。
     """
-    __tablename__ = "document"
 
-    story: Mapped[str] = mapped_column(String, default="", comment="作品名")
-    kind: Mapped[str] = mapped_column(
-        String, default="", comment="meta / plot / episode / other")
+    __tablename__ = "story"
+
+    name: Mapped[str] = mapped_column(String)
+
+    world_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("place.id"), comment="使用する世界線")
+    place_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("place.id"), comment="立つ場所。断面を取るのに使う")
+    narration: Mapped[str] = mapped_column(String, default="", comment="語り")
+    state: Mapped[str] = mapped_column(String, default="", comment="状態")
+
+    start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年")
+    end: Mapped[Stamp | None] = mapped_column(StampType)
+
+
+class Episode(Base):
+    """
+    novels/stories/{story_name}/episodes/{話数}.md
+
+    **一話。** `text` が原稿そのもの。上段の欄は持たない
+    （本文のファイルに上段を足さない。書き戻すときも原稿だけを書く）。
+    """
+
+    __tablename__ = "episode"
+
+    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.id"))
     number: Mapped[int | None] = mapped_column(
-        Integer, comment="話数。episode のときだけ入る")
+        Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
+    title: Mapped[str] = mapped_column(
+        String, default="", comment="サブタイトル。本文の見出しから読む")
+    letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
+
 
 
 def create_db(path):

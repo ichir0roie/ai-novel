@@ -26,7 +26,7 @@ novels/
     actions/{時刻}_{名}.md         行動。**動機と代償と結果をそろえて**
   terms/**/<語>/<語>.md            語。入れ子にできる（上位の語にぶら下がる）
   stories/<作品名>/                本文
-    meta.md  plot.md  episodes/NNN.md
+    meta.md  plot.md  episodes/<話数>.md
   novel.db                         組み上げた SQLite。git には入れない
 ```
 
