@@ -5,18 +5,18 @@ from datetime import datetime
 import os
 
 from sqlalchemy import (
-    Float, Integer, String, TIME, DECIMAL,
+    DateTime, Integer, String, DECIMAL,
     create_engine, ForeignKey,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    src: Mapped[str] = mapped_column(String, default="", nullable=False)
+    src: Mapped[str] = mapped_column(String, default="", nullable=False, comment="出典。どの md から来たか")
 
-    text: Mapped[str] = mapped_column(String, default="", nullable=False)
+    text: Mapped[str] = mapped_column(String, default="", nullable=False, comment="front matter の下の本文")
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, comment="主キー,md内に記載される。")
+    id: Mapped[str] = mapped_column(String, primary_key=True, comment="主キー,md内に記載される。")
 
 
 class Place(Base):
@@ -41,8 +41,8 @@ class Place(Base):
     location_y: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Y")
     location_z: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Z")
 
-    start: Mapped[datetime | None] = mapped_column(TIME)
-    end: Mapped[datetime | None] = mapped_column(TIME)
+    start: Mapped[datetime | None] = mapped_column(DateTime)
+    end: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class Event(Base):
@@ -54,18 +54,21 @@ class Event(Base):
 
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String, default="")
-    time: Mapped[datetime] = mapped_column(TIME)
+    time: Mapped[datetime] = mapped_column(DateTime)
 
     parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.id"))
 
     place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
     place: Mapped[Place | None] = relationship(lazy="noload")
 
-    start: Mapped[datetime | None] = mapped_column(TIME)
-    end: Mapped[datetime | None] = mapped_column(TIME)
+    start: Mapped[datetime | None] = mapped_column(DateTime)
+    end: Mapped[datetime | None] = mapped_column(DateTime)
 
+    parent_event: Mapped["Event | None"] = relationship(
+        remote_side="Event.id", back_populates="child_events", lazy="noload"
+    )
     child_events: Mapped[list["Event"]] = relationship(
-        backref="parent_event", lazy="selectin", cascade="all, delete-orphan"
+        back_populates="parent_event", lazy="selectin", cascade="all, delete-orphan"
     )
 
 
@@ -82,8 +85,8 @@ class Character(Base):
 
     root_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
-    start: Mapped[datetime | None] = mapped_column(TIME)
-    end: Mapped[datetime | None] = mapped_column(TIME)
+    start: Mapped[datetime | None] = mapped_column(DateTime)
+    end: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class Actor(Base):
@@ -100,8 +103,8 @@ class Actor(Base):
     character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
     kind: Mapped[str] = mapped_column(String)
 
-    start: Mapped[datetime | None] = mapped_column(TIME)
-    end: Mapped[datetime | None] = mapped_column(TIME)
+    start: Mapped[datetime | None] = mapped_column(DateTime)
+    end: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class ActorPlace(Base):
@@ -114,8 +117,8 @@ class ActorPlace(Base):
     actor_id: Mapped[str] = mapped_column(String, ForeignKey("actor.id"))
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
 
-    start: Mapped[datetime | None] = mapped_column(TIME)
-    end: Mapped[datetime | None] = mapped_column(TIME)
+    start: Mapped[datetime | None] = mapped_column(DateTime)
+    end: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class Action(Base):
@@ -127,8 +130,8 @@ class Action(Base):
     actor_id: Mapped[str] = mapped_column(String, ForeignKey("actor.id"))
     event_id: Mapped[str] = mapped_column(String, ForeignKey("event.id"))
 
-    start: Mapped[datetime | None] = mapped_column(TIME)
-    end: Mapped[datetime | None] = mapped_column(TIME)
+    start: Mapped[datetime | None] = mapped_column(DateTime)
+    end: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class Term(Base):

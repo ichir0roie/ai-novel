@@ -1,7 +1,7 @@
 # 第 <N> 話　<サブタイトル>
 
 <!--
-worlds/<宇宙名>/stories/<作品名>/episodes/NNN.md として使う。
+novels/stories/<作品名>/episodes/NNN.md として使う。
 この HTML コメント部分は作業メモ。本文には残さない。
 
 - 変化するもの:
