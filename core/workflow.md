@@ -74,3 +74,21 @@ python3 tools/chronicle.py check --world <宇宙>
 足すのは、起きたこと（`出来事.md`）、人物がやったこと（`行動.md`。**動機と代償と結果をそろえて**）、
 動いた火種（`火種.md`）、出した人物（`人物.md`）、動いた数（`指標.md`）。
 **どの火種の値も動かなかったなら、その話は弱い。** `core/chronicle.md`。
+
+
+# 世界観構成モード
+
+novels/worlds,characters,termsの作成までを実施する。
+
+
+# ストーリー生成モード
+
+novels/worlds,characters,termsを元に、
+novels/storiesを生成する。
+
+
+# 世界観更新モード
+
+novels/storiesの生成結果から、
+novels/worlds,characters,termsを更新する。
+
