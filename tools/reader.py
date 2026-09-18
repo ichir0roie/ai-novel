@@ -9,13 +9,13 @@ novels/
   worlds/<世界線>/**/<場所>/<場所>.md          Place（ディレクトリ名と同じ名の md）
   worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md   Event
   objects/<世界線>/<種別>.md                  Kind（種別）
-  objects/<世界線>/**/<個体>/object.md         Object（個体。群として振る舞うもの）
+  objects/<世界線>/**/<個体>/<個体>.md         Object（個体。群として振る舞うもの）
   objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md  ObjectPlace（居場所の推移）
   objects/<世界線>/**/<個体>/actions/{時刻}_{名}.md   ObjectAction（行動）
-  characters/<出身地>/**/<人名>/character.md   Character（人物。一人ひとり）
+  characters/<出身地>/**/<人名>/<人名>.md      Character（人物。一人ひとり）
   characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md  CharacterPlace（居場所の推移）
   characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md   CharacterAction（行動）
-  terms/**/<語>/term.md                      Term（入れ子。親は上のディレクトリ）
+  terms/**/<語>/<語>.md                      Term（入れ子。親は上のディレクトリ）
   stories/<作品>/…                           本文。台帳には入らない
 ```
 
@@ -278,12 +278,13 @@ def _place_dirs(world_dir: str):
     return found
 
 
-def _read_owners(lib, fail, *, root, marker, table, owner_column,
+def _read_owners(lib, fail, *, root, table, owner_column,
                  sub_tables, defaults):
-    """`<入れ物>/**/<名>/{marker}` と、その下の `places/` `actions/` を読む。
+    """`<入れ物>/**/<名>/<名>.md` と、その下の `places/` `actions/` を読む。
 
     個体（`objects/`）と人物（`characters/`）は、置き場所と欄が違うだけで
-    形は同じ。**一か所で読む。**
+    形は同じ。**一か所で読む。** マーカーは `<場所>/<場所>.md` と同じく、
+    ディレクトリ名と同じ名前の md。
     """
     place_table, event_table = sub_tables
     for top in sorted(_listdir(root)):
@@ -292,9 +293,10 @@ def _read_owners(lib, fail, *, root, marker, table, owner_column,
             continue
         for current, dirs, files in os.walk(top_dir):
             dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+            name = os.path.basename(current)
+            marker = f"{name}.md"
             if marker not in files:
                 continue
-            name = os.path.basename(current)
             path = os.path.join(current, marker)
             trail = os.path.relpath(current, root).replace(os.sep, "/")
             try:
@@ -377,7 +379,7 @@ def read_library(novels_dir: str) -> Library:
     _read_owners(
         lib, fail,
         root=os.path.join(novels_dir, "objects"),
-        marker="object.md", table="object", owner_column="object_id",
+        table="object", owner_column="object_id",
         sub_tables=("object_place", "object_event"),
         defaults=lambda world, name, trail: {
             "id": trail, "name": name, "root_place_name": world,
@@ -388,7 +390,7 @@ def read_library(novels_dir: str) -> Library:
     _read_owners(
         lib, fail,
         root=os.path.join(novels_dir, "characters"),
-        marker="character.md", table="character", owner_column="character_id",
+        table="character", owner_column="character_id",
         sub_tables=("character_place", "character_event"),
         defaults=lambda born, name, trail: {
             "id": trail, "name": name, "born_place_id": born,
@@ -409,22 +411,20 @@ def read_library(novels_dir: str) -> Library:
     return lib
 
 
-TERM_MARKER = "term.md"
-
-
 def _read_terms(lib: Library, fail, terms_dir: str) -> None:
-    """`terms/**/<語>/term.md` を、浅いほうから読む。
+    """`terms/**/<語>/<語>.md` を、浅いほうから読む。
 
-    **入れ子が上下を表す。** `魔力/魔力切れ/term.md` と置けば、
+    **入れ子が上下を表す。** `魔力/魔力切れ/魔力切れ.md` と置けば、
     魔力切れは魔力にぶら下がる。id は親の id と語の名から採番する。
     """
     parent_of_dir: dict[str, str] = {}
     for current, dirs, files in os.walk(terms_dir):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-        if TERM_MARKER not in files:
-            continue
         name = os.path.basename(current)
-        path = os.path.join(current, TERM_MARKER)
+        marker = f"{name}.md"
+        if marker not in files:
+            continue
+        path = os.path.join(current, marker)
         parent = parent_of_dir.get(os.path.dirname(current))
         try:
             rec = read_record(path, "term", {

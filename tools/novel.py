@@ -381,15 +381,15 @@ def template(table: str) -> str:
         "place": "novels/worlds/<世界線>/**/<場所>/<場所>.md",
         "event": "novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md",
         "kind": "novels/objects/<世界線>/<種別>.md",
-        "object": "novels/objects/<世界線>/**/<個体>/object.md",
+        "object": "novels/objects/<世界線>/**/<個体>/<個体>.md",
         "object_place": "novels/objects/<世界線>/**/<個体>/places/{時刻}_{場所}.md",
         "object_event": "novels/objects/<世界線>/**/<個体>/actions/{時刻}_{名}.md",
-        "character": "novels/characters/<出身地>/**/<人名>/character.md",
+        "character": "novels/characters/<出身地>/**/<人名>/<人名>.md",
         "character_place":
             "novels/characters/<出身地>/**/<人名>/places/{時刻}_{場所}.md",
         "character_event":
             "novels/characters/<出身地>/**/<人名>/actions/{時刻}_{名}.md",
-        "term": "novels/terms/**/<語>/term.md",
+        "term": "novels/terms/**/<語>/<語>.md",
     }[table]
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
 

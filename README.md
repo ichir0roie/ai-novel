@@ -33,7 +33,7 @@ novels/
                        その個体。居場所と行動の時系列を持つ
   characters/<出身地>/ 一人ひとりの人間。感情・思想・性格・背丈・能力・性別・
                        種族・一人称・二人称・三人称まで持つ、いちばん細かい記録
-  terms/               語（`<語>/term.md`。入れ子にできる）
+  terms/               語（`<語>/<語>.md`。入れ子にできる）
   stories/<作品名>/     本文。meta.md / plot.md / episodes/NNN.md
   novel.db             組み上げた SQLite。git には入れない
 
