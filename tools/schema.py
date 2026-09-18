@@ -132,6 +132,9 @@ class Object(Base):
     kind_id: Mapped[str] = mapped_column(String, ForeignKey("kind.id"))
     kind: Mapped[str] = mapped_column(String)
 
+    world_influence: Mapped[int | None] = mapped_column(
+        Integer, comment="世界影響力。この個体が世界の動きにどれだけ関わるかの重み")
+
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
@@ -209,6 +212,9 @@ class Character(Base):
     ability: Mapped[str] = mapped_column(String, default="", comment="能力")
     cost: Mapped[str] = mapped_column(
         String, default="", comment="能力の代償・制限。**制限のない能力は書かない**")
+
+    world_influence: Mapped[int | None] = mapped_column(
+        Integer, comment="世界影響力。この人物が世界の動きにどれだけ関わるかの重み")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, comment="生")
     end: Mapped[Stamp | None] = mapped_column(StampType, comment="没")
