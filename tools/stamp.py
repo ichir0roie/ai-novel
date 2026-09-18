@@ -22,7 +22,10 @@ import datetime as _datetime
 import re
 from functools import total_ordering
 
-_COMPACT = re.compile(r"\A\d{4,}\Z")
+_DIGITS = re.compile(r"\A\d+\Z")
+
+# ファイル名の頭。`4340_1_1` と `4340_1_1_093000`
+_STEM = re.compile(r"\A(\d+)_(\d{1,2})_(\d{1,2})(?:_(\d{6}))?\Z")
 
 # 年の下に付く五つの欄。桁数と、書かれなかったときの値
 _PARTS = (("month", 2, 1), ("day", 2, 1),
@@ -61,10 +64,10 @@ class Stamp:
 
     @classmethod
     def parse(cls, value) -> "Stamp | None":
-        """`43600712` も `4360-07-12` も `4360` も受け取る。
+        """`4360/7/12 09:30:00` も `4360/7/12` も `4360` も受け取る。
 
-        **年は西暦の続き。** 粒度は混ぜてよい。書かれなかった桁は頭の値で埋める。
-        14 桁を越える並びは、後ろ 10 桁が `mmddhhmmss`、頭の余りが年。
+        **年は西暦の続き。** 粒度は混ぜてよい。書かれなかった桁は
+        1 月 1 日 0 時で埋める。数字だけなら年とみなす。
         """
         if value is None or value == "":
             return None
@@ -80,8 +83,12 @@ class Stamp:
         if not text:
             return None
 
-        if _COMPACT.match(text):
-            return cls._from_digits(text)
+        if _DIGITS.match(text):
+            if len(text) > 6:
+                raise StampError(
+                    f"年として長すぎる: {text}。"
+                    f"日付まで書くなら y/m/d hh:mm:ss の形にする")
+            return cls(int(text))
 
         parts = [p for p in re.split(r"[-/ :T]", text) if p != ""]
         if not parts or not all(p.isdigit() for p in parts):
@@ -90,26 +97,16 @@ class Stamp:
         return cls(*nums)
 
     @classmethod
-    def _from_digits(cls, digits: str) -> "Stamp":
-        """`4360` `43600712` `99999` `999990101000000` を割る。
-
-        年より下は必ず二桁ずつ並ぶ。**だから桁数だけで年の長さが決まる。**
-
-        | 桁数 | 年 | 例 |
-        | --- | --- | --- |
-        | 14 まで・偶数 | 頭の 4 桁 | `4360` `43600712` |
-        | 14 まで・奇数 | 頭の 5 桁 | `99999` `9999901` |
-        | 15 以上 | 後ろ 10 桁を落とした残り | `999990101000000`（5 桁）|
-        """
-        head = len(digits) - _UNDER if len(digits) > 14 else 4 + len(digits) % 2
-        year, rest = digits[:head], digits[head:]
-        values = []
-        for _, width, blank in _PARTS:
-            values.append(int(rest[:width]) if len(rest) >= width else blank)
-            rest = rest[width:]
-        if rest:
-            raise StampError(f"時刻の桁が半端: {digits}")
-        return cls(int(year), *values)
+    def from_stem(cls, stem: str) -> "Stamp | None":
+        """ファイル名の頭（`4340_1_1` / `4340_1_1_093000`）を読む。"""
+        m = _STEM.match(stem)
+        if not m:
+            return None
+        year, month, day, clock = m.groups()
+        hour, minute, second = (0, 0, 0)
+        if clock:
+            hour, minute, second = (int(clock[i:i + 2]) for i in (0, 2, 4))
+        return cls(int(year), int(month), int(day), hour, minute, second)
 
     @classmethod
     def from_int(cls, value) -> "Stamp | None":
@@ -131,13 +128,19 @@ class Stamp:
         return (((((self.year * 100 + self.month) * 100 + self.day) * 100
                   + self.hour) * 100 + self.minute) * 100 + self.second)
 
-    def compact(self) -> str:
-        """ファイル名に使う並び。年が五桁以上なら、その分だけ長くなる。"""
-        return (f"{self.year:04d}{self.month:02d}{self.day:02d}"
-                f"{self.hour:02d}{self.minute:02d}{self.second:02d}")
+    def stem(self) -> str:
+        """ファイル名の頭。**0 時ちょうどなら時刻を書かない。**
+
+        `4340_1_1` / `4340_1_1_093000`
+        """
+        head = f"{self.year}_{self.month}_{self.day}"
+        if (self.hour, self.minute, self.second) == (0, 0, 0):
+            return head
+        return f"{head}_{self.hour:02d}{self.minute:02d}{self.second:02d}"
 
     def __str__(self) -> str:
-        return (f"{self.year:04d}-{self.month:02d}-{self.day:02d} "
+        """**`y/m/d hh:mm:ss`。** 中でも外でもこの書き方で通す。"""
+        return (f"{self.year}/{self.month}/{self.day} "
                 f"{self.hour:02d}:{self.minute:02d}:{self.second:02d}")
 
     def __repr__(self) -> str:
