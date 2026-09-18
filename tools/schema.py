@@ -1,14 +1,33 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from datetime import datetime
 
 import os
 
 from sqlalchemy import (
-    DateTime, Integer, String, DECIMAL,
+    BigInteger, Integer, String, DECIMAL, TypeDecorator,
     create_engine, ForeignKey,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from stamp import Stamp
+
+
+class StampType(TypeDecorator):
+    """作中の時刻。**桁を並べた整数として持つ。**
+
+    python の `datetime` は 9999 年までしか持てず、作中の暦はそれを越える。
+    `tools/stamp.py` の `Stamp` を、`年月日時分秒` を並べた整数へ落として入れる。
+    並びがそのまま時の前後になるので、`ORDER BY` も `<` もそのまま効く。
+    """
+
+    impl = BigInteger
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return None if value is None else Stamp.parse(value).to_int()
+
+    def process_result_value(self, value, dialect):
+        return Stamp.from_int(value)
 
 
 class Base(DeclarativeBase):
@@ -43,8 +62,8 @@ class Place(Base):
     location_y: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Y")
     location_z: Mapped[float | None] = mapped_column(DECIMAL, comment="宇宙座標系 Z")
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class Event(Base):
@@ -56,15 +75,15 @@ class Event(Base):
 
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String, default="")
-    time: Mapped[datetime] = mapped_column(DateTime)
+    time: Mapped[Stamp] = mapped_column(StampType)
 
     parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.id"))
 
     place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
     place: Mapped[Place | None] = relationship(lazy="noload")
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
     parent_event: Mapped["Event | None"] = relationship(
         remote_side="Event.id", back_populates="child_events", lazy="noload"
@@ -90,8 +109,8 @@ class Kind(Base):
 
     root_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class Object(Base):
@@ -111,8 +130,8 @@ class Object(Base):
     kind_id: Mapped[str] = mapped_column(String, ForeignKey("kind.id"))
     kind: Mapped[str] = mapped_column(String)
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class ObjectPlace(Base):
@@ -125,8 +144,8 @@ class ObjectPlace(Base):
     object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class ObjectAction(Base):
@@ -138,8 +157,8 @@ class ObjectAction(Base):
     object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
     event_id: Mapped[str] = mapped_column(String, ForeignKey("event.id"))
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class Character(Base):
@@ -189,8 +208,8 @@ class Character(Base):
     cost: Mapped[str] = mapped_column(
         String, default="", comment="能力の代償・制限。**制限のない能力は書かない**")
 
-    start: Mapped[datetime | None] = mapped_column(DateTime, comment="生")
-    end: Mapped[datetime | None] = mapped_column(DateTime, comment="没")
+    start: Mapped[Stamp | None] = mapped_column(StampType, comment="生")
+    end: Mapped[Stamp | None] = mapped_column(StampType, comment="没")
 
 
 class CharacterPlace(Base):
@@ -203,8 +222,8 @@ class CharacterPlace(Base):
     character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class CharacterAction(Base):
@@ -216,8 +235,8 @@ class CharacterAction(Base):
     character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
     event_id: Mapped[str] = mapped_column(String, ForeignKey("event.id"))
 
-    start: Mapped[datetime | None] = mapped_column(DateTime)
-    end: Mapped[datetime | None] = mapped_column(DateTime)
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class Term(Base):

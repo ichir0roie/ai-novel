@@ -32,7 +32,6 @@ novels/
 """
 from __future__ import annotations
 
-import datetime
 import os
 import re
 from dataclasses import dataclass, field
@@ -40,6 +39,7 @@ from dataclasses import dataclass, field
 import yaml
 
 import schema
+import stamp
 
 # ---------------------------------------------------------------- front matter
 
@@ -67,47 +67,27 @@ class ReadError(Exception):
 
 # ---------------------------------------------------------------- 時刻
 
-_STAMP = re.compile(r"\A(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?\Z")
+def parse_time(value) -> stamp.Stamp | None:
+    """`43600712` も `4360-07-12` も `4360` も受け取って `Stamp` にする。
 
-
-def parse_time(value) -> datetime.datetime | None:
-    """`43600712` も `4360-07-12` も `4360` も受け取って datetime にする。
-
-    **年は西暦。** 粒度は混ぜてよい。書かれなかった桁は頭の値で埋める。
+    **`datetime` は使わない。** 作中の年は 9999 を越えるので持てない
+    （`tools/stamp.py`）。
     """
-    if value is None or value == "":
-        return None
-    if isinstance(value, datetime.datetime):
-        return value
-    if isinstance(value, datetime.date):
-        return datetime.datetime(value.year, value.month, value.day)
-    text = str(value).strip()
-    if not text:
-        return None
-
-    m = _STAMP.match(text)
-    if m:
-        y, mo, d, h, mi, s = (int(g) if g else None for g in m.groups())
-        return datetime.datetime(y, mo or 1, d or 1, h or 0, mi or 0, s or 0)
-
-    parts = [p for p in re.split(r"[-/ :T]", text) if p != ""]
-    if not parts or not all(p.isdigit() for p in parts):
-        raise ReadError(f"時刻として読めない: {value!r}")
-    nums = [int(p) for p in parts][:6]
-    nums += [1, 1][len(nums) - 1:3] if len(nums) < 3 else []
-    nums += [0] * (6 - len(nums))
-    return datetime.datetime(*nums)
+    try:
+        return stamp.Stamp.parse(value)
+    except stamp.StampError as err:
+        raise ReadError(str(err)) from None
 
 
-def format_time(when: datetime.datetime | None) -> str:
-    """ファイル名に使う 14 桁へ戻す。"""
-    return "" if when is None else when.strftime("%Y%m%d%H%M%S")
+def format_time(when: stamp.Stamp | None) -> str:
+    """ファイル名に使う並びへ戻す。"""
+    return "" if when is None else when.compact()
 
 
-_STAMPED = re.compile(r"\A(\d{4,14})_(.+)\Z")
+_STAMPED = re.compile(r"\A(\d{4,})_(.+)\Z")
 
 
-def split_stamped_name(stem: str) -> tuple[datetime.datetime, str]:
+def split_stamped_name(stem: str) -> tuple[stamp.Stamp, str]:
     """`43400101000000_耐用年数の満了` を時刻と名に割る。"""
     m = _STAMPED.match(stem)
     if not m:
@@ -274,7 +254,8 @@ def read_record(path: str, table: str, defaults: dict) -> Record:
         values[column] = parse_time(raw) if column in TIME_COLUMNS else raw
 
     for column in TIME_COLUMNS:
-        if isinstance(values.get(column), (str, int)):
+        if values.get(column) is not None and not isinstance(
+                values[column], stamp.Stamp):
             values[column] = parse_time(values[column])
 
     for column in NUMBER_COLUMNS:
