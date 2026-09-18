@@ -267,6 +267,48 @@ class Term(Base):
         String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
 
+class Story(Base):
+    """
+    novels/stories/{story_name}/meta.md
+
+    **作品。** 本文の入れ物。どの世界線のどこに立つかをここが持つ。
+    作品は世界線をまたがない。
+    """
+
+    __tablename__ = "story"
+
+    name: Mapped[str] = mapped_column(String)
+
+    world_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("place.id"), comment="使用する世界線")
+    place_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("place.id"), comment="立つ場所。断面を取るのに使う")
+    narration: Mapped[str] = mapped_column(String, default="", comment="語り")
+    state: Mapped[str] = mapped_column(String, default="", comment="状態")
+
+    start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年")
+    end: Mapped[Stamp | None] = mapped_column(StampType)
+
+
+class Episode(Base):
+    """
+    novels/stories/{story_name}/episodes/{話数}.md
+
+    **一話。** `text` が原稿そのもの。上段の欄は持たない
+    （本文のファイルに上段を足さない。書き戻すときも原稿だけを書く）。
+    """
+
+    __tablename__ = "episode"
+
+    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.id"))
+    number: Mapped[int | None] = mapped_column(
+        Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
+    title: Mapped[str] = mapped_column(
+        String, default="", comment="サブタイトル。本文の見出しから読む")
+    letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
+
+
+
 def create_db(path):
     """**db ファイルを作り直して、空のテーブルを張る。**
 
