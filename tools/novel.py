@@ -17,8 +17,11 @@ python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
 from __future__ import annotations
 
 import argparse
+import decimal
 import os
 import sys
+
+import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -394,6 +397,105 @@ def template(table: str) -> str:
     return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
 
 
+# ---------------------------------------------------------------- 書き出す
+
+# サブレコード種別 → (持ち主の列, サブディレクトリ, ルート)
+OWNER_DIR = {
+    "event": ("place_id", "events", "worlds"),
+    "object_place": ("object_id", "places", "objects"),
+    "object_event": ("object_id", "actions", "objects"),
+    "character_place": ("character_id", "places", "characters"),
+    "character_event": ("character_id", "actions", "characters"),
+}
+
+ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
+            "character": "characters", "term": "terms"}
+
+
+def _record_path(table: str, rec_id: str, owner_id: str | None) -> str:
+    """id から置き場所を逆に組む。**id がそのまま置き場所を持っている。**"""
+    if table in ROOT_DIR:
+        root = ROOT_DIR[table]
+        if table == "kind":
+            return os.path.join(NOVELS, root, f"{rec_id}.md")
+        base = rec_id.rsplit("/", 1)[-1]
+        return os.path.join(NOVELS, root, rec_id, f"{base}.md")
+    _, subdir, root = OWNER_DIR[table]
+    stem = rec_id[len(owner_id) + 1:]
+    return os.path.join(NOVELS, root, owner_id, subdir, f"{stem}.md")
+
+
+def dump(engine, lib: reader.Library) -> list[str]:
+    """DB の行をマークダウンへ書き戻す。**書き出したパスを返す。**
+
+    上段の欄は `reader.FIELDS` を逆に辿って作る。他を指す欄は、
+    **指し先の実際の `name`** に戻す（id の末尾ではない。出来事などは
+    id の末尾が時刻つきのファイル名なので、id の末尾＝名前ではない）。
+    時刻は `y/mm/dd hh:mm:ss` で書く。内容が変わらないファイルは書き直さない。
+
+    **置き場所は、まず今のマークダウンから探す。** `terms/` のように、
+    id に出ない見た目だけの整理フォルダ（`ノウル` `地球` など）を人が
+    自由に挟めるところがあるので、`id` からの逆算だけでは元の場所に
+    戻せない。db にしかない新しい行（直接足された分）だけ、id から
+    素直に場所を組む。
+    """
+    from sqlalchemy.orm import Session
+
+    existing_path = {(rec.table, rec.id): rec.path for rec in lib.records}
+
+    with Session(engine) as session:
+        # 参照先テーブルごとの id → 名前。出来事は id の末尾が時刻つきの
+        # ファイル名なので、名前は別に持っている `name` 列から引く
+        name_of: dict[str, dict[str, str]] = {}
+        for table, model in reader.MODELS.items():
+            if hasattr(model, "name"):
+                name_of[table] = {
+                    row.id: row.name
+                    for row in session.query(model.id, model.name)}
+
+        written = []
+        for table, model in reader.MODELS.items():
+            owner_col = OWNER_DIR.get(table, (None,))[0]
+            for row in session.query(model).order_by(model.id):
+                head = {}
+                for key, column in reader.FIELDS[table].items():
+                    if key == "名":
+                        continue
+                    value = getattr(row, column, None)
+                    if value in (None, ""):
+                        continue
+                    target = reader.REFS.get(table, {}).get(column)
+                    if isinstance(value, stamp.Stamp):
+                        value = str(value)
+                    elif target:
+                        value = name_of.get(target, {}).get(value, value)
+                    elif isinstance(value, decimal.Decimal):
+                        value = float(value)
+                        if value == int(value):
+                            value = int(value)
+                    elif isinstance(value, float) and value == int(value):
+                        value = int(value)
+                    head[key] = value
+                owner_id = getattr(row, owner_col) if owner_col else None
+                path = existing_path.get((table, row.id)) \
+                    or _record_path(table, row.id, owner_id)
+                text_body = (row.text or "").strip()
+                content = ("---\n"
+                           + yaml.safe_dump(head, allow_unicode=True,
+                                            sort_keys=False,
+                                            default_flow_style=False)
+                           + "---\n\n" + text_body + "\n")
+                if os.path.exists(path):
+                    with open(path, encoding="utf-8") as fh:
+                        if fh.read() == content:
+                            continue
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(content)
+                written.append(os.path.relpath(path, REPO))
+    return written
+
+
 # ---------------------------------------------------------------- 入口
 
 def main(argv=None):
@@ -425,6 +527,8 @@ def main(argv=None):
 
     p = sub.add_parser("sql", help="組んだ db に直接問い合わせる")
     p.add_argument("query")
+
+    sub.add_parser("dump", help="db の行をマークダウンへ書き戻す")
 
     args = ap.parse_args(argv)
 
@@ -495,6 +599,16 @@ def main(argv=None):
         with schema.open_db(DB).connect() as conn:
             for row in conn.execute(text(args.query)):
                 print("\t".join("" if v is None else str(v) for v in row))
+        return 0
+
+    if args.command == "dump":
+        if not os.path.exists(DB):
+            print("先に build して db を組む", file=sys.stderr)
+            return 1
+        written = dump(schema.open_db(DB), lib)
+        for path in written:
+            print(f"更新: {path}")
+        print(f"{len(written)} 件を書き直した" if written else "変更なし")
         return 0
 
     return 0
