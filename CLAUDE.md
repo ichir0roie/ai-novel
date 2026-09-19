@@ -70,6 +70,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 場所を一覧で見る               | `DEM.claude_interface.world.list_places.list_places(kind=None)`（`kind="村"` のように絞れる。db には触れない） |
 | 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.list_kinds()`（`kind_id` に渡す id を拾う。db には触れない） |
 | 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.list_objects(kind=None)`（`belong_id` に渡す id を拾う。db には触れない） |
+| 語をキーワードで検索する       | `DEM.claude_interface.world.search_terms.search_terms(<キーワード>)`（`term.text` にキーワードを含む語を返す。db には触れない） |
 | ランダムな出来事の下書きを作る | `DEM.claude_interface.randomizer.create_random_event.create_random_event(...)`（db には触れない。辞書を返すだけ） |
 | 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.commit_event(<辞書かJSON>)`（`place_id` `parent_event_id` と、`character_ids` `object_ids`（人物・個体の id のリスト。多対多で何人・何個体でも渡せる）の実在確認をしてから書き込む） |
 
