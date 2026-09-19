@@ -22,7 +22,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import DeclarativeBase
 
 import DEM.db.schema as schema
-from stamp import Stamp
+from DEM.db.stamp import Stamp
 
 # 列の型 → pydantic (python) の型
 _TYPE_MAP = {
