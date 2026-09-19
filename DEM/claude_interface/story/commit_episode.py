@@ -8,52 +8,39 @@
 その話で起きたことを台帳へ戻すのはモード 3 の仕事で、戻し終えてから
 `set_episode_synced` で立てる。
 
-    commit_episode({"story_id": 1, "number": 6, "title": "…", "text": "…"})
-
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.story.commit_episode < 話.json
+    CommitEpisode({"story_id": 1, "number": 6, "title": "…", "text": "…"}).run()
 """
 from __future__ import annotations
 
-import json
-import sys
-
 from sqlalchemy import select
 
-from DEM.db.schema import Episode, Story, get_session
+from DEM.claude_interface.story._base import StoryCommit
+from DEM.db.schema import Episode, Story
 from DEM.db.schema_pydantic import to_dict
 
 
-class UnknownRecordError(ValueError):
-    """渡された id が db に存在しないときに投げる。"""
-
-
-class UnknownFieldError(ValueError):
-    """`Episode` のスキーマに無い欄が渡されたときに投げる。"""
-
-
-def commit_episode(episode: str | dict) -> dict:
+class CommitEpisode(StoryCommit):
     """話を一件、db へ確定して、格納後の中身を辞書で返す。"""
-    data = json.loads(episode) if isinstance(episode, str) else dict(episode)
-    data.pop("id", None)
-    data.pop("synced", None)
 
-    columns = {column.key for column in Episode.__table__.columns} - {"id"}
-    unknown = set(data) - columns
-    if unknown:
-        raise UnknownFieldError(f"Episode のスキーマに無い欄: {sorted(unknown)}")
-    for required in ("story_id", "number", "text"):
-        if data.get(required) in (None, ""):
-            raise ValueError(f"{required} は必須")
+    model = Episode
 
-    data["number"] = int(data["number"])
-    data["letters"] = len(str(data["text"]))
-    data.setdefault("title", "")
+    def __init__(self, episode: str | dict):
+        self.episode = episode
 
-    with get_session() as session:
-        if session.get(Story, data["story_id"]) is None:
-            raise UnknownRecordError(
-                f"story_id={data['story_id']} という id の story が見つからない")
+    def execute(self, session) -> dict:
+        data = self.parse(self.episode)
+        data.pop("id", None)
+        data.pop("synced", None)
+        self.check_columns(data)
+        for required in ("story_id", "number", "text"):
+            if data.get(required) in (None, ""):
+                raise ValueError(f"{required} は必須")
+
+        data["number"] = int(data["number"])
+        data["letters"] = len(str(data["text"]))
+        data.setdefault("title", "")
+
+        self.check_exists(session, Story, data["story_id"], "story_id")
         record = session.scalars(
             select(Episode).where(Episode.story_id == data["story_id"],
                                   Episode.number == data["number"])).first()
@@ -66,7 +53,3 @@ def commit_episode(episode: str | dict) -> dict:
             record.synced = False
         session.commit()
         return to_dict(record)
-
-
-if __name__ == "__main__":
-    print(json.dumps(commit_episode(sys.stdin.read()), ensure_ascii=False, indent=2))
