@@ -103,7 +103,7 @@ def to_json(row) -> str:
 def models_for_all_tables() -> dict[str, type[BaseModel]]:
     """`schema.py` の全テーブルぶんの pydantic モデルを、テーブル名をキーに返す。"""
     result = {}
-    for mapper in schema.Base.registry.mappers:
+    for mapper in schema.MarkdownBase.registry.mappers:
         orm_cls = mapper.class_
         result[orm_cls.__tablename__] = _model_for(orm_cls)
     return result

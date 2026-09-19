@@ -69,16 +69,20 @@ def location_text(values) -> str | None:
         for tag, part in zip(_LOCATION_TAGS, parts))
 
 
-class Base(DeclarativeBase):
+class MarkdownBase(DeclarativeBase):
     text: Mapped[str] = mapped_column(String,  nullable=False)
 
-    id: Mapped[str] = mapped_column(
+    filepath: Mapped[str] = mapped_column(
         String, primary_key=True,
         comment="主キー。**置き場所そのもの**（novels/ からの相対パス、拡張子なし）。"
                 "md には書かない。読み込むときに置き場所から入る")
 
 
-class Place(Base):
+class RecordBase(DeclarativeBase):
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+
+class Place(MarkdownBase):
     """
     novels/worlds/{place_name}/**/{place_name}.md
     """
@@ -109,7 +113,7 @@ class Place(Base):
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Event(Base):
+class Event(MarkdownBase):
     """
     novels/worlds/{place_name}/**/events/{yyyymmddhhmmss}_{event_name}.md
     novels/objects/{world_name}/**/{object_name}/events/{yyyymmddhhmmss}_{action_name}.md
@@ -154,7 +158,7 @@ class Event(Base):
     )
 
 
-class Kind(Base):
+class Kind(MarkdownBase):
     """
     novels/objects/{root_place_name}/{kind_name}.md
 
@@ -176,13 +180,13 @@ class ObjectBase:
 
     kind_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.id"))
 
-    world_influence: Mapped[int | None] = mapped_column(Integer)
+    world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Object(Base, ObjectBase):
+class Object(MarkdownBase, ObjectBase):
     """
     novels/objects/{world_name}/**/{object_name}/{object_name}.md
 
@@ -192,7 +196,7 @@ class Object(Base, ObjectBase):
     __tablename__ = "object"
 
 
-class ObjectPlace(Base):
+class ObjectPlace(MarkdownBase):
     """
     {object_name}/places/{yyyymmddhhmmss}_{place_name}.md
     """
@@ -200,15 +204,13 @@ class ObjectPlace(Base):
     __tablename__ = "object_place"
 
     object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"))
-    Character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.id"))
-
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Character(Base, ObjectBase):
+class Character(MarkdownBase, ObjectBase):
     """
     novels/characters/{born_place_name}/**/{character_name}/{character_name}.md
 
@@ -247,8 +249,29 @@ class Character(Base, ObjectBase):
     sensitivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感受性")
     imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力")
 
+    # relationships
 
-class Skill(Base):
+    places: Mapped[list[ObjectPlace]] = relationship(
+        back_populates="Character", lazy="selectin", cascade="all, delete-orphan", order_by="ObjectPlace.start.desc()"
+    )
+    skills: Mapped[list[CharacterSkill]] = relationship(lazy="selectin", cascade="all, delete-orphan", order_by="CharacterSkill.id.asc()")
+
+
+class CharacterPlace(MarkdownBase):
+    """
+    {character_name}/places/{yyyymmddhhmmss}_{place_name}.md
+    """
+
+    __tablename__ = "character_place"
+
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.id"))
+    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
+
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
+
+
+class Skill(MarkdownBase):
     """
     novels/skills/{skill_name}/{skill_name}.md
 
@@ -269,7 +292,19 @@ class Skill(Base):
     constraint: Mapped[str] = mapped_column(String,  comment="制約")
 
 
-class Term(Base):
+class CharacterSkill(RecordBase):
+
+    __tablename__ = "character_skill"
+
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.id"))
+    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"))
+
+    skill_id: Mapped[str] = mapped_column(String, ForeignKey("skill.id"), nullable=False)
+
+    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
+
+
+class Term(MarkdownBase):
     """
     novels/terms/**/{term_name}/{term_name}.md
 
@@ -289,7 +324,7 @@ class Term(Base):
         String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
 
-class Story(Base):
+class Story(MarkdownBase):
     """
     novels/stories/{story_name}/meta.md
 
@@ -312,7 +347,7 @@ class Story(Base):
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Episode(Base):
+class Episode(MarkdownBase):
     """
     novels/stories/{story_name}/episodes/{話数}.md
 
@@ -345,7 +380,7 @@ def create_db(path):
     if os.path.exists(path):
         os.remove(path)
     engine = create_engine(f"sqlite:///{path}", future=True)
-    Base.metadata.create_all(engine)
+    MarkdownBase.metadata.create_all(engine)
     return engine
 
 
