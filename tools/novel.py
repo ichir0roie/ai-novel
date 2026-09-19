@@ -335,11 +335,18 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
         f"- {_year(when_of(r))} {r.values['name']}{wide(r)}"
         for r in sorted(recent, key=when_of)])
 
+    name_by_id = {r.id: str(r.values.get("name") or r.id) for r in lib.records}
+
     def label_of(table, rec):
-        """個体は分類、人物は種族を添える。どちらか無ければ種別名で代える。"""
+        """個体は分類、人物は種族を添える。どちらか無ければ種別名で代える。
+
+        **指し先はパスで持っているので、人に見せるときは名に戻す。**
+        """
         if table == "character":
-            return rec.values.get("race_id") or "人物"
-        return rec.values.get("kind") or rec.values.get("kind_id") or "個体"
+            race = rec.values.get("race_id")
+            return name_by_id.get(race, race) if race else "人物"
+        kind = rec.values.get("kind") or rec.values.get("kind_id")
+        return name_by_id.get(kind, kind) if kind else "個体"
 
     section("4 その場にいる者", [
         f"- {o.values['name']}（{label_of(t, o)}）{_span(o)}{wide(s)}"
@@ -457,10 +464,15 @@ def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
         out += ["（その時点で、配下の場所に誰もいない）", ""]
         return "\n".join(out)
 
+    name_by_id = {r.id: str(r.values.get("name") or r.id) for r in lib.records}
+
     def label_of(table, rec):
+        """指し先はパスで持っているので、人に見せるときは名に戻す。"""
         if table == "character":
-            return rec.values.get("race_id") or "人物"
-        return rec.values.get("kind") or rec.values.get("kind_id") or "個体"
+            race = rec.values.get("race_id")
+            return name_by_id.get(race, race) if race else "人物"
+        kind = rec.values.get("kind") or rec.values.get("kind_id")
+        return name_by_id.get(kind, kind) if kind else "個体"
 
     for owner_id, (table, owner, place_id) in sorted(
             unique.items(), key=lambda p: str(p[1][1].values["name"])):
@@ -803,40 +815,16 @@ def template(table: str) -> str:
         "story": "novels/stories/<作品名>/meta.md",
         "episode": "novels/stories/<作品名>/episodes/<話数>.md",
     }[table]
-    return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
+    note = ("<!-- 他のレコードを指す欄には、その置き場所のパスを書く"
+            "（`worlds/<世界線>/…/<場所>`）。名前では書かない -->")
+    return (f"<!-- 置き場所: {where} -->\n{note}\n"
+            + "\n".join(head) + "\n")
 
 
 # ---------------------------------------------------------------- 書き出す
 
-# サブレコード種別 → (持ち主の列, サブディレクトリ, ルート)
-OWNER_DIR = {
-    "object_place": ("object_id", "places", "objects"),
-    "character_place": ("character_id", "places", "characters"),
-}
-
-# 出来事は**持ち主が三通り**ある。行動は人物・個体の `events/` へ、
-# それ以外は場所の `events/` へ戻す。上から先に当たったものを使う
-EVENT_OWNER = (("character_id", "events", "characters"),
-               ("object_id", "events", "objects"),
-               ("place_id", "events", "worlds"))
-
-
-def _owner_dir(table: str, row) -> tuple[str | None, str, str]:
-    """その行の (持ち主 id, サブディレクトリ, ルート) を返す。"""
-    if table == "event":
-        for column, subdir, root in EVENT_OWNER:
-            owner = getattr(row, column, None) if not isinstance(row, dict) \
-                else row.get(column)
-            if owner:
-                return owner, subdir, root
-        return None, "events", "worlds"
-    column, subdir, root = OWNER_DIR[table]
-    owner = getattr(row, column, None) if not isinstance(row, dict) \
-        else row.get(column)
-    return owner, subdir, root
-
-ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
-            "character": "characters", "term": "terms"}
+# **持ち主から置き場所を組み直す表は要らなくなった。**
+# id が置き場所そのものなので、`_record_path` が id から直に組む。
 
 # データに、限られた欄だけを書くレコード。話は原稿が中身なので、
 # 台帳の都合で持つ `同期` だけをデータに残す（話数はファイル名、
@@ -845,33 +833,32 @@ HEAD_KEYS = {"episode": ("同期",)}
 
 
 def _record_path(table: str, rec_id: str, row) -> str:
-    """id から置き場所を逆に組む。**id がそのまま置き場所を持っている。**"""
+    """id から置き場所を組む。**id がそのまま置き場所（パス）である。**
+
+    ディレクトリが一件になるレコード（場所・個体・人物・作品）は、その
+    ディレクトリの中の同じ名の md。ファイルが一件になるレコード（出来事・
+    居場所・種別・話）は、id に `.md` を付けるだけ。
+
+    語だけは両方ありうる（`terms/魔力/魔力.md` と `terms/魔力/魔力切れ.md`）。
+    ディレクトリが実際にあるかで決める。
+    """
+    here = os.path.join(NOVELS, *rec_id.split("/"))
     if table == "story":
-        return os.path.join(NOVELS, "stories", rec_id, "meta.md")
-    if table == "episode":
-        story, number = rec_id.rsplit("/", 1)
-        return os.path.join(NOVELS, "stories", story, "episodes",
-                            f"{number}.md")
-    if table in ROOT_DIR:
-        root = ROOT_DIR[table]
-        if table == "kind":
-            return os.path.join(NOVELS, root, f"{rec_id}.md")
-        base = rec_id.rsplit("/", 1)[-1]
-        return os.path.join(NOVELS, root, rec_id, f"{base}.md")
-    owner_id, subdir, root = _owner_dir(table, row)
-    if not owner_id:
-        raise ValueError(f"{table} の「{rec_id}」に持ち主がない")
-    stem = rec_id[len(owner_id) + 1:] if rec_id.startswith(owner_id + "/") \
-        else rec_id.rsplit("/", 1)[-1]
-    return os.path.join(NOVELS, root, owner_id, subdir, f"{stem}.md")
+        return os.path.join(here, "meta.md")
+    if table in ("place", "object", "character"):
+        return os.path.join(here, f"{rec_id.rsplit('/', 1)[-1]}.md")
+    if table == "term":
+        if os.path.isdir(here):
+            return os.path.join(here, f"{rec_id.rsplit('/', 1)[-1]}.md")
+        return here + ".md"
+    return here + ".md"
 
 
 def dump(engine, lib: reader.Library) -> list[str]:
     """DB の行をマークダウンへ書き戻す。**書き出したパスを返す。**
 
-    データの欄は `reader.FIELDS` を逆に辿って作る。他を指す欄は、
-    **指し先の実際の `name`** に戻す（id の末尾ではない。出来事などは
-    id の末尾が時刻つきのファイル名なので、id の末尾＝名前ではない）。
+    データの欄は `reader.FIELDS` を逆に辿って作る。**他を指す欄は id、
+    つまり `novels/` からの相対パスをそのまま書く。**
     時刻は `y/mm/dd hh:mm:ss` で書く。内容が変わらないファイルは書き直さない。
 
     **置き場所は、まず今のマークダウンから探す。** `terms/` のように、
@@ -885,15 +872,6 @@ def dump(engine, lib: reader.Library) -> list[str]:
     existing_path = {(rec.table, rec.id): rec.path for rec in lib.records}
 
     with Session(engine) as session:
-        # 参照先テーブルごとの id → 名前。出来事は id の末尾が時刻つきの
-        # ファイル名なので、名前は別に持っている `name` 列から引く
-        name_of: dict[str, dict[str, str]] = {}
-        for table, model in reader.MODELS.items():
-            if hasattr(model, "name"):
-                name_of[table] = {
-                    row.id: row.name
-                    for row in session.query(model.id, model.name)}
-
         written = []
         for table, model in reader.MODELS.items():
             for row in session.query(model).order_by(model.id):
@@ -904,11 +882,11 @@ def dump(engine, lib: reader.Library) -> list[str]:
                     value = getattr(row, column, None)
                     if value in (None, ""):
                         continue
-                    target = reader.REFS.get(table, {}).get(column)
+                    # **他のレコードを指す欄は、id（＝置き場所のパス）を
+                    # そのまま書く。** 名前に戻さない。名前は重なるし、
+                    # 変えれば指し先が黙って外れる
                     if isinstance(value, stamp.Stamp):
                         value = str(value)
-                    elif target:
-                        value = name_of.get(target, {}).get(value, value)
                     elif isinstance(value, decimal.Decimal):
                         value = float(value)
                         if value == int(value):
@@ -964,18 +942,22 @@ def episode_rows(engine, story: str | None = None) -> list:
 
 
 def _split_episode(path: str) -> tuple[str, int]:
-    """`stories/<作品>/episodes/3.md` も `<作品>/3` も、作品名と話数へ解く。"""
+    """話の指し方を、作品の id と話数へ解く。
+
+    `<作品名>/3` でも `stories/<作品名>/episodes/3.md` でもよい。
+    **戻す作品は id**、つまり `stories/<作品名>` の形にそろえる。
+    """
     rel = path.replace(os.sep, "/").strip("/")
-    if rel.startswith("stories/"):
-        rel = rel[len("stories/"):]
-    rel = rel.replace("/episodes/", "/")
     if rel.endswith(".md"):
         rel = rel[:-len(".md")]
+    rel = rel.replace("/episodes/", "/")
+    if rel.startswith("stories/"):
+        rel = rel[len("stories/"):]
     story, _, number = rel.rpartition("/")
     if not story or not number.isdigit():
         raise ValueError("話の指し方は `<作品名>/<話数>` "
                          "（`stories/<作品名>/episodes/3.md` でもよい）")
-    return story, int(number)
+    return f"stories/{story}", int(number)
 
 
 def read_episode(engine, path: str) -> str:
@@ -997,7 +979,7 @@ def set_synced(engine, path: str, value: bool) -> str:
 
     story, number = _split_episode(path)
     with Session(engine) as session:
-        row = session.get(schema.Episode, f"{story}/{number}")
+        row = session.get(schema.Episode, f"{story}/episodes/{number}")
         if row is None:
             raise LookupError(f"「{story}」の {number} 話は db に無い")
         row.synced = value
@@ -1023,7 +1005,7 @@ def write_episode(engine, path: str, text: str, synced: bool = False) -> str:
         if session.get(schema.Story, story) is None:
             raise LookupError(f"「{story}」という作品が db に無い。"
                               "先に meta.md を作る")
-        rec_id = f"{story}/{number}"
+        rec_id = f"{story}/episodes/{number}"
         row = session.get(schema.Episode, rec_id)
         if row is None:
             row = schema.Episode(id=rec_id, story_id=story, number=number)
