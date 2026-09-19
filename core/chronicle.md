@@ -359,7 +359,7 @@ principles.md は**ステータス画面・レベル・数値で強さを説明�
 断面を取るのに要る二つ（立つ場所と立つ年）が、ここから引ける。
 
 ```
-python3 tools/novel.py sql "SELECT number, title, letters FROM episode"
+python3 tools/novel.py stories --work <作品名>     # 話数・題・字数が並ぶ
 ```
 
 雛形はツールが出す。
@@ -374,7 +374,7 @@ python3 tools/novel.py template --kind 場所      # 場所/出来事/種別/個
 それを踏まえて、作業の運び方は次のとおりにする。
 
 - 作業を始めるときに `build` して DB を今の記録に合わせる。作業中の検索・関係の
-  確認は `sql` `show` `brief` など DB 経由の読み取りで済ませ、
+  確認は `events` `show-id` `show` `brief` など DB 経由の読み取りで済ませ、
   マークダウンを何度も読み直さない
 - **変更は必ずマークダウンのファイルに書く。** DB の行を直接書き換えて
   済ませない。作業の終わりに `check` → `build` を通し、記録と DB を合わせ直す
@@ -394,6 +394,7 @@ pip install -r requirements.txt     # SQLAlchemy と PyYAML が要る
 | `tools/stamp.py` | **時刻。** 年が 9999 を越えるので `datetime` を使わない |
 | `tools/reader.py` | **読み取り。** マークダウンをレコードに起こす |
 | `tools/novel.py` | 入口。下のコマンドを持つ |
+| `tools/query.py` | **問い合わせ。** 引く・直すを関数でそろえる（SQL を組まない） |
 | `tools/roll.py` | 乱数。設定をアバウトに決めるとき |
 | `tools/tables.json` | `roll.py` が引くテーブル |
 
@@ -413,19 +414,24 @@ pip install -r requirements.txt     # SQLAlchemy と PyYAML が要る
 （`場所` `出来事` `種別` `個体` `居場所` `人物` `人物居場所` `語`
 `作品` `話`）。**行動は `出来事` に入っている。**
 | `index --world <世界線>` | 用語索引を `novels/worlds/<世界線>/glossary.md` に書き出す |
-| `sql "SELECT …"` | 直接問い合わせる |
+| `events --time <時刻>` | その時（年でも日でも）の出来事と行動 |
+| `events --of <id>` | その id に掛かる出来事と行動 |
+| `show-id <id>` | id 一件を、どの表からでも引く |
+| `text <id> --file <本文>` | レコードの本文（`text` 欄）を入れ替える |
 | `dump` | db の行をマークダウンへ書き戻す。**内容が変わらないファイルは書き直さない** |
 
-`sql` は、断面では出ない問いに使う。
+`events` `show-id` は、断面では出ない問いに使う。**SQL は組み立てない**——
+db に文を渡す入口は無く、引く条件は時刻とレコードの id だけで表す。
+足りない引き方が出てきたら `tools/query.py` に関数を足す。
 
-`dump` は、db を直接いじった（または `sql` で更新した）ときに使う。
+`dump` は、db を直接いじった（または `text` で更新した）ときに使う。
 置き場所はまず今のマークダウンから探し、見つからない新しい行だけ
 `novels/<worlds|objects|characters|terms>/` に id から素直な場所を組んで置く。
 **それでも、変更は作業の終わりに必ずマークダウンへ書き戻す**（前節）。
 
 ```
-python3 tools/novel.py sql \
-  "SELECT name, time FROM event WHERE kind LIKE '火種%' ORDER BY time"
+python3 tools/novel.py events --time 4354          # その年の出来事と行動
+python3 tools/novel.py events --of characters/フリステ/オリオ
 ```
 
 `novels/novel.db` は git に入れない。**記録から何度でも組み直せる**ので、
