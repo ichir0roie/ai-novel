@@ -39,15 +39,17 @@ python3 tools/novel.py load                     作品が決まっていない�
 python3 tools/novel.py save                     おわりに一度。db を md へ書き出す
 ```
 
-作業中は db 相手に読み書きする。設定は `brief` `list` `show` `sql` で読み、
+作業中は db 相手に読み書きする。設定は `brief` `list` `show` `events` `show-id` で読み、
 本文は `stories` `read` `write` で読み書きする（一覧は CLAUDE.md）。
 入口が足りなければ `tools/` に関数を足す。md を直に開いて済ませない。
 
 **入口は、呼ぶたびに `novels/` を頭から読み直す。** 一件ずつ何度も呼ぶのは、
 同じ読み込みをその回数ぶん繰り返すということである。引くものが何件もあるなら
-`batch --file`（命令を並べたファイルを、一度の読み込みで流す）、書き換えが
-何件もあるなら `sql --file`（文を並べて一度に通す）にまとめる。
+`batch --file`（命令を並べたファイルを、一度の読み込みで流す）にまとめる。
 `show` は id を並べて渡せる。
+
+**SQL は組み立てない。** db に文を渡す入口は無い。引く条件は時刻と
+レコードの id で表し、足りない引き方は `tools/query.py` に関数を足す。
 
 ---
 

@@ -20,8 +20,10 @@ python3 tools/novel.py show 采配
 python3 tools/novel.py template --kind 人物
 python3 tools/novel.py index --world SFファンタジー
 python3 tools/novel.py episodes --story めぐる旅路は枯れゆく世界と --before 11
-python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
-python3 tools/novel.py sql --file 直し.sql   書き換えをまとめて一度に通す
+python3 tools/novel.py events --time 4354/09/28
+python3 tools/novel.py events --of characters/フリステ/オリオ
+python3 tools/novel.py show-id <レコードの id>
+python3 tools/novel.py text <レコードの id> --file 本文.md
 python3 tools/novel.py batch --file 引く.txt  引くものが何件もあるとき、一度の読み込みで
 ```
 
@@ -37,6 +39,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import query  # noqa: E402
 import reader  # noqa: E402
 import schema  # noqa: E402
 import stamp  # noqa: E402
@@ -1020,28 +1023,6 @@ def write_episode(engine, path: str, text: str, synced: bool = False) -> str:
 
 # ---------------------------------------------------------------- まとめて流す
 
-def split_sql(source: str) -> list[str]:
-    """`;` で区切られた文に割る。**引用符の中の `;` では割らない。**"""
-    statements, buf, quote = [], [], ""
-    for ch in source:
-        if quote:
-            buf.append(ch)
-            if ch == quote:
-                quote = ""
-            continue
-        if ch in "'\"":
-            quote = ch
-            buf.append(ch)
-            continue
-        if ch == ";":
-            statements.append("".join(buf))
-            buf = []
-            continue
-        buf.append(ch)
-    statements.append("".join(buf))
-    return [st.strip() for st in statements if st.strip()]
-
-
 def batch(path: str, keep_going: bool) -> int:
     """**命令を何本も、一度の読み込みで流す。**
 
@@ -1051,8 +1032,8 @@ def batch(path: str, keep_going: bool) -> int:
     往復も一回で済む。
 
     **見るためのもので、書き換えを積むためのものではない。** 途中で
-    `load` や `sql` を挟んでも、あとに続く命令が見るのは最初に読んだ
-    マークダウンのままになる。書き換えをまとめるなら `sql --file` を使う。
+    `load` や `text` を挟んでも、あとに続く命令が見るのは最初に読んだ
+    マークダウンのままになる。
     """
     import shlex
 
@@ -1163,12 +1144,18 @@ def main(argv=None, lib: "reader.Library | None" = None):
     p = sub.add_parser("index", help="用語索引を書き出す")
     p.add_argument("--world", required=True)
 
-    p = sub.add_parser("sql", help="組んだ db に直接問い合わせる")
-    p.add_argument("query", nargs="?",
-                   help="文。`;` で区切って何本でも。省くと --file から読む")
-    p.add_argument("--file",
-                   help="文の入ったファイル。`-` で標準入力。"
-                        "**書き換えをまとめるときはこちら**")
+    p = sub.add_parser("events", help="出来事と行動を、時刻か id で引く")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--time", help="その時（`4354` で年、`4354/09/28` で日）")
+    g.add_argument("--of", help="この id に掛かるもの（場所・人物・個体・出来事）")
+
+    p = sub.add_parser("show-id", help="id 一件を、どの表からでも引く")
+    p.add_argument("id")
+
+    p = sub.add_parser("text", help="レコードの本文（text 欄）を入れ替える")
+    p.add_argument("id")
+    p.add_argument("--file", required=True,
+                   help="本文の入ったファイル。`-` で標準入力")
 
     p = sub.add_parser(
         "start", help="**作業開始の一手。** load してから、読むものを一度に出す")
@@ -1297,32 +1284,29 @@ def main(argv=None, lib: "reader.Library | None" = None):
         print(f"{os.path.relpath(out, REPO)} を書き直した")
         return 0
 
-    if args.command == "sql":
+    if args.command in ("events", "show-id", "text"):
         if not os.path.exists(DB):
             build(lib)
-        source = args.query
-        if source is None:
-            if not args.file:
-                print("文を渡すか --file を付ける", file=sys.stderr)
-                return 1
-            source = (sys.stdin.read() if args.file == "-"
-                      else open(args.file, encoding="utf-8").read())
-        statements = split_sql(source)
-        if not statements:
-            print("流す文がない", file=sys.stderr)
-            return 1
-        from sqlalchemy import text as sql_text
-        with schema.open_db(DB).connect() as conn:
-            for statement in statements:
-                result = conn.execute(sql_text(statement))
-                if result.returns_rows:
-                    for row in result:
-                        print("\t".join(
-                            "" if v is None else str(v) for v in row))
+        engine = schema.open_db(DB)
+        try:
+            if args.command == "events":
+                if args.time:
+                    rows = query.events_at(engine, args.time)
+                    print(query.show_events(rows, f"その時の出来事 / {args.time}"))
                 else:
-                    print(f"{result.rowcount} 行（save で md に出る）")
-            # INSERT / UPDATE / DELETE。**通したら残す**（そのあと save）
-            conn.commit()
+                    rows = query.events_of(engine, args.of)
+                    print(query.show_events(rows, f"掛かる出来事 / {args.of}"))
+            elif args.command == "show-id":
+                table, row = query.record(engine, args.id)
+                print(query.show_record(table, row))
+            else:
+                body = (sys.stdin.read() if args.file == "-"
+                        else open(args.file, encoding="utf-8").read())
+                rec_id = query.set_text(engine, args.id, body)
+                print(f"{rec_id} の本文を入れ替えた（save で md に出る）")
+        except (LookupError, ValueError, stamp.StampError) as err:
+            print(err, file=sys.stderr)
+            return 1
         return 0
 
     if args.command == "sync":
