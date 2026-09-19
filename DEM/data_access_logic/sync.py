@@ -146,6 +146,7 @@ class MarkdownExporter:
 
     def export_record(self, record: MarkdownBase, path: str) -> None:
         dump_record_to_markdown(record, path)
+        record.filepath = path
 
     def export(self, s: Session, directory: str,
                parent_id: int | None = None,
@@ -347,4 +348,5 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
         for exporter_class in root_exporters:
             exporter_class().export(s, root, None, tally)
         _verify(s, tally)
+        s.commit()
     return tally.counts
