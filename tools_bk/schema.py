@@ -70,7 +70,7 @@ def location_text(values) -> str | None:
 
 
 class Base(DeclarativeBase):
-    text: Mapped[str] = mapped_column(String, default="", nullable=False)
+    text: Mapped[str] = mapped_column(String,  nullable=False)
 
     id: Mapped[str] = mapped_column(
         String, primary_key=True,
@@ -166,15 +166,23 @@ class Kind(Base):
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
-    kind: Mapped[str] = mapped_column(String)
 
-    root_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+
+class ObjectBase:
+    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+
+    name: Mapped[str | None] = mapped_column(String)
+    read: Mapped[str | None] = mapped_column(String)
+
+    kind_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.id"))
+
+    world_influence: Mapped[int | None] = mapped_column(Integer)
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Object(Base):
+class Object(Base, ObjectBase):
     """
     novels/objects/{world_name}/**/{object_name}/{object_name}.md
 
@@ -182,20 +190,6 @@ class Object(Base):
     一人ひとりの人間は `Character` が持つ。ここは群としての行動を持つ。
     """
     __tablename__ = "object"
-
-    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-
-    name: Mapped[str] = mapped_column(String)
-    read: Mapped[str] = mapped_column(String)
-
-    kind_id: Mapped[str] = mapped_column(String, ForeignKey("kind.id"))
-    kind: Mapped[str] = mapped_column(String)
-
-    world_influence: Mapped[int | None] = mapped_column(
-        Integer, comment="世界影響力。この個体が世界の動きにどれだけ関わるかの重み")
-
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class ObjectPlace(Base):
@@ -205,14 +199,16 @@ class ObjectPlace(Base):
 
     __tablename__ = "object_place"
 
-    object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
+    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"))
+    Character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.id"))
+
     place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Character(Base):
+class Character(Base, ObjectBase):
     """
     novels/characters/{born_place_name}/**/{character_name}/{character_name}.md
 
@@ -222,62 +218,55 @@ class Character(Base):
 
     __tablename__ = "character"
 
-    name: Mapped[str] = mapped_column(String)
-    read: Mapped[str] = mapped_column(String)
-
+    # --- 出自 -------------------------------------------------------------
     born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    race_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("kind.id"), comment="種族。種別のどれか")
-    belong_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("object.id"), comment="所属。個体のどれか")
+    belong_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"), comment="所属。個体のどれか")
 
-    # --- 体 -------------------------------------------------------------
-    sex: Mapped[str] = mapped_column(String, default="", comment="性別")
+    # --- 体格 -------------------------------------------------------------
+    sex: Mapped[str] = mapped_column(String,  comment="性別")
     height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm")
-    build: Mapped[str] = mapped_column(String, default="", comment="体格")
-    looks: Mapped[str] = mapped_column(String, default="", comment="見た目の要点")
+    build: Mapped[str] = mapped_column(String,  comment="体格")
+    race_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.id"), comment="種族。種別のどれか")
 
-    # --- 口 -------------------------------------------------------------
-    first_person: Mapped[str] = mapped_column(String, default="", comment="一人称")
-    second_person: Mapped[str] = mapped_column(String, default="", comment="二人称")
-    third_person: Mapped[str] = mapped_column(
-        String, default="", comment="三人称。地の文がこの人物を指す呼び方")
-    tone: Mapped[str] = mapped_column(String, default="", comment="口調")
+    # --- 口調 -------------------------------------------------------------
+    first_person: Mapped[str] = mapped_column(String,  comment="一人称")
+    second_person: Mapped[str] = mapped_column(String,  comment="二人称")
+    tone: Mapped[str] = mapped_column(String,  comment="口調")
 
-    # --- 中身 -----------------------------------------------------------
-    personality: Mapped[str] = mapped_column(String, default="", comment="性格")
-    emotion: Mapped[str] = mapped_column(
-        String, default="", comment="感情。何に揺れるか")
-    thought: Mapped[str] = mapped_column(String, default="", comment="思想")
-    desire: Mapped[str] = mapped_column(String, default="", comment="欲。自覚した目的")
-    lie: Mapped[str] = mapped_column(String, default="", comment="嘘。誤った思い込み")
-    need: Mapped[str] = mapped_column(String, default="", comment="必要。本当に要るもの")
-    fear: Mapped[str] = mapped_column(String, default="", comment="恐れ")
-
-    # --- できること -----------------------------------------------------
-    ability: Mapped[str] = mapped_column(String, default="", comment="能力")
-    cost: Mapped[str] = mapped_column(
-        String, default="", comment="能力の代償・制限。**制限のない能力は書かない**")
-
-    world_influence: Mapped[int | None] = mapped_column(
-        Integer, comment="世界影響力。この人物が世界の動きにどれだけ関わるかの重み")
-
-    start: Mapped[Stamp | None] = mapped_column(StampType, comment="生")
-    end: Mapped[Stamp | None] = mapped_column(StampType, comment="没")
+    # --- 性格 -----------------------------------------------------------
+    sincerity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="誠実性")
+    curiosity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="好奇心")
+    proactivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="行動力")
+    cooperativeness: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="協調性")
+    sociability: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="社交性")
+    emotional_expression: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感情表現")
+    self_esteem: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己肯定感")
+    self_efficacy: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己効力感")
+    stress_resilience: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="ストレス耐性")
+    flexibility_of_values: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="価値観の柔軟性")
+    sensitivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感受性")
+    imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力")
 
 
-class CharacterPlace(Base):
+class Skill(Base):
     """
-    {character_name}/places/{yyyymmddhhmmss}_{place_name}.md
+    novels/skills/{skill_name}/{skill_name}.md
+
+    **技能。** 何ができるかの分類（戦闘・魔法・工作・交渉）。
+    個体はこの技能にぶら下がる。
     """
 
-    __tablename__ = "character_place"
+    __tablename__ = "skill"
 
-    character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
+    name: Mapped[str] = mapped_column(String)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    # 現象、コスト、効果、範囲、持続時間、対象、条件、制約
+    cost: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="コスト")
+    effect: Mapped[str] = mapped_column(String, nullable=False, comment="効果")
+    range: Mapped[str] = mapped_column(String, comment="範囲")
+    duration: Mapped[str] = mapped_column(String, comment="持続時間")
+    target: Mapped[str] = mapped_column(String, comment="対象")
+    constraint: Mapped[str] = mapped_column(String,  comment="制約")
 
 
 class Term(Base):
@@ -316,8 +305,8 @@ class Story(Base):
         String, ForeignKey("place.id"), comment="使用する世界線")
     place_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("place.id"), comment="立つ場所。断面を取るのに使う")
-    narration: Mapped[str] = mapped_column(String, default="", comment="語り")
-    state: Mapped[str] = mapped_column(String, default="", comment="状態")
+    narration: Mapped[str] = mapped_column(String,  comment="語り")
+    state: Mapped[str] = mapped_column(String,  comment="状態")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年")
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -337,7 +326,7 @@ class Episode(Base):
     number: Mapped[int | None] = mapped_column(
         Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(
-        String, default="", comment="サブタイトル。本文の見出しから読む")
+        String,  comment="サブタイトル。本文の見出しから読む")
     letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
     synced: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
