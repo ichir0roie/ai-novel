@@ -5,10 +5,13 @@
 ものを受け取る想定。db に触れるのはこのモジュールだけ——
 `create_random_event` 側は一切 db を見ない。
 
-実在レコードを指す欄（`place_id` `character_id` `object_id`
+実在レコードを指す欄（`place_id` `character_ids` `object_ids`
 `parent_event_id`）は、渡された id が db に実在するかをここで確かめてから
-書き込む。`name` と `time` は必須。スキーマに無い欄が混じっていたら
-（`DEM/db/schema.py` の `Event` の列と照らして）そこで止める。
+書き込む。`character_ids` `object_ids` は id のリスト（多対多。何人・
+何個体でも渡せる。省けば空の一覧のまま）で、`event_character` `event_object`
+（中間テーブル）へ一件ずつ書き込む。`name` と `time` は必須。
+スキーマに無い欄が混じっていたら（`DEM/db/schema.py` の `Event` の列と
+照らして）そこで止める。
 
 CLI としても呼べる:
     python3 -m DEM.claude_interface.randomizer.commit_event < 出来事.json
@@ -21,7 +24,10 @@ import sys
 
 from sqlalchemy.orm import Session
 
-from DEM.db.schema import Character, Event, Location, Object, get_session
+from DEM.db.schema import (
+    Character, Event, EventCharacter, EventObject, Location, Object,
+    get_session,
+)
 
 
 class UnknownRecordError(ValueError):
@@ -51,6 +57,8 @@ def commit_event(event: str | dict) -> dict:
     """
     data = json.loads(event) if isinstance(event, str) else dict(event)
     data.pop("id", None)
+    character_ids = [int(id_) for id_ in data.pop("character_ids", None) or []]
+    object_ids = [int(id_) for id_ in data.pop("object_ids", None) or []]
 
     columns = {column.key for column in Event.__table__.columns} - {"id"}
     unknown = set(data) - columns
@@ -64,15 +72,23 @@ def commit_event(event: str | dict) -> dict:
     with get_session() as session:
         _check_exists(session, Event, data.get("parent_event_id"), "parent_event_id")
         _check_exists(session, Location, data.get("place_id"), "place_id")
-        _check_exists(session, Character, data.get("character_id"), "character_id")
-        _check_exists(session, Object, data.get("object_id"), "object_id")
+        for character_id in character_ids:
+            _check_exists(session, Character, character_id, "character_ids")
+        for object_id in object_ids:
+            _check_exists(session, Object, object_id, "object_ids")
 
         record = Event(**data)
+        record.event_characters = [
+            EventCharacter(character_id=character_id) for character_id in character_ids]
+        record.event_objects = [
+            EventObject(object_id=object_id) for object_id in object_ids]
         session.add(record)
         session.commit()
         return {
-            column.key: _json_safe(getattr(record, column.key))
-            for column in Event.__table__.columns
+            **{column.key: _json_safe(getattr(record, column.key))
+               for column in Event.__table__.columns},
+            "character_ids": character_ids,
+            "object_ids": object_ids,
         }
 
 

@@ -14,7 +14,7 @@ relationship はあらかじめ `query.py` 側の select が `selectinload` で
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from DEM.data_access_logic.query import common_query
 from DEM.db.schema import Character, Event, Location, Object, Story
@@ -23,7 +23,15 @@ from DEM.db.stamp import Stamp
 
 
 def event_row(event, *, text: bool = True) -> dict:
-    return to_dict_with(event, relations=common_query.EVENT_RELATIONS, text=text)
+    """出来事一件を辞書にする。掛かる人物・個体は**何人・何個体でも**並ぶ。"""
+    data = to_dict_with(event, relations=common_query.EVENT_RELATIONS, text=text)
+    data["characters"] = [
+        {"id": link.character_id, "name": None if link.character is None else link.character.name}
+        for link in event.event_characters]
+    data["objects"] = [
+        {"id": link.object_id, "name": None if link.object is None else link.object.name}
+        for link in event.event_objects]
+    return data
 
 
 def events_at(session: Session, when, *, place_ids=None, limit=None,
@@ -168,8 +176,7 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
         return [row for row in rows if row.get("kind") not in common_query.HIDDEN_EVENT_KINDS]
 
     recent_query = (select(Event)
-                    .options(selectinload(Event.place), selectinload(Event.character),
-                             selectinload(Event.object))
+                    .options(*common_query.EVENT_LOAD_OPTIONS)
                     .where(Event.place_id.in_(place_ids))
                     .where(Event.time <= until)
                     .where(Event.time >= Stamp(max(1, since.year - reach)))
