@@ -35,9 +35,10 @@ class StampType(TypeDecorator):
 
 
 LOCATION_COLUMNS = ("location_world", "location_planet",
-                    "location_x", "location_y", "location_z")
+                    "location_longitude", "location_latitude",
+                    "location_altitude")
 
-_LOCATION_TAGS = ("w", "p", "x", "y", "z")
+_LOCATION_TAGS = ("w", "p", "lon", "lat", "alt")
 
 
 def _digit(value) -> str:
@@ -55,7 +56,7 @@ def location_text(values) -> str | None:
     `values` は辞書でもレコードの行でもよい。欠けている桁は `-` で埋める。
     どの桁も無ければ `None`（座標を持たない場所）。
 
-    `w4/p1/lon-/lat-/alt-` のように、上から順に並ぶ。前方一致がそのまま
+    `w4/p1/lon12/lat-/alt-` のように、上から順に並ぶ。前方一致がそのまま
     「同じ世界線」「同じ星」の絞り込みになる。
     """
     get = values.get if hasattr(values, "get") else (
@@ -87,16 +88,16 @@ class Place(Base):
     kind: Mapped[str | None] = mapped_column(String)
     parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
-    # 位置は**一つの座標系だけ**で持つ。緯度・経度・高度は持たない
-    # （星ごとに基準が変わり、上の場所と突き合わせられないため）。
+    # 位置は**一つの座標系だけ**で持つ。経度・緯度・高度で持ち、
+    # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
     location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W")
     location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P")
-    location_x: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="X。星の基準点から東へ何 km")
-    location_y: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="Y。星の赤道から北へ何 km")
-    location_z: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="Z。基準面から上へ何 m")
+    location_longitude: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="経度。基準の子午線から東へ何度（西は負）")
+    location_latitude: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="緯度。赤道から北へ何度（南は負）")
+    location_altitude: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="高度。基準面から上へ何 m")
 
     location_key: Mapped[str | None] = mapped_column(
         String, unique=True, index=True,

@@ -110,7 +110,8 @@ FIELDS: dict[str, dict[str, str]] = {
     "place": {
         "名": "name", "種別": "kind", "親": "parent_id",
         "世界番号": "location_world", "惑星番号": "location_planet",
-        "X": "location_x", "Y": "location_y", "Z": "location_z",
+        "経度": "location_longitude", "緯度": "location_latitude",
+        "高度": "location_altitude",
         "始": "start", "終": "end",
     },
     # 行動もここ。`人物` `個体` が誰の行動かを持ち、`親` が掛かり先の出来事
