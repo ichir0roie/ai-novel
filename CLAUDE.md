@@ -62,6 +62,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 顔ぶれを取る（2-3）           | `DEM.claude_interface.story.read_cast.read_cast(<作品id>, time=None)`（立つ場所の一つ上の配下に居る人物・個体と直近の出来事） |
 | 断面を取る（2-3）             | `DEM.claude_interface.story.read_brief.read_brief(<場所id>, <時刻>, reach=60)`（`full=True` を付けない） |
 | 喋る人物を一件読む（2-3）     | `DEM.claude_interface.story.read_character.read_character(<人物id>, time=None)`（口調・性格・技・情動・直近の行動） |
+| 人物を軸にその時刻の周辺を読む | `DEM.claude_interface.story.read_surroundings.read_surroundings(<人物id>, <時刻>, reach=60)`（同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う） |
 | 出来事を引く                   | `DEM.claude_interface.story.read_events.read_events(time=…)` / `read_events(record_id=…)` |
 | 本文を db へ確定する（2-4）   | `DEM.claude_interface.story.commit_episode.commit_episode(<辞書かJSON>)`（字数を数えて入れる。`synced` は必ず下りる） |
 | 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.set_episode_synced(<作品id>, <話数>)` |
