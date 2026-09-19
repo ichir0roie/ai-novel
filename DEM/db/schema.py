@@ -70,7 +70,7 @@ def location_text(values) -> str | None:
 class Base(DeclarativeBase):
 
     # SQLite は「INTEGER PRIMARY KEY」だけを rowid の別名として autoincrement する。
-    # BigInteger だと型名が INTEGER と一致せず insert のたびに id が NULL のまま失敗する。
+    # Integer だと型名が INTEGER と一致せず insert のたびに id が NULL のまま失敗する。
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
 
@@ -86,7 +86,7 @@ class Location(MarkdownBase):
 
     name: Mapped[str | None] = mapped_column(String)
     kind: Mapped[str | None] = mapped_column(String)
-    parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
+    parent_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
 
     # 位置は**一つの座標系だけ**で持つ。経度・緯度・高度で持ち、
     # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
@@ -116,22 +116,22 @@ class Event(MarkdownBase):
     kind: Mapped[str] = mapped_column(String, default="")
     time: Mapped[Stamp] = mapped_column(StampType, index=True)
 
-    parent_event_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("event.id"))
+    parent_event_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("event.id"))
 
     place_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("location.id"), index=True)
+        Integer, ForeignKey("location.id"), index=True)
     place: Mapped[Location | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
     # 誰の行動かをこの二つが持ち、掛かり先の出来事は `parent_event_id`。
     # どちらも空なら、誰の行動でもない「ただ起きたこと」。
     character_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("character.id"), index=True,
+        Integer, ForeignKey("character.id"), index=True,
         comment="その行動をした人物")
     character: Mapped["Character | None"] = relationship(
         back_populates="events", lazy="noload")
     object_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("object.id"), index=True,
+        Integer, ForeignKey("object.id"), index=True,
         comment="その行動をした個体（群）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
@@ -154,12 +154,12 @@ class Kind(MarkdownBase):
 
 
 class ObjectBase:
-    root_place_name: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
+    root_place_name: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
 
     name: Mapped[str | None] = mapped_column(String)
     read: Mapped[str | None] = mapped_column(String)
 
-    kind_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kind.id"))
+    kind_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("kind.id"))
 
     world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える")
 
@@ -174,8 +174,8 @@ class Object(MarkdownBase, ObjectBase):
 class ObjectPlace(Base):
     __tablename__ = "object_place"
 
-    object_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("object.id"))
-    place_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("location.id"))
+    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"))
+    place_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -186,8 +186,8 @@ class Character(MarkdownBase, ObjectBase):
     __tablename__ = "character"
 
     # --- 出自 -------------------------------------------------------------
-    born_place_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
-    belong_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("object.id"), comment="所属。個体のどれか")
+    born_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    belong_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), comment="所属。個体のどれか")
 
     # --- 体格 -------------------------------------------------------------
     sex: Mapped[str] = mapped_column(String,  comment="性別")
@@ -233,8 +233,8 @@ class CharacterPlace(Base):
 
     __tablename__ = "character_place"
 
-    character_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("character.id"))
-    place_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("location.id"))
+    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
+    place_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -261,10 +261,10 @@ class CharacterSkill(Base):
 
     __tablename__ = "character_skill"
 
-    character_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("character.id"))
-    object_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("object.id"))
+    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
+    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"))
 
-    skill_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("skill.id"), nullable=False)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skill.id"), nullable=False)
 
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
 
@@ -273,7 +273,7 @@ class CharacterEmotion(MarkdownBase):
 
     __tablename__ = "character_drive"
 
-    character_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("character.id"))
+    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
 
     text: Mapped[str] = mapped_column(String, nullable=False)
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
@@ -288,12 +288,12 @@ class Term(MarkdownBase):
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
 
-    restrict_world_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
-    restrict_planet_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
-    restrict_place_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
+    restrict_world_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    restrict_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
 
     parent_term_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
+        Integer, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
 
 class Story(MarkdownBase):
@@ -303,9 +303,9 @@ class Story(MarkdownBase):
     name: Mapped[str] = mapped_column(String)
 
     world_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("location.id"), comment="使用する世界線")
+        Integer, ForeignKey("location.id"), comment="使用する世界線")
     place_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("location.id"), comment="立つ場所。断面を取るのに使う")
+        Integer, ForeignKey("location.id"), comment="立つ場所。断面を取るのに使う")
     narration: Mapped[str] = mapped_column(String,  comment="語り")
     state: Mapped[str] = mapped_column(String,  comment="状態")
 
@@ -317,7 +317,7 @@ class Episode(MarkdownBase):
 
     __tablename__ = "episode"
 
-    story_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("story.id"))
+    story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"))
     number: Mapped[int | None] = mapped_column(
         Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(
