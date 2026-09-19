@@ -12,14 +12,14 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.data_access_logic.query import common_query
 from DEM.db.schema import get_session
 
 
 def list_places(kind: str | None = None) -> list[dict]:
     """場所を一覧で返す。db には書き込まない。"""
     with get_session() as session:
-        rows = session.scalars(query.places_select(kind=kind)).all()
+        rows = session.scalars(common_query.places_select(kind=kind)).all()
         return [{"id": row.id, "name": row.name, "kind": row.kind,
                  "parent_id": row.parent_id} for row in rows]
 
