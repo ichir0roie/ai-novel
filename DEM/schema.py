@@ -13,11 +13,6 @@ from stamp import Stamp
 
 
 class StampType(TypeDecorator):
-    """作中の時刻。**桁を並べた整数として持つ。**
-    python の `datetime` は 9999 年までしか持てず、作中の暦はそれを越える。
-    `tools/stamp.py` の `Stamp` を、`年月日時分秒` を並べた整数へ落として入れる。
-    並びがそのまま時の前後になるので、`ORDER BY` も `<` もそのまま効く。
-    """
 
     impl = BigInteger
     cache_ok = True
@@ -70,24 +65,33 @@ def location_text(values) -> str | None:
 
 
 class Base(DeclarativeBase):
-    text: Mapped[str] = mapped_column(String, default="", nullable=False)
+    pass
 
-    id: Mapped[str] = mapped_column(
+
+class MarkdownBase(Base):
+    __abstract__ = True
+
+    text: Mapped[str] = mapped_column(String,  nullable=False)
+
+    filepath: Mapped[str] = mapped_column(
         String, primary_key=True,
         comment="主キー。**置き場所そのもの**（novels/ からの相対パス、拡張子なし）。"
                 "md には書かない。読み込むときに置き場所から入る")
 
 
-class Place(Base):
-    """
-    novels/worlds/{place_name}/**/{place_name}.md
-    """
+class RecordBase(Base):
+    __abstract__ = True
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+
+class Place(MarkdownBase):
 
     __tablename__ = "place"
 
     name: Mapped[str | None] = mapped_column(String)
     kind: Mapped[str | None] = mapped_column(String)
-    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
 
     # 位置は**一つの座標系だけ**で持つ。経度・緯度・高度で持ち、
     # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
@@ -109,17 +113,7 @@ class Place(Base):
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Event(Base):
-    """
-    novels/worlds/{place_name}/**/events/{yyyymmddhhmmss}_{event_name}.md
-    novels/objects/{world_name}/**/{object_name}/events/{yyyymmddhhmmss}_{action_name}.md
-    novels/characters/{born_place_name}/**/{character_name}/events/{yyyymmddhhmmss}_{action_name}.md
-
-    **起きたことは、ぜんぶここに入る。** 場所で起きたことも、人物・個体が
-    したことも同じ表。行動は `character_id` / `object_id` が誰かを持ち、
-    掛かり先の出来事を `parent_event_id` が指す。
-    ある時刻・ある場所の要素は `place` と結んで一度に引ける。
-    """
+class Event(MarkdownBase):
 
     __tablename__ = "event"
 
@@ -127,217 +121,206 @@ class Event(Base):
     kind: Mapped[str] = mapped_column(String, default="")
     time: Mapped[Stamp] = mapped_column(StampType, index=True)
 
-    parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.id"))
+    parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.filepath"))
 
     place_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.id"), index=True)
+        String, ForeignKey("place.filepath"), index=True)
     place: Mapped[Place | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
     # 誰の行動かをこの二つが持ち、掛かり先の出来事は `parent_event_id`。
     # どちらも空なら、誰の行動でもない「ただ起きたこと」。
     character_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("character.id"), index=True,
+        String, ForeignKey("character.filepath"), index=True,
         comment="その行動をした人物")
     object_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("object.id"), index=True,
+        String, ForeignKey("object.filepath"), index=True,
         comment="その行動をした個体（群）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
     parent_event: Mapped["Event | None"] = relationship(
-        remote_side="Event.id", back_populates="child_events", lazy="noload"
+        remote_side="Event.filepath", back_populates="child_events", lazy="noload"
     )
     child_events: Mapped[list["Event"]] = relationship(
-        back_populates="parent_event", lazy="selectin", cascade="all, delete-orphan"
+        back_populates="parent_event", lazy="noload", cascade="all, delete-orphan"
     )
 
 
-class Kind(Base):
-    """
-    novels/objects/{root_place_name}/{kind_name}.md
-
-    **型。** 何であるかの分類（系統・国・組織・仕組み）。
-    個体はこの型にぶら下がる。
-    """
+class Kind(MarkdownBase):
 
     __tablename__ = "kind"
 
     name: Mapped[str] = mapped_column(String)
     read: Mapped[str] = mapped_column(String)
-    kind: Mapped[str] = mapped_column(String)
 
-    root_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+
+class ObjectBase:
+    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+
+    name: Mapped[str | None] = mapped_column(String)
+    read: Mapped[str | None] = mapped_column(String)
+
+    kind_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.filepath"))
+
+    world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Object(Base):
-    """
-    novels/objects/{world_name}/**/{object_name}/{object_name}.md
-
-    **種族・組織・仕組みなど、まとまりとして振る舞うもの。**
-    一人ひとりの人間は `Character` が持つ。ここは群としての行動を持つ。
-    """
+class Object(MarkdownBase, ObjectBase):
     __tablename__ = "object"
 
-    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
 
-    name: Mapped[str] = mapped_column(String)
-    read: Mapped[str] = mapped_column(String)
-
-    kind_id: Mapped[str] = mapped_column(String, ForeignKey("kind.id"))
-    kind: Mapped[str] = mapped_column(String)
-
-    world_influence: Mapped[int | None] = mapped_column(
-        Integer, comment="世界影響力。この個体が世界の動きにどれだけ関わるかの重み")
-
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
-
-
-class ObjectPlace(Base):
-    """
-    {object_name}/places/{yyyymmddhhmmss}_{place_name}.md
-    """
-
+class ObjectPlace(RecordBase):
     __tablename__ = "object_place"
 
-    object_id: Mapped[str] = mapped_column(String, ForeignKey("object.id"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
+    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"))
+    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.filepath"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Character(Base):
-    """
-    novels/characters/{born_place_name}/**/{character_name}/{character_name}.md
-
-    **一人ひとりの人間。** 本文で一人称・二人称・三人称を書き分けるために、
-    ここがいちばん細かい。群としての振る舞いは `Object` の側にある。
-    """
+class Character(MarkdownBase, ObjectBase):
 
     __tablename__ = "character"
 
-    name: Mapped[str] = mapped_column(String)
-    read: Mapped[str] = mapped_column(String)
+    # --- 出自 -------------------------------------------------------------
+    born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    belong_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"), comment="所属。個体のどれか")
 
-    born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    race_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("kind.id"), comment="種族。種別のどれか")
-    belong_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("object.id"), comment="所属。個体のどれか")
-
-    # --- 体 -------------------------------------------------------------
-    sex: Mapped[str] = mapped_column(String, default="", comment="性別")
+    # --- 体格 -------------------------------------------------------------
+    sex: Mapped[str] = mapped_column(String,  comment="性別")
     height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm")
-    build: Mapped[str] = mapped_column(String, default="", comment="体格")
-    looks: Mapped[str] = mapped_column(String, default="", comment="見た目の要点")
+    build: Mapped[str] = mapped_column(String,  comment="体格")
 
-    # --- 口 -------------------------------------------------------------
-    first_person: Mapped[str] = mapped_column(String, default="", comment="一人称")
-    second_person: Mapped[str] = mapped_column(String, default="", comment="二人称")
-    third_person: Mapped[str] = mapped_column(
-        String, default="", comment="三人称。地の文がこの人物を指す呼び方")
-    tone: Mapped[str] = mapped_column(String, default="", comment="口調")
+    # --- 口調 -------------------------------------------------------------
+    first_person: Mapped[str] = mapped_column(String,  comment="一人称")
+    second_person: Mapped[str] = mapped_column(String,  comment="二人称")
+    third_person: Mapped[str] = mapped_column(String,  comment="三人称")
+    tone: Mapped[str] = mapped_column(String,  comment="口調")
 
-    # --- 中身 -----------------------------------------------------------
-    personality: Mapped[str] = mapped_column(String, default="", comment="性格")
-    emotion: Mapped[str] = mapped_column(
-        String, default="", comment="感情。何に揺れるか")
-    thought: Mapped[str] = mapped_column(String, default="", comment="思想")
-    desire: Mapped[str] = mapped_column(String, default="", comment="欲。自覚した目的")
-    lie: Mapped[str] = mapped_column(String, default="", comment="嘘。誤った思い込み")
-    need: Mapped[str] = mapped_column(String, default="", comment="必要。本当に要るもの")
-    fear: Mapped[str] = mapped_column(String, default="", comment="恐れ")
+    # --- 性格 -----------------------------------------------------------
+    sincerity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="誠実性")
+    curiosity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="好奇心")
+    proactivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="行動力")
+    cooperativeness: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="協調性")
+    sociability: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="社交性")
+    emotional_expression: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感情表現")
+    self_esteem: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己肯定感")
+    self_efficacy: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己効力感")
+    stress_resilience: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="ストレス耐性")
+    flexibility_of_values: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="価値観の柔軟性")
+    sensitivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感受性")
+    imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力")
 
-    # --- できること -----------------------------------------------------
-    ability: Mapped[str] = mapped_column(String, default="", comment="能力")
-    cost: Mapped[str] = mapped_column(
-        String, default="", comment="能力の代償・制限。**制限のない能力は書かない**")
+    # relationships
 
-    world_influence: Mapped[int | None] = mapped_column(
-        Integer, comment="世界影響力。この人物が世界の動きにどれだけ関わるかの重み")
+    places: Mapped[list[CharacterPlace]] = relationship(
+        back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
+    )
+    skills: Mapped[list[CharacterSkill]] = relationship(
+        lazy="noload",  order_by="CharacterSkill.id.asc()")
+    emotions: Mapped[list[CharacterEmotion]] = relationship(
+        lazy="noload",  order_by="CharacterEmotion.start.desc()")
 
-    start: Mapped[Stamp | None] = mapped_column(StampType, comment="生")
-    end: Mapped[Stamp | None] = mapped_column(StampType, comment="没")
 
-
-class CharacterPlace(Base):
-    """
-    {character_name}/places/{yyyymmddhhmmss}_{place_name}.md
-    """
+class CharacterPlace(RecordBase):
 
     __tablename__ = "character_place"
 
-    character_id: Mapped[str] = mapped_column(String, ForeignKey("character.id"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.filepath"))
+
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
+
+    character: Mapped[Character | None] = relationship(back_populates="places", lazy="noload")
+
+
+class Skill(MarkdownBase):
+
+    __tablename__ = "skill"
+
+    name: Mapped[str] = mapped_column(String)
+
+    # 現象、コスト、効果、範囲、持続時間、対象、条件、制約
+    cost: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="コスト")
+    effect: Mapped[str] = mapped_column(String, nullable=False, comment="効果")
+    range: Mapped[str] = mapped_column(String, comment="範囲")
+    duration: Mapped[str] = mapped_column(String, comment="持続時間")
+    target: Mapped[str] = mapped_column(String, comment="対象")
+    constraint: Mapped[str] = mapped_column(String,  comment="制約")
+
+
+class CharacterSkill(RecordBase):
+
+    __tablename__ = "character_skill"
+
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"))
+
+    skill_id: Mapped[str] = mapped_column(String, ForeignKey("skill.filepath"), nullable=False)
+
+    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
+
+
+class CharacterEmotion(MarkdownBase):
+
+    __tablename__ = "character_drive"
+
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+
+    text: Mapped[str] = mapped_column(String, nullable=False)
+    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Term(Base):
-    """
-    novels/terms/**/{term_name}/{term_name}.md
-
-    **入れ子。** ディレクトリが上下を表す。`{term_name}/{term_name}.md` がその語、
-    その下のディレクトリがその語にぶら下がる語。
-    """
+class Term(MarkdownBase):
     __tablename__ = "term"
 
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
 
-    restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    restrict_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    restrict_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
 
     parent_term_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
+        String, ForeignKey("term.filepath"), comment="上位の語。置いたディレクトリで決まる")
 
 
-class Story(Base):
-    """
-    novels/stories/{story_name}/meta.md
-
-    **作品。** 本文の入れ物。どの世界線のどこに立つかをここが持つ。
-    作品は世界線をまたがない。
-    """
+class Story(MarkdownBase):
 
     __tablename__ = "story"
 
     name: Mapped[str] = mapped_column(String)
 
     world_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.id"), comment="使用する世界線")
+        String, ForeignKey("place.filepath"), comment="使用する世界線")
     place_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.id"), comment="立つ場所。断面を取るのに使う")
-    narration: Mapped[str] = mapped_column(String, default="", comment="語り")
-    state: Mapped[str] = mapped_column(String, default="", comment="状態")
+        String, ForeignKey("place.filepath"), comment="立つ場所。断面を取るのに使う")
+    narration: Mapped[str] = mapped_column(String,  comment="語り")
+    state: Mapped[str] = mapped_column(String,  comment="状態")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年")
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
-class Episode(Base):
-    """
-    novels/stories/{story_name}/episodes/{話数}.md
-
-    **一話。** `text` が原稿そのもの。データは `同期` だけを持つ。
-    話数はファイル名、題と字数は原稿から採る（書き戻すときも足さない）。
-    """
+class Episode(MarkdownBase):
 
     __tablename__ = "episode"
 
-    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.id"))
+    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.filepath"))
     number: Mapped[int | None] = mapped_column(
         Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(
-        String, default="", comment="サブタイトル。本文の見出しから読む")
+        String,  comment="サブタイトル。本文の見出しから読む")
     letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
     synced: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
