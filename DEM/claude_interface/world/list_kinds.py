@@ -2,24 +2,18 @@
 """**種別（系統）の一覧**を出す、claude が呼ぶ入口。
 
 人物や個体の `kind_id` に渡す id をここで拾う。db には書き込まない。
-
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.world.list_kinds
 """
 from __future__ import annotations
 
-import json
-
+from DEM.claude_interface.world._base import WorldQuery
 from DEM.data_access_logic.query import common_query
-from DEM.db.schema import get_session
 
 
-def list_kinds() -> list[dict]:
+class ListKinds(WorldQuery):
     """種別を一覧で返す。"""
-    with get_session() as session:
-        rows = session.scalars(common_query.kinds_select()).all()
-        return [{"id": row.id, "name": row.name, "read": row.read} for row in rows]
 
+    def select(self):
+        return common_query.kinds_select()
 
-if __name__ == "__main__":
-    print(json.dumps(list_kinds(), ensure_ascii=False, indent=2))
+    def row(self, row) -> dict:
+        return {"id": row.id, "name": row.name, "read": row.read}

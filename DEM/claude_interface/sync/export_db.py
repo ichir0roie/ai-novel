@@ -26,28 +26,21 @@ worlds/event/<時刻>_<出来事>.md   誰の行動でもない、ただ起き�
 残っているほうが紛らわしいため。書き出せないレコードが一件でもあれば
 （親を指す欄が実在しない id を指している等）`ExportError` で止まる。
 
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.sync.export_db
-書き出した件数を JSON で標準出力へ返す。
+    ExportDb().run()   書き出した件数を、テーブル名ごとの辞書で返す
 """
 from __future__ import annotations
 
-import json
-
+from DEM.claude_interface._base import Entrypoint
 from DEM.data_access_logic.sync import WORLDS_ROOT, ExportError, export_db as _export_db
 
-__all__ = ["export_db", "export_db_json", "ExportError"]
+__all__ = ["ExportDb", "ExportError"]
 
 
-def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
+class ExportDb(Entrypoint):
     """db を md へ書き出して、テーブル名ごとの件数を辞書で返す。"""
-    return _export_db(root)
 
+    def __init__(self, root: str = WORLDS_ROOT):
+        self.root = root
 
-def export_db_json(root: str = WORLDS_ROOT) -> str:
-    """`export_db` の結果を JSON 文字列で返す（CLI 出力向け）。"""
-    return json.dumps(export_db(root), ensure_ascii=False, indent=2)
-
-
-if __name__ == "__main__":
-    print(export_db_json())
+    def run(self) -> dict[str, int]:
+        return _export_db(self.root)

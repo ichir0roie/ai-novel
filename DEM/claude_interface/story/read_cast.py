@@ -7,27 +7,22 @@
 
 **思いついた名前を先に置かない。** 誰を出せるかはここで決める。
 `time` を省くと作品の立つ年。`levels` を上げるともっと広く拾う。
-
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.story.read_cast <作品id> [時刻]
 """
 from __future__ import annotations
 
-import json
-import sys
-
 from DEM.claude_interface.story import _rows
-from DEM.db.schema import get_session
+from DEM.claude_interface.story._base import StoryQuery
 
 
-def read_cast(story_id: int, time=None, count: int = 5, levels: int = 1) -> dict:
+class ReadCast(StoryQuery):
     """その時点の顔ぶれを辞書で返す。"""
-    with get_session() as session:
-        return _rows.cast(session, int(story_id), time, count=int(count),
-                          levels=int(levels))
 
+    def __init__(self, story_id: int, time=None, count: int = 5, levels: int = 1):
+        self.story_id = story_id
+        self.time = time
+        self.count = count
+        self.levels = levels
 
-if __name__ == "__main__":
-    story_id = int(sys.argv[1])
-    when = sys.argv[2] if len(sys.argv) > 2 else None
-    print(json.dumps(read_cast(story_id, when), ensure_ascii=False, indent=2))
+    def execute(self, session) -> dict:
+        return _rows.cast(session, int(self.story_id), self.time,
+                          count=int(self.count), levels=int(self.levels))
