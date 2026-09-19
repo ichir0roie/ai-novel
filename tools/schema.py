@@ -74,7 +74,8 @@ class Base(DeclarativeBase):
 
     id: Mapped[str] = mapped_column(
         String, primary_key=True,
-        comment="主キー。md には書かない。読み込むときに上位のレコードの id と名から採番する")
+        comment="主キー。**置き場所そのもの**（novels/ からの相対パス、拡張子なし）。"
+                "md には書かない。読み込むときに置き場所から入る")
 
 
 class Place(Base):
