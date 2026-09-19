@@ -55,6 +55,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | ------------------------------ | -------------------------------------------------------------------------------------- |
 | ランダムな人物の下書きを作る   | `DEM.claude_interface.randomizer.create_random_character.create_random_character(...)`（db には触れない。辞書を返すだけ） |
 | 作った下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_character.commit_character(<辞書かJSON>)`（id の実在確認をしてから書き込む） |
+| db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.export_db()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
 
 上の表にない操作（断面を読む・一覧を見る・話を読み書きする・同期を管理する、等、
 旧 `tools/novel.py` が持っていたもの）はまだ `DEM/claude_interface/` に無い。
