@@ -32,12 +32,13 @@ def __object_time_condition(time: Stamp):
 def character_around_event(
     s: Session,
     character_id: int,
-    time: Stamp
-) -> tuple[Sequence[Character], Sequence[Object]]:
+    time: Stamp,
+    reach: int = 60,
+) -> tuple[Sequence[Character], Sequence[Object], Sequence[Event]]:
 
     character_location_ids = (
         select(
-            CharacterPlace.id
+            CharacterPlace.location_id
         )
         .where(
             CharacterPlace.character_id == character_id,
@@ -72,7 +73,8 @@ def character_around_event(
         )
         .join(CharacterPlace, and_(
             CharacterPlace.character_id == Character.id,
-            __character_time_condition(time)
+            CharacterPlace.location_id.in_(location_ids),
+            __character_time_condition(time),
         ))
     ).all()
     objects = s.scalars(
@@ -82,9 +84,26 @@ def character_around_event(
         .join(
             ObjectPlace, and_(
                 ObjectPlace.object_id == Object.id,
-                __object_time_condition(time)
+                ObjectPlace.location_id.in_(location_ids),
+                __object_time_condition(time),
             )
         )
     ).all()
 
-    return characters, objects
+    since = Stamp(max(1, time.year - reach))
+    events = s.scalars(
+        select(Event)
+        .options(
+            selectinload(Event.place),
+            selectinload(Event.character),
+            selectinload(Event.object),
+        )
+        .where(
+            Event.place_id.in_(location_ids),
+            Event.time <= time,
+            Event.time >= since,
+        )
+        .order_by(Event.time.desc(), Event.id.desc())
+    ).all()
+
+    return characters, objects, events
