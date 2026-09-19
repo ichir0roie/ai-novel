@@ -3,7 +3,10 @@
 
 ```
 python3 tools/novel.py check                 不備を探す。あればコード 1 で止まる
-python3 tools/novel.py load                  **作業開始時。** md を db へ読み込む
+python3 tools/novel.py start --story めぐる旅路は枯れゆく世界と
+                                             **作業開始時。** load して、企画・プロット・
+                                             直前の話・断面・顔ぶれを一度に出す
+python3 tools/novel.py load                  md を db へ読み込むだけ
 python3 tools/novel.py save                  **作業終了時。** db を md へ書き出す
 python3 tools/novel.py stories --work めぐる旅路は枯れゆく世界と
 python3 tools/novel.py read <作品名>/1
@@ -18,6 +21,8 @@ python3 tools/novel.py template --kind 人物
 python3 tools/novel.py index --world SFファンタジー
 python3 tools/novel.py episodes --story めぐる旅路は枯れゆく世界と --before 11
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
+python3 tools/novel.py sql --file 直し.sql   書き換えをまとめて一度に通す
+python3 tools/novel.py batch --file 引く.txt  引くものが何件もあるとき、一度の読み込みで
 ```
 
 **`novels/` のマークダウンは直に開かない。** 読むのも書くのも、この入口を通す。
@@ -625,6 +630,63 @@ def episodes(lib: reader.Library, story: str, before: int | None,
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------- 開く
+
+def start(lib: reader.Library, story: str, when: stamp.Stamp | None,
+          count: int, reach: int) -> str:
+    """**作業を開くときに読むものを、一度に全部出す。**
+
+    `core/CLAUDE.md`「書く前に必ず読む」が並べているうち、台帳から出せる
+    ぶん（作品の企画・プロット・直前の話・断面・顔ぶれ）をまとめて返す。
+    一つずつ呼ぶと、同じマークダウンを何度も読み直すうえに、
+    呼ぶ側の往復も増える。**読むものが決まっているなら、一度で出す。**
+
+    未同期の話があれば、何も出さずにそれだけを返す（`brief` と同じ扱い）。
+    裏は伏せたままで、ここに `--full` は無い。本文を書く前に読むものだから。
+    """
+    def nest(block: str) -> str:
+        """挟み込むぶん、中の見出しを一段ずつ下げる。"""
+        return "\n".join("#" + line if line.startswith("#") else line
+                          for line in block.splitlines())
+
+    warning = sync_warning(lib, story)
+    if warning:
+        return warning
+
+    story_rec = next((r for r in lib.of("story")
+                      if story in (r.id, r.values.get("name"))), None)
+    if story_rec is None:
+        names = "、".join(sorted(str(r.id) for r in lib.of("story")))
+        return f"「{story}」という作品がない。作品: {names}"
+
+    out = [f"# 開く / {story_rec.id}", ""]
+
+    out += ["## 企画（meta.md）", ""]
+    for key, column in reader.FIELDS["story"].items():
+        if key != "名" and story_rec.values.get(column) not in (None, ""):
+            out.append(f"{key}: {story_rec.values[column]}")
+    out += ["", story_rec.values.get("text", ""), ""]
+
+    plot = os.path.join(NOVELS, "stories", str(story_rec.id), "plot.md")
+    if os.path.exists(plot):
+        with open(plot, encoding="utf-8") as fh:
+            out += ["## プロット（plot.md）", "", fh.read().rstrip(), ""]
+
+    out += [nest(episodes(lib, str(story_rec.id), None, count, body=True)),
+            ""]
+
+    here = story_rec.values.get("place_id")
+    if when is None:
+        when = story_rec.values.get("start")
+    if here and when is not None:
+        places = {r.id: r for r in lib.of("place")}
+        name = str(places[here].values.get("name") or here) \
+            if here in places else str(here)
+        out += [nest(brief(lib, name, when, reach, False)), ""]
+        out += [nest(cast(lib, str(story_rec.id), when, 5, False)), ""]
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- 同期
 
 SYNC_NOTE = (
@@ -974,9 +1036,76 @@ def write_episode(engine, path: str, text: str, synced: bool = False) -> str:
     return rec_id
 
 
+# ---------------------------------------------------------------- まとめて流す
+
+def split_sql(source: str) -> list[str]:
+    """`;` で区切られた文に割る。**引用符の中の `;` では割らない。**"""
+    statements, buf, quote = [], [], ""
+    for ch in source:
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                quote = ""
+            continue
+        if ch in "'\"":
+            quote = ch
+            buf.append(ch)
+            continue
+        if ch == ";":
+            statements.append("".join(buf))
+            buf = []
+            continue
+        buf.append(ch)
+    statements.append("".join(buf))
+    return [st.strip() for st in statements if st.strip()]
+
+
+def batch(path: str, keep_going: bool) -> int:
+    """**命令を何本も、一度の読み込みで流す。**
+
+    一行が一命令で、`novel.py` に渡すのと同じ書き方をする（`show 采配`）。
+    空行と `#` から先は読み飛ばす。マークダウンを読むのは一度きりなので、
+    引きたいものが何件もあるときは、一件ずつ呼ぶより速いし、呼ぶ側の
+    往復も一回で済む。
+
+    **見るためのもので、書き換えを積むためのものではない。** 途中で
+    `load` や `sql` を挟んでも、あとに続く命令が見るのは最初に読んだ
+    マークダウンのままになる。書き換えをまとめるなら `sql --file` を使う。
+    """
+    import shlex
+
+    source = (sys.stdin.read() if path == "-"
+              else open(path, encoding="utf-8").read())
+    lines = []
+    for line in source.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            lines.append(line)
+    if not lines:
+        print("流す命令がない", file=sys.stderr)
+        return 1
+
+    lib = reader.read_library(NOVELS)
+    worst = 0
+    for line in lines:
+        print(f"$ novel.py {line}")
+        code = main(shlex.split(line), lib=lib)
+        print()
+        if code:
+            worst = code
+            if not keep_going:
+                return code
+    return worst
+
+
 # ---------------------------------------------------------------- 入口
 
-def main(argv=None):
+def main(argv=None, lib: "reader.Library | None" = None):
+    """**一回ぶんの命令を実行する。**
+
+    `lib` を渡すと、マークダウンを読み直さずにそれを使う。`batch` が
+    同じ読み込みで何本も流すために使う入口で、普段は渡さなくてよい。
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
 
@@ -1033,8 +1162,8 @@ def main(argv=None):
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
     p.add_argument("--world")
 
-    p = sub.add_parser("show", help="一件読む")
-    p.add_argument("id")
+    p = sub.add_parser("show", help="一件読む。**id は並べて渡せる**")
+    p.add_argument("id", nargs="+")
 
     p = sub.add_parser("template", help="雛形を出す")
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
@@ -1053,7 +1182,25 @@ def main(argv=None):
     p.add_argument("--world", required=True)
 
     p = sub.add_parser("sql", help="組んだ db に直接問い合わせる")
-    p.add_argument("query")
+    p.add_argument("query", nargs="?",
+                   help="文。`;` で区切って何本でも。省くと --file から読む")
+    p.add_argument("--file",
+                   help="文の入ったファイル。`-` で標準入力。"
+                        "**書き換えをまとめるときはこちら**")
+
+    p = sub.add_parser(
+        "start", help="**作業開始の一手。** load してから、読むものを一度に出す")
+    p.add_argument("--story", required=True)
+    p.add_argument("--time", help="付けなければ作品の始まりの年")
+    p.add_argument("--count", type=int, default=10,
+                   help="直前の話を何話ぶん（既定 10）")
+    p.add_argument("--reach", type=int, default=60)
+
+    p = sub.add_parser("batch", help="命令を何本も、一度の読み込みで流す")
+    p.add_argument("--file", default="-",
+                   help="一行に一命令。`#` から先は覚え書き。`-` で標準入力")
+    p.add_argument("--keep-going", action="store_true",
+                   help="途中で止まらず最後まで流す")
 
     sub.add_parser("dump", help="db の行をマークダウンへ書き戻す")
 
@@ -1063,7 +1210,11 @@ def main(argv=None):
         print(template(KINDS[args.kind]), end="")
         return 0
 
-    lib = reader.read_library(NOVELS)
+    if args.command == "batch":
+        return batch(args.file, args.keep_going)
+
+    if lib is None:
+        lib = reader.read_library(NOVELS)
 
     if args.command == "check":
         errors = inspect(lib)
@@ -1122,17 +1273,35 @@ def main(argv=None):
         return 0
 
     if args.command == "show":
-        for rec in lib.records:
-            if args.id in (rec.id, rec.values.get("name")):
-                print(f"# {reader.LABEL[rec.table]} / {rec.id}")
-                print(f"# {os.path.relpath(rec.path, REPO)}\n")
-                for key, column in reader.FIELDS[rec.table].items():
-                    if rec.values.get(column) not in (None, ""):
-                        print(f"{key}: {rec.values[column]}")
-                print("\n" + rec.values.get("text", ""))
-                return 0
-        print(f"「{args.id}」が見つからない", file=sys.stderr)
-        return 1
+        missing = []
+        for wanted in args.id:
+            for rec in lib.records:
+                if wanted in (rec.id, rec.values.get("name")):
+                    print(f"# {reader.LABEL[rec.table]} / {rec.id}")
+                    print(f"# {os.path.relpath(rec.path, REPO)}\n")
+                    for key, column in reader.FIELDS[rec.table].items():
+                        if rec.values.get(column) not in (None, ""):
+                            print(f"{key}: {rec.values[column]}")
+                    print("\n" + rec.values.get("text", ""))
+                    break
+            else:
+                missing.append(wanted)
+        for wanted in missing:
+            print(f"「{wanted}」が見つからない", file=sys.stderr)
+        return 1 if missing else 0
+
+    if args.command == "start":
+        # **作業開始の一手。** `load` と同じく db を組み直してから出す
+        errors = inspect(lib)
+        if errors:
+            print("error が残っているので組めない。check を先に通す",
+                  file=sys.stderr)
+            return 1
+        build(lib)
+        print(start(lib, args.story,
+                    reader.parse_time(args.time) if args.time else None,
+                    args.count, args.reach))
+        return 0
 
     if args.command == "episodes":
         print(episodes(lib, args.story, args.before, args.count,
@@ -1149,16 +1318,29 @@ def main(argv=None):
     if args.command == "sql":
         if not os.path.exists(DB):
             build(lib)
-        from sqlalchemy import text
+        source = args.query
+        if source is None:
+            if not args.file:
+                print("文を渡すか --file を付ける", file=sys.stderr)
+                return 1
+            source = (sys.stdin.read() if args.file == "-"
+                      else open(args.file, encoding="utf-8").read())
+        statements = split_sql(source)
+        if not statements:
+            print("流す文がない", file=sys.stderr)
+            return 1
+        from sqlalchemy import text as sql_text
         with schema.open_db(DB).connect() as conn:
-            result = conn.execute(text(args.query))
-            if result.returns_rows:
-                for row in result:
-                    print("\t".join("" if v is None else str(v) for v in row))
-            else:
-                # INSERT / UPDATE / DELETE。**通したら残す**（そのあと save）
-                conn.commit()
-                print(f"{result.rowcount} 行（save で md に出る）")
+            for statement in statements:
+                result = conn.execute(sql_text(statement))
+                if result.returns_rows:
+                    for row in result:
+                        print("\t".join(
+                            "" if v is None else str(v) for v in row))
+                else:
+                    print(f"{result.rowcount} 行（save で md に出る）")
+            # INSERT / UPDATE / DELETE。**通したら残す**（そのあと save）
+            conn.commit()
         return 0
 
     if args.command == "sync":
