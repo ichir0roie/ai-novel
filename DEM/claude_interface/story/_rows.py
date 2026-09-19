@@ -59,7 +59,7 @@ def _place_at(session: Session, select_fn, owner_id: int, until: Stamp) -> dict 
     row = session.scalars(select_fn(owner_id, until)).first()
     if row is None:
         return None
-    return {"place_id": row.place_id,
+    return {"place_id": row.location_id,
             "place_name": None if row.place is None else row.place.name,
             "start": None if row.start is None else str(row.start)}
 

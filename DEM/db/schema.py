@@ -196,7 +196,7 @@ class ObjectPlace(Base):
     __tablename__ = "object_place"
 
     object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"))
-    place_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
