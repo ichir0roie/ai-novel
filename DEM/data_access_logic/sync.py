@@ -199,27 +199,59 @@ class CharacterEmotionExporter(MarkdownExporter):
     stamp_column = "start"
 
 
+def _primary_character_id():
+    """出来事に掛かる人物のうち、id が一番小さいもの（相関サブクエリ）。"""
+    return (select(func.min(EventCharacter.character_id))
+            .where(EventCharacter.event_id == Event.id)
+            .scalar_subquery())
+
+
+def _primary_object_id():
+    """出来事に掛かる個体のうち、id が一番小さいもの（相関サブクエリ）。"""
+    return (select(func.min(EventObject.object_id))
+            .where(EventObject.event_id == Event.id)
+            .scalar_subquery())
+
+
+def _has_character():
+    return (select(EventCharacter.id)
+            .where(EventCharacter.event_id == Event.id).exists())
+
+
+def _has_object():
+    return (select(EventObject.id)
+            .where(EventObject.event_id == Event.id).exists())
+
+
 class CharacterEventExporter(MarkdownExporter):
-    """人物の行動。**行動は出来事の一種で、別表を持たない**（`schema.py`）。"""
+    """人物の行動。**行動は出来事の一種で、別表を持たない**（`schema.py`）。
+
+    一つの出来事に何人でも掛かれる（多対多）が、md の置き場所は一つしか
+    選べないので、**掛かる人物のうち id が一番小さい者の下にだけ**置く。
+    他の関わりは db（`event_character`）の側にそのまま残る——md は読む専用の
+    写しであって、多対多をそのまま木の形には表せない。
+    """
 
     model = Event
     folder = "events"
-    parent_column = "character_id"
-    stamp_column = "time"
-
-
-class ObjectEventExporter(MarkdownExporter):
-    """個体（群）の行動。"""
-
-    model = Event
-    folder = "events"
-    parent_column = "object_id"
     stamp_column = "time"
 
     def load_query(self, parent_id: int | None = None) -> Select:
-        # 人物の行動はそちらへ置くので、ここでは拾わない
-        return (super().load_query(parent_id)
-                .where(Event.character_id.is_(None)))
+        query = select(Event).order_by(Event.id)
+        return query.where(_primary_character_id() == parent_id)
+
+
+class ObjectEventExporter(MarkdownExporter):
+    """個体（群）の行動。人物が一人も掛かっていない出来事だけを拾う
+    （人物が掛かっていれば `CharacterEventExporter` 側に置く）。"""
+
+    model = Event
+    folder = "events"
+    stamp_column = "time"
+
+    def load_query(self, parent_id: int | None = None) -> Select:
+        query = select(Event).order_by(Event.id).where(~_has_character())
+        return query.where(_primary_object_id() == parent_id)
 
 
 class EpisodeExporter(MarkdownExporter):
@@ -283,8 +315,9 @@ class LooseEventExporter(MarkdownExporter):
     stamp_column = "time"
 
     def load_query(self, parent_id: int | None = None) -> Select:
-        return (super().load_query(parent_id)
-                .where(Event.character_id.is_(None), Event.object_id.is_(None)))
+        return (select(Event).order_by(Event.id)
+                .where(~_has_character())
+                .where(~_has_object()))
 
 
 # `worlds/` の直下に立つ係。この順に書き出す。
