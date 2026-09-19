@@ -31,25 +31,30 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 ### 入口の作り方
 
 `DEM/claude_interface/<領域>/<動詞_対象>.py` に一つ、**一つの呼び出し機能だけ**を
-置く（`DEM/claude_interface/readme.md`）。`DEM/claude_interface/randomizer/create_random_character.py`
-が現状唯一の実例で、パターンは次の通り:
+置く（`DEM/claude_interface/readme.md`）。ランダム生成の一対
+（`create_random_character.py` / `commit_character.py`）が現状唯一の実例で、
+パターンは次の通り:
 
 - 呼び出し可能な関数として書く（CLI 引数のパースはしない。Claude が import して呼ぶ）
-- 実在レコードを指す欄（id）は呼び出し側が渡す。渡された id が db に実在するかは
-  関数の側で確かめ、無ければ分かりやすい例外を投げる（SQL を組み立てて確かめない。
-  `session.get(Model, id)` のように ORM 越しに引く）
-- 下地（`DEM/randomizer/` 等）の `factory_boy` を使う生成は、`build()` ではなく
-  `create()` を呼ぶこと。`SQLAlchemyModelFactory.build()` は session に一切触れず
-  flush されない。`Meta.sqlalchemy_session_persistence = "flush"` を設定した上で
-  `create()` を呼んで初めて「flush はするが commit はしない」という下書きの境界になる
-- commit するかどうかは呼び出し側（Claude、ひいては作者のレビュー）が決める。
-  一つの入口の中で作って即 commit まで済ませない
+- **「作る」と「db へ確定する」を別ファイルに分ける。** 「作る」側
+  （`DEM/randomizer/` の `factory.DictFactory` 等）は db に一切触れず、
+  素の辞書 / JSON を返すだけにする。db を触るのは「確定する」側の入口だけに絞る
+- 辞書 / JSON で受け渡しする理由は、Bash 呼び出しをまたいでも（＝プロセスが
+  切り替わっても）中身を運べるから。SQLAlchemy のオブジェクトや session を
+  戻り値にすると、次の呼び出しでは中身が失われる（session が切れているため）
+- 実在レコードを指す欄（id）は、確定する側の入口が呼び出し時に db に実在するか
+  確かめ、無ければ分かりやすい例外を投げる（SQL を組み立てて確かめない。
+  `session.get(Model, id)` のように ORM 越しに引く）。スキーマに無い欄が
+  混ざっていたら、それも確定する側の入口で止める
+- 「作る」側だけを何度呼んでもデータは増えない。db に触れるのは「確定する」側の
+  入口を呼んだときだけ
 
 ### 現状ある入口
 
-| したいこと                 | 使う入口                                                                 |
-| -------------------------- | ------------------------------------------------------------------------- |
-| ランダムな人物の下書きを作る | `DEM.claude_interface.randomizer.create_random_character.create_random_character(...)`（`commit_character` / `discard_character` で確定・破棄） |
+| したいこと                     | 使う入口                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| ランダムな人物の下書きを作る   | `DEM.claude_interface.randomizer.create_random_character.create_random_character(...)`（db には触れない。辞書を返すだけ） |
+| 作った下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_character.commit_character(<辞書かJSON>)`（id の実在確認をしてから書き込む） |
 
 上の表にない操作（断面を読む・一覧を見る・話を読み書きする・同期を管理する、等、
 旧 `tools/novel.py` が持っていたもの）はまだ `DEM/claude_interface/` に無い。
@@ -111,8 +116,9 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 
 ## 作業の締め
 
-- **入口経由で書いた変更は commit まで済ませたか確認する**（`create()` で flush
-  しただけでは確定しない。`commit_character` のように、確定用の関数を呼ぶ）
+- **作っただけで終わらせず、確定する側の入口まで呼んだか確認する**（`create_random_character`
+  のような「作る」入口は db に触れない。`commit_character` のような「確定する」
+  入口を呼んで初めて db に残る）
 - 作業が終わったら、claude webで動作している場合、以下を実施。
   - **その内容でプルリクエストがなければ作成し、リンクを表示する**。
   - すでにあるなら、そのブランチへプッシュしてリンクを示す
