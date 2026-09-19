@@ -141,17 +141,14 @@ class Event(MarkdownBase):
     place: Mapped[Location | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
-    # 誰の行動かをこの二つが持ち、掛かり先の出来事は `parent_event_id`。
-    # どちらも空なら、誰の行動でもない「ただ起きたこと」。
-    character_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("character.id"), index=True,
-        comment="その行動をした人物")
-    character: Mapped["Character | None"] = relationship(
-        back_populates="events", lazy="noload")
-    object_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("object.id"), index=True,
-        comment="その行動をした個体（群）")
-    object: Mapped["Object | None"] = relationship(lazy="noload")
+    # 誰の行動かは `event_character` `event_object`（中間テーブル）が持つ。
+    # 掛かり先の出来事は `parent_event_id`。どちらも空なら、
+    # 誰の行動でもない「ただ起きたこと」。人物・個体は**それぞれ何人・何個体でも**
+    # 掛かれる（多対多）
+    event_characters: Mapped[list["EventCharacter"]] = relationship(
+        back_populates="event", lazy="noload", cascade="all, delete-orphan")
+    event_objects: Mapped[list["EventObject"]] = relationship(
+        back_populates="event", lazy="noload", cascade="all, delete-orphan")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -162,6 +159,30 @@ class Event(MarkdownBase):
     child_events: Mapped[list["Event"]] = relationship(
         back_populates="parent_event", lazy="noload", cascade="all, delete-orphan"
     )
+
+
+class EventCharacter(Base):
+    """**出来事 ↔ 人物の中間テーブル。** 一つの出来事に何人でも掛かれる。"""
+
+    __tablename__ = "event_character"
+
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True)
+    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("character.id"), index=True)
+
+    event: Mapped["Event"] = relationship(back_populates="event_characters", lazy="noload")
+    character: Mapped["Character"] = relationship(lazy="noload")
+
+
+class EventObject(Base):
+    """**出来事 ↔ 個体（群）の中間テーブル。** 一つの出来事に何個体でも掛かれる。"""
+
+    __tablename__ = "event_object"
+
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True)
+    object_id: Mapped[int] = mapped_column(Integer, ForeignKey("object.id"), index=True)
+
+    event: Mapped["Event"] = relationship(back_populates="event_objects", lazy="noload")
+    object: Mapped["Object"] = relationship(lazy="noload")
 
 
 class Kind(MarkdownBase):
@@ -254,7 +275,8 @@ class Character(MarkdownBase, ObjectBase):
         lazy="noload",  order_by="CharacterEmotion.start.desc()")
 
     events: Mapped[list[Event]] = relationship(
-        back_populates="character", lazy="noload", order_by="Event.start.desc()"
+        secondary="event_character", viewonly=True, lazy="noload",
+        order_by="Event.start.desc()"
     )
 
 

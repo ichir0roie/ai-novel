@@ -31,20 +31,26 @@ from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterPlace, CharacterSkill, Episode,
-    Event, Kind, Location, Object, ObjectPlace, Story, Term,
+    Event, EventCharacter, EventObject, Kind, Location, Object, ObjectPlace,
+    Story, Term,
 )
 from DEM.db.stamp import Stamp, StampError
-
-# 出来事が「誰の・どこの・どれに掛かる」を持つ欄
-EVENT_REFS = ("place_id", "character_id", "object_id", "parent_event_id")
 
 # 断面に出さない出来事の種別（裏の設計。住人が知らないこと）
 HIDDEN_EVENT_KINDS = ("裏", "伏線")
 
 # `_event_row` 相当（claude_interface 側で使う）の relationship 名。
-# `to_dict_with(event, relations=EVENT_RELATIONS)` で place_name などが付く。
-EVENT_RELATIONS = {"place": "place_name", "character": "character_name",
-                    "object": "object_name"}
+# `to_dict_with(event, relations=EVENT_RELATIONS)` で place_name が付く。
+# 掛かる人物・個体（多対多）は `event_characters` `event_objects` から別途組む
+# （`_rows.event_row` を見る）。
+EVENT_RELATIONS = {"place": "place_name"}
+
+# 出来事の select に積んでおく関連。人物・個体は中間テーブル越しに二段でロードする。
+EVENT_LOAD_OPTIONS = (
+    selectinload(Event.place),
+    selectinload(Event.event_characters).selectinload(EventCharacter.character),
+    selectinload(Event.event_objects).selectinload(EventObject.object),
+)
 
 
 class NotFoundError(LookupError):
@@ -182,8 +188,7 @@ def events_at_select(when, *, place_ids=None, limit=None) -> Select:
     """**その時（その幅）の出来事と行動。** 場所で絞ってもよい。"""
     since, until = span(when)
     query = (select(Event)
-             .options(selectinload(Event.place), selectinload(Event.character),
-                      selectinload(Event.object))
+             .options(*EVENT_LOAD_OPTIONS)
              .where(_in_span(Event.time, since, until)))
     if place_ids is not None:
         query = query.where(Event.place_id.in_(list(place_ids)))
@@ -200,10 +205,13 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     出来事の id ならそれにぶら下がる行動。
     """
     query = (select(Event)
-             .options(selectinload(Event.place), selectinload(Event.character),
-                      selectinload(Event.object))
-             .where(or_(*[getattr(Event, column) == record_id
-                          for column in EVENT_REFS])))
+             .options(*EVENT_LOAD_OPTIONS)
+             .where(or_(
+                 Event.place_id == record_id,
+                 Event.parent_event_id == record_id,
+                 Event.event_characters.any(EventCharacter.character_id == record_id),
+                 Event.event_objects.any(EventObject.object_id == record_id),
+             )))
     if until is not None:
         query = query.where(Event.time <= span(until)[1])
     query = query.order_by(Event.time.desc(), Event.id.desc())
@@ -213,14 +221,17 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
 
 
 def open_events_select(place_ids, until: Stamp) -> Select:
-    """**まだ終わっていない出来事**（`end` が空か、その先）。張っているもの。"""
+    """**まだ終わっていない出来事**（`end` が空か、その先）。張っているもの。
+
+    誰の行動でもない「ただ起きたこと」だけを拾う
+    （人物・個体のどちらにも掛かっていないもの）。
+    """
     return (select(Event)
-            .options(selectinload(Event.place), selectinload(Event.character),
-                     selectinload(Event.object))
+            .options(*EVENT_LOAD_OPTIONS)
             .where(Event.place_id.in_(list(place_ids)))
             .where(Event.time <= until)
             .where(or_(Event.end.is_(None), Event.end > until))
-            .where(Event.character_id.is_(None), Event.object_id.is_(None))
+            .where(~Event.event_characters.any(), ~Event.event_objects.any())
             .order_by(Event.time.desc(), Event.id.desc()))
 
 

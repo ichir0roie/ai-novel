@@ -1,5 +1,6 @@
 from typing import Sequence
 from DEM.db.schema import *
+from DEM.data_access_logic.query import common_query
 
 
 def __character_time_condition(time: Stamp):
@@ -93,11 +94,7 @@ def character_around_event(
     since = Stamp(max(1, time.year - reach))
     events = s.scalars(
         select(Event)
-        .options(
-            selectinload(Event.place),
-            selectinload(Event.character),
-            selectinload(Event.object),
-        )
+        .options(*common_query.EVENT_LOAD_OPTIONS)
         .where(
             Event.place_id.in_(location_ids),
             Event.time <= time,
