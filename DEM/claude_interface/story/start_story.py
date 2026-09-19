@@ -18,7 +18,7 @@ import json
 import sys
 
 from DEM.claude_interface.story import _rows
-from DEM.data_access_logic import query
+from DEM.data_access_logic.query import common_query
 from DEM.db.schema import get_session
 
 
@@ -27,7 +27,7 @@ def start_story(story_id: int, time=None, episodes: int = 10, count: int = 5,
     """その作品を書き始めるのに要る材料を、まとめて辞書で返す。"""
     story_id = int(story_id)
     with get_session() as session:
-        story = query.get_story(session, story_id)
+        story = common_query.get_story(session, story_id)
         unsynced = _rows.unsynced_episodes(session, story_id)
         result = {
             "story": _rows.story_digest(session, story),
@@ -40,7 +40,7 @@ def start_story(story_id: int, time=None, episodes: int = 10, count: int = 5,
                 "set_episode_synced で同期フラグを立ててから書き始める")
             return result
 
-        _, until = query.resolve_time(session, time, story)
+        _, until = common_query.resolve_time(session, time, story)
         result["time"] = str(until)
         result["episodes"] = _rows.episodes(session, story_id, count=int(episodes))
         result["cast"] = _rows.cast(session, story_id, until, count=int(count),

@@ -5,12 +5,24 @@ import os
 
 from sqlalchemy import (
     BigInteger, Boolean, Integer, String, DECIMAL, TypeDecorator,
-    create_engine, ForeignKey, select, update, Select
+    create_engine,
+    ForeignKey,
+    select,
+    Select,
+    update,
+    or_,
+    and_
 )
 from sqlalchemy.orm import (
-    Session
+    Session,
+    joinedload,
+    selectinload,
+    lazyload,
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+    relationship,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from DEM.db.stamp import Stamp
 
@@ -110,8 +122,8 @@ class Location(MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
     # 自分の親（一つ上の場所）。木をのぼって道筋（place_path）を組むのに使う。
-    parent: Mapped["Location | None"] = relationship(
-        remote_side="Location.id", lazy="noload")
+    parent: Mapped["Location | None"] = relationship(remote_side="Location.id", lazy="noload")
+    children: Mapped[list[Location]] = relationship()
 
 
 class Event(MarkdownBase):
@@ -251,7 +263,7 @@ class CharacterPlace(Base):
     __tablename__ = "character_place"
 
     character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
-    place_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
