@@ -107,6 +107,10 @@ class Location(MarkdownBase):
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
+    # 自分の親（一つ上の場所）。木をのぼって道筋（place_path）を組むのに使う。
+    parent: Mapped["Location | None"] = relationship(
+        remote_side="Location.id", lazy="noload")
+
 
 class Event(MarkdownBase):
 
@@ -133,6 +137,7 @@ class Event(MarkdownBase):
     object_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("object.id"), index=True,
         comment="その行動をした個体（群）")
+    object: Mapped["Object | None"] = relationship(lazy="noload")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -170,6 +175,8 @@ class ObjectBase:
 class Object(MarkdownBase, ObjectBase):
     __tablename__ = "object"
 
+    kind: Mapped["Kind | None"] = relationship(lazy="noload")
+
 
 class ObjectPlace(Base):
     __tablename__ = "object_place"
@@ -180,6 +187,9 @@ class ObjectPlace(Base):
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
+    object: Mapped["Object | None"] = relationship(lazy="noload")
+    place: Mapped[Location] = relationship(lazy="noload")
+
 
 class Character(MarkdownBase, ObjectBase):
 
@@ -187,7 +197,10 @@ class Character(MarkdownBase, ObjectBase):
 
     # --- 出自 -------------------------------------------------------------
     born_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    born_place: Mapped[Location | None] = relationship(
+        foreign_keys="Character.born_place_id", lazy="noload")
     belong_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), comment="所属。個体のどれか")
+    belong: Mapped["Object | None"] = relationship(lazy="noload")
 
     # --- 体格 -------------------------------------------------------------
     sex: Mapped[str] = mapped_column(String,  comment="性別")
@@ -216,6 +229,8 @@ class Character(MarkdownBase, ObjectBase):
 
     # relationships
 
+    kind: Mapped["Kind | None"] = relationship(lazy="noload")
+
     places: Mapped[list[CharacterPlace]] = relationship(
         back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
     )
@@ -240,6 +255,7 @@ class CharacterPlace(Base):
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
     character: Mapped[Character | None] = relationship(back_populates="places", lazy="noload")
+    place: Mapped[Location] = relationship(lazy="noload")
 
 
 class Skill(MarkdownBase):
@@ -265,6 +281,7 @@ class CharacterSkill(Base):
     object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"))
 
     skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skill.id"), nullable=False)
+    skill: Mapped["Skill"] = relationship(lazy="noload")
 
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
 
@@ -304,13 +321,20 @@ class Story(MarkdownBase):
 
     world_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("location.id"), comment="使用する世界線")
+    world: Mapped[Location | None] = relationship(
+        foreign_keys="Story.world_id", lazy="noload")
     place_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("location.id"), comment="立つ場所。断面を取るのに使う")
+    place: Mapped[Location | None] = relationship(
+        foreign_keys="Story.place_id", lazy="noload")
     narration: Mapped[str] = mapped_column(String,  comment="語り")
     state: Mapped[str] = mapped_column(String,  comment="状態")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年")
     end: Mapped[Stamp | None] = mapped_column(StampType)
+
+    episodes: Mapped[list["Episode"]] = relationship(
+        back_populates="story", lazy="noload", order_by="Episode.number.asc()")
 
 
 class Episode(MarkdownBase):
@@ -318,6 +342,7 @@ class Episode(MarkdownBase):
     __tablename__ = "episode"
 
     story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"))
+    story: Mapped[Story] = relationship(back_populates="episodes", lazy="noload")
     number: Mapped[int | None] = mapped_column(
         Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(

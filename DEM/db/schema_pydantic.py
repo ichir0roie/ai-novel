@@ -100,6 +100,44 @@ def to_json(row) -> str:
     return json.dumps(to_dict(row), ensure_ascii=False)
 
 
+def relation_names(row, relations) -> dict:
+    """**ロード済みの relationship から、関連レコードの名前だけを引く。**
+
+    追加クエリ（旧 `query._name()`）を打たず、`selectinload` 等で
+    あらかじめ読み込んである関連オブジェクトの `.name` を読むだけにする。
+    未ロードの relationship（`lazy="noload"`）を渡すと素の SQLAlchemy が
+    例外を投げるので、呼ぶ側は select 文に `options(selectinload(...))` を
+    付けておく。
+
+    `relations` はリレーション名のリスト（`["kind", "belong"]`。出力の
+    キーは `"kind_name"` のように `_name` を足したもの）か、出力キーを
+    変えたいときの `{"kind": "kind_name"}` のような辞書。値は関連レコードが
+    無ければ `None`。
+    """
+    if isinstance(relations, dict):
+        pairs = relations.items()
+    else:
+        pairs = [(name, f"{name}_name") for name in relations]
+    result = {}
+    for attribute, key in pairs:
+        related = getattr(row, attribute, None)
+        result[key] = None if related is None else getattr(related, "name", None)
+    return result
+
+
+def to_dict_with(row, *, relations=(), text: bool = True) -> dict:
+    """`to_dict` に、ロード済み relationship の名前解決を重ねる。
+
+    `text=False` なら `text` 欄を落とす（一覧を見るときなど、本文までは
+    要らない場合に使う）。
+    """
+    data = to_dict(row)
+    if not text:
+        data.pop("text", None)
+    data.update(relation_names(row, relations))
+    return data
+
+
 def models_for_all_tables() -> dict[str, type[BaseModel]]:
     """`schema.py` の全テーブルぶんの pydantic モデルを、テーブル名をキーに返す。"""
     result = {}
