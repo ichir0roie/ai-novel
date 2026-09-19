@@ -3,7 +3,10 @@
 
 ```
 python3 tools/novel.py check                 不備を探す。あればコード 1 で止まる
-python3 tools/novel.py load                  **作業開始時。** md を db へ読み込む
+python3 tools/novel.py start --story めぐる旅路は枯れゆく世界と
+                                             **作業開始時。** load して、企画・プロット・
+                                             直前の話・断面・顔ぶれを一度に出す
+python3 tools/novel.py load                  md を db へ読み込むだけ
 python3 tools/novel.py save                  **作業終了時。** db を md へ書き出す
 python3 tools/novel.py stories --work めぐる旅路は枯れゆく世界と
 python3 tools/novel.py read <作品名>/1
@@ -18,6 +21,8 @@ python3 tools/novel.py template --kind 人物
 python3 tools/novel.py index --world SFファンタジー
 python3 tools/novel.py episodes --story めぐる旅路は枯れゆく世界と --before 11
 python3 tools/novel.py sql "SELECT name FROM event WHERE kind LIKE '火種%'"
+python3 tools/novel.py sql --file 直し.sql   書き換えをまとめて一度に通す
+python3 tools/novel.py batch --file 引く.txt  引くものが何件もあるとき、一度の読み込みで
 ```
 
 **`novels/` のマークダウンは直に開かない。** 読むのも書くのも、この入口を通す。
@@ -330,11 +335,18 @@ def brief(lib: reader.Library, place: str, when: stamp.Stamp,
         f"- {_year(when_of(r))} {r.values['name']}{wide(r)}"
         for r in sorted(recent, key=when_of)])
 
+    name_by_id = {r.id: str(r.values.get("name") or r.id) for r in lib.records}
+
     def label_of(table, rec):
-        """個体は分類、人物は種族を添える。どちらか無ければ種別名で代える。"""
+        """個体は分類、人物は種族を添える。どちらか無ければ種別名で代える。
+
+        **指し先はパスで持っているので、人に見せるときは名に戻す。**
+        """
         if table == "character":
-            return rec.values.get("race_id") or "人物"
-        return rec.values.get("kind") or rec.values.get("kind_id") or "個体"
+            race = rec.values.get("race_id")
+            return name_by_id.get(race, race) if race else "人物"
+        kind = rec.values.get("kind") or rec.values.get("kind_id")
+        return name_by_id.get(kind, kind) if kind else "個体"
 
     section("4 その場にいる者", [
         f"- {o.values['name']}（{label_of(t, o)}）{_span(o)}{wide(s)}"
@@ -452,10 +464,15 @@ def cast(lib: reader.Library, story: str, when: stamp.Stamp | None,
         out += ["（その時点で、配下の場所に誰もいない）", ""]
         return "\n".join(out)
 
+    name_by_id = {r.id: str(r.values.get("name") or r.id) for r in lib.records}
+
     def label_of(table, rec):
+        """指し先はパスで持っているので、人に見せるときは名に戻す。"""
         if table == "character":
-            return rec.values.get("race_id") or "人物"
-        return rec.values.get("kind") or rec.values.get("kind_id") or "個体"
+            race = rec.values.get("race_id")
+            return name_by_id.get(race, race) if race else "人物"
+        kind = rec.values.get("kind") or rec.values.get("kind_id")
+        return name_by_id.get(kind, kind) if kind else "個体"
 
     for owner_id, (table, owner, place_id) in sorted(
             unique.items(), key=lambda p: str(p[1][1].values["name"])):
@@ -625,6 +642,63 @@ def episodes(lib: reader.Library, story: str, before: int | None,
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------- 開く
+
+def start(lib: reader.Library, story: str, when: stamp.Stamp | None,
+          count: int, reach: int) -> str:
+    """**作業を開くときに読むものを、一度に全部出す。**
+
+    `core/CLAUDE.md`「書く前に必ず読む」が並べているうち、台帳から出せる
+    ぶん（作品の企画・プロット・直前の話・断面・顔ぶれ）をまとめて返す。
+    一つずつ呼ぶと、同じマークダウンを何度も読み直すうえに、
+    呼ぶ側の往復も増える。**読むものが決まっているなら、一度で出す。**
+
+    未同期の話があれば、何も出さずにそれだけを返す（`brief` と同じ扱い）。
+    裏は伏せたままで、ここに `--full` は無い。本文を書く前に読むものだから。
+    """
+    def nest(block: str) -> str:
+        """挟み込むぶん、中の見出しを一段ずつ下げる。"""
+        return "\n".join("#" + line if line.startswith("#") else line
+                          for line in block.splitlines())
+
+    warning = sync_warning(lib, story)
+    if warning:
+        return warning
+
+    story_rec = next((r for r in lib.of("story")
+                      if story in (r.id, r.values.get("name"))), None)
+    if story_rec is None:
+        names = "、".join(sorted(str(r.id) for r in lib.of("story")))
+        return f"「{story}」という作品がない。作品: {names}"
+
+    out = [f"# 開く / {story_rec.id}", ""]
+
+    out += ["## 企画（meta.md）", ""]
+    for key, column in reader.FIELDS["story"].items():
+        if key != "名" and story_rec.values.get(column) not in (None, ""):
+            out.append(f"{key}: {story_rec.values[column]}")
+    out += ["", story_rec.values.get("text", ""), ""]
+
+    plot = os.path.join(NOVELS, "stories", str(story_rec.id), "plot.md")
+    if os.path.exists(plot):
+        with open(plot, encoding="utf-8") as fh:
+            out += ["## プロット（plot.md）", "", fh.read().rstrip(), ""]
+
+    out += [nest(episodes(lib, str(story_rec.id), None, count, body=True)),
+            ""]
+
+    here = story_rec.values.get("place_id")
+    if when is None:
+        when = story_rec.values.get("start")
+    if here and when is not None:
+        places = {r.id: r for r in lib.of("place")}
+        name = str(places[here].values.get("name") or here) \
+            if here in places else str(here)
+        out += [nest(brief(lib, name, when, reach, False)), ""]
+        out += [nest(cast(lib, str(story_rec.id), when, 5, False)), ""]
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------- 同期
 
 SYNC_NOTE = (
@@ -741,40 +815,16 @@ def template(table: str) -> str:
         "story": "novels/stories/<作品名>/meta.md",
         "episode": "novels/stories/<作品名>/episodes/<話数>.md",
     }[table]
-    return f"<!-- 置き場所: {where} -->\n" + "\n".join(head) + "\n"
+    note = ("<!-- 他のレコードを指す欄には、その置き場所のパスを書く"
+            "（`worlds/<世界線>/…/<場所>`）。名前では書かない -->")
+    return (f"<!-- 置き場所: {where} -->\n{note}\n"
+            + "\n".join(head) + "\n")
 
 
 # ---------------------------------------------------------------- 書き出す
 
-# サブレコード種別 → (持ち主の列, サブディレクトリ, ルート)
-OWNER_DIR = {
-    "object_place": ("object_id", "places", "objects"),
-    "character_place": ("character_id", "places", "characters"),
-}
-
-# 出来事は**持ち主が三通り**ある。行動は人物・個体の `events/` へ、
-# それ以外は場所の `events/` へ戻す。上から先に当たったものを使う
-EVENT_OWNER = (("character_id", "events", "characters"),
-               ("object_id", "events", "objects"),
-               ("place_id", "events", "worlds"))
-
-
-def _owner_dir(table: str, row) -> tuple[str | None, str, str]:
-    """その行の (持ち主 id, サブディレクトリ, ルート) を返す。"""
-    if table == "event":
-        for column, subdir, root in EVENT_OWNER:
-            owner = getattr(row, column, None) if not isinstance(row, dict) \
-                else row.get(column)
-            if owner:
-                return owner, subdir, root
-        return None, "events", "worlds"
-    column, subdir, root = OWNER_DIR[table]
-    owner = getattr(row, column, None) if not isinstance(row, dict) \
-        else row.get(column)
-    return owner, subdir, root
-
-ROOT_DIR = {"place": "worlds", "kind": "objects", "object": "objects",
-            "character": "characters", "term": "terms"}
+# **持ち主から置き場所を組み直す表は要らなくなった。**
+# id が置き場所そのものなので、`_record_path` が id から直に組む。
 
 # データに、限られた欄だけを書くレコード。話は原稿が中身なので、
 # 台帳の都合で持つ `同期` だけをデータに残す（話数はファイル名、
@@ -783,33 +833,32 @@ HEAD_KEYS = {"episode": ("同期",)}
 
 
 def _record_path(table: str, rec_id: str, row) -> str:
-    """id から置き場所を逆に組む。**id がそのまま置き場所を持っている。**"""
+    """id から置き場所を組む。**id がそのまま置き場所（パス）である。**
+
+    ディレクトリが一件になるレコード（場所・個体・人物・作品）は、その
+    ディレクトリの中の同じ名の md。ファイルが一件になるレコード（出来事・
+    居場所・種別・話）は、id に `.md` を付けるだけ。
+
+    語だけは両方ありうる（`terms/魔力/魔力.md` と `terms/魔力/魔力切れ.md`）。
+    ディレクトリが実際にあるかで決める。
+    """
+    here = os.path.join(NOVELS, *rec_id.split("/"))
     if table == "story":
-        return os.path.join(NOVELS, "stories", rec_id, "meta.md")
-    if table == "episode":
-        story, number = rec_id.rsplit("/", 1)
-        return os.path.join(NOVELS, "stories", story, "episodes",
-                            f"{number}.md")
-    if table in ROOT_DIR:
-        root = ROOT_DIR[table]
-        if table == "kind":
-            return os.path.join(NOVELS, root, f"{rec_id}.md")
-        base = rec_id.rsplit("/", 1)[-1]
-        return os.path.join(NOVELS, root, rec_id, f"{base}.md")
-    owner_id, subdir, root = _owner_dir(table, row)
-    if not owner_id:
-        raise ValueError(f"{table} の「{rec_id}」に持ち主がない")
-    stem = rec_id[len(owner_id) + 1:] if rec_id.startswith(owner_id + "/") \
-        else rec_id.rsplit("/", 1)[-1]
-    return os.path.join(NOVELS, root, owner_id, subdir, f"{stem}.md")
+        return os.path.join(here, "meta.md")
+    if table in ("place", "object", "character"):
+        return os.path.join(here, f"{rec_id.rsplit('/', 1)[-1]}.md")
+    if table == "term":
+        if os.path.isdir(here):
+            return os.path.join(here, f"{rec_id.rsplit('/', 1)[-1]}.md")
+        return here + ".md"
+    return here + ".md"
 
 
 def dump(engine, lib: reader.Library) -> list[str]:
     """DB の行をマークダウンへ書き戻す。**書き出したパスを返す。**
 
-    データの欄は `reader.FIELDS` を逆に辿って作る。他を指す欄は、
-    **指し先の実際の `name`** に戻す（id の末尾ではない。出来事などは
-    id の末尾が時刻つきのファイル名なので、id の末尾＝名前ではない）。
+    データの欄は `reader.FIELDS` を逆に辿って作る。**他を指す欄は id、
+    つまり `novels/` からの相対パスをそのまま書く。**
     時刻は `y/mm/dd hh:mm:ss` で書く。内容が変わらないファイルは書き直さない。
 
     **置き場所は、まず今のマークダウンから探す。** `terms/` のように、
@@ -823,15 +872,6 @@ def dump(engine, lib: reader.Library) -> list[str]:
     existing_path = {(rec.table, rec.id): rec.path for rec in lib.records}
 
     with Session(engine) as session:
-        # 参照先テーブルごとの id → 名前。出来事は id の末尾が時刻つきの
-        # ファイル名なので、名前は別に持っている `name` 列から引く
-        name_of: dict[str, dict[str, str]] = {}
-        for table, model in reader.MODELS.items():
-            if hasattr(model, "name"):
-                name_of[table] = {
-                    row.id: row.name
-                    for row in session.query(model.id, model.name)}
-
         written = []
         for table, model in reader.MODELS.items():
             for row in session.query(model).order_by(model.id):
@@ -842,11 +882,11 @@ def dump(engine, lib: reader.Library) -> list[str]:
                     value = getattr(row, column, None)
                     if value in (None, ""):
                         continue
-                    target = reader.REFS.get(table, {}).get(column)
+                    # **他のレコードを指す欄は、id（＝置き場所のパス）を
+                    # そのまま書く。** 名前に戻さない。名前は重なるし、
+                    # 変えれば指し先が黙って外れる
                     if isinstance(value, stamp.Stamp):
                         value = str(value)
-                    elif target:
-                        value = name_of.get(target, {}).get(value, value)
                     elif isinstance(value, decimal.Decimal):
                         value = float(value)
                         if value == int(value):
@@ -902,18 +942,22 @@ def episode_rows(engine, story: str | None = None) -> list:
 
 
 def _split_episode(path: str) -> tuple[str, int]:
-    """`stories/<作品>/episodes/3.md` も `<作品>/3` も、作品名と話数へ解く。"""
+    """話の指し方を、作品の id と話数へ解く。
+
+    `<作品名>/3` でも `stories/<作品名>/episodes/3.md` でもよい。
+    **戻す作品は id**、つまり `stories/<作品名>` の形にそろえる。
+    """
     rel = path.replace(os.sep, "/").strip("/")
-    if rel.startswith("stories/"):
-        rel = rel[len("stories/"):]
-    rel = rel.replace("/episodes/", "/")
     if rel.endswith(".md"):
         rel = rel[:-len(".md")]
+    rel = rel.replace("/episodes/", "/")
+    if rel.startswith("stories/"):
+        rel = rel[len("stories/"):]
     story, _, number = rel.rpartition("/")
     if not story or not number.isdigit():
         raise ValueError("話の指し方は `<作品名>/<話数>` "
                          "（`stories/<作品名>/episodes/3.md` でもよい）")
-    return story, int(number)
+    return f"stories/{story}", int(number)
 
 
 def read_episode(engine, path: str) -> str:
@@ -935,7 +979,7 @@ def set_synced(engine, path: str, value: bool) -> str:
 
     story, number = _split_episode(path)
     with Session(engine) as session:
-        row = session.get(schema.Episode, f"{story}/{number}")
+        row = session.get(schema.Episode, f"{story}/episodes/{number}")
         if row is None:
             raise LookupError(f"「{story}」の {number} 話は db に無い")
         row.synced = value
@@ -961,7 +1005,7 @@ def write_episode(engine, path: str, text: str, synced: bool = False) -> str:
         if session.get(schema.Story, story) is None:
             raise LookupError(f"「{story}」という作品が db に無い。"
                               "先に meta.md を作る")
-        rec_id = f"{story}/{number}"
+        rec_id = f"{story}/episodes/{number}"
         row = session.get(schema.Episode, rec_id)
         if row is None:
             row = schema.Episode(id=rec_id, story_id=story, number=number)
@@ -974,9 +1018,76 @@ def write_episode(engine, path: str, text: str, synced: bool = False) -> str:
     return rec_id
 
 
+# ---------------------------------------------------------------- まとめて流す
+
+def split_sql(source: str) -> list[str]:
+    """`;` で区切られた文に割る。**引用符の中の `;` では割らない。**"""
+    statements, buf, quote = [], [], ""
+    for ch in source:
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                quote = ""
+            continue
+        if ch in "'\"":
+            quote = ch
+            buf.append(ch)
+            continue
+        if ch == ";":
+            statements.append("".join(buf))
+            buf = []
+            continue
+        buf.append(ch)
+    statements.append("".join(buf))
+    return [st.strip() for st in statements if st.strip()]
+
+
+def batch(path: str, keep_going: bool) -> int:
+    """**命令を何本も、一度の読み込みで流す。**
+
+    一行が一命令で、`novel.py` に渡すのと同じ書き方をする（`show 采配`）。
+    空行と `#` から先は読み飛ばす。マークダウンを読むのは一度きりなので、
+    引きたいものが何件もあるときは、一件ずつ呼ぶより速いし、呼ぶ側の
+    往復も一回で済む。
+
+    **見るためのもので、書き換えを積むためのものではない。** 途中で
+    `load` や `sql` を挟んでも、あとに続く命令が見るのは最初に読んだ
+    マークダウンのままになる。書き換えをまとめるなら `sql --file` を使う。
+    """
+    import shlex
+
+    source = (sys.stdin.read() if path == "-"
+              else open(path, encoding="utf-8").read())
+    lines = []
+    for line in source.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            lines.append(line)
+    if not lines:
+        print("流す命令がない", file=sys.stderr)
+        return 1
+
+    lib = reader.read_library(NOVELS)
+    worst = 0
+    for line in lines:
+        print(f"$ novel.py {line}")
+        code = main(shlex.split(line), lib=lib)
+        print()
+        if code:
+            worst = code
+            if not keep_going:
+                return code
+    return worst
+
+
 # ---------------------------------------------------------------- 入口
 
-def main(argv=None):
+def main(argv=None, lib: "reader.Library | None" = None):
+    """**一回ぶんの命令を実行する。**
+
+    `lib` を渡すと、マークダウンを読み直さずにそれを使う。`batch` が
+    同じ読み込みで何本も流すために使う入口で、普段は渡さなくてよい。
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
 
@@ -1033,8 +1144,8 @@ def main(argv=None):
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
     p.add_argument("--world")
 
-    p = sub.add_parser("show", help="一件読む")
-    p.add_argument("id")
+    p = sub.add_parser("show", help="一件読む。**id は並べて渡せる**")
+    p.add_argument("id", nargs="+")
 
     p = sub.add_parser("template", help="雛形を出す")
     p.add_argument("--kind", required=True, choices=sorted(KINDS))
@@ -1053,7 +1164,25 @@ def main(argv=None):
     p.add_argument("--world", required=True)
 
     p = sub.add_parser("sql", help="組んだ db に直接問い合わせる")
-    p.add_argument("query")
+    p.add_argument("query", nargs="?",
+                   help="文。`;` で区切って何本でも。省くと --file から読む")
+    p.add_argument("--file",
+                   help="文の入ったファイル。`-` で標準入力。"
+                        "**書き換えをまとめるときはこちら**")
+
+    p = sub.add_parser(
+        "start", help="**作業開始の一手。** load してから、読むものを一度に出す")
+    p.add_argument("--story", required=True)
+    p.add_argument("--time", help="付けなければ作品の始まりの年")
+    p.add_argument("--count", type=int, default=10,
+                   help="直前の話を何話ぶん（既定 10）")
+    p.add_argument("--reach", type=int, default=60)
+
+    p = sub.add_parser("batch", help="命令を何本も、一度の読み込みで流す")
+    p.add_argument("--file", default="-",
+                   help="一行に一命令。`#` から先は覚え書き。`-` で標準入力")
+    p.add_argument("--keep-going", action="store_true",
+                   help="途中で止まらず最後まで流す")
 
     sub.add_parser("dump", help="db の行をマークダウンへ書き戻す")
 
@@ -1063,7 +1192,11 @@ def main(argv=None):
         print(template(KINDS[args.kind]), end="")
         return 0
 
-    lib = reader.read_library(NOVELS)
+    if args.command == "batch":
+        return batch(args.file, args.keep_going)
+
+    if lib is None:
+        lib = reader.read_library(NOVELS)
 
     if args.command == "check":
         errors = inspect(lib)
@@ -1122,17 +1255,35 @@ def main(argv=None):
         return 0
 
     if args.command == "show":
-        for rec in lib.records:
-            if args.id in (rec.id, rec.values.get("name")):
-                print(f"# {reader.LABEL[rec.table]} / {rec.id}")
-                print(f"# {os.path.relpath(rec.path, REPO)}\n")
-                for key, column in reader.FIELDS[rec.table].items():
-                    if rec.values.get(column) not in (None, ""):
-                        print(f"{key}: {rec.values[column]}")
-                print("\n" + rec.values.get("text", ""))
-                return 0
-        print(f"「{args.id}」が見つからない", file=sys.stderr)
-        return 1
+        missing = []
+        for wanted in args.id:
+            for rec in lib.records:
+                if wanted in (rec.id, rec.values.get("name")):
+                    print(f"# {reader.LABEL[rec.table]} / {rec.id}")
+                    print(f"# {os.path.relpath(rec.path, REPO)}\n")
+                    for key, column in reader.FIELDS[rec.table].items():
+                        if rec.values.get(column) not in (None, ""):
+                            print(f"{key}: {rec.values[column]}")
+                    print("\n" + rec.values.get("text", ""))
+                    break
+            else:
+                missing.append(wanted)
+        for wanted in missing:
+            print(f"「{wanted}」が見つからない", file=sys.stderr)
+        return 1 if missing else 0
+
+    if args.command == "start":
+        # **作業開始の一手。** `load` と同じく db を組み直してから出す
+        errors = inspect(lib)
+        if errors:
+            print("error が残っているので組めない。check を先に通す",
+                  file=sys.stderr)
+            return 1
+        build(lib)
+        print(start(lib, args.story,
+                    reader.parse_time(args.time) if args.time else None,
+                    args.count, args.reach))
+        return 0
 
     if args.command == "episodes":
         print(episodes(lib, args.story, args.before, args.count,
@@ -1149,16 +1300,29 @@ def main(argv=None):
     if args.command == "sql":
         if not os.path.exists(DB):
             build(lib)
-        from sqlalchemy import text
+        source = args.query
+        if source is None:
+            if not args.file:
+                print("文を渡すか --file を付ける", file=sys.stderr)
+                return 1
+            source = (sys.stdin.read() if args.file == "-"
+                      else open(args.file, encoding="utf-8").read())
+        statements = split_sql(source)
+        if not statements:
+            print("流す文がない", file=sys.stderr)
+            return 1
+        from sqlalchemy import text as sql_text
         with schema.open_db(DB).connect() as conn:
-            result = conn.execute(text(args.query))
-            if result.returns_rows:
-                for row in result:
-                    print("\t".join("" if v is None else str(v) for v in row))
-            else:
-                # INSERT / UPDATE / DELETE。**通したら残す**（そのあと save）
-                conn.commit()
-                print(f"{result.rowcount} 行（save で md に出る）")
+            for statement in statements:
+                result = conn.execute(sql_text(statement))
+                if result.returns_rows:
+                    for row in result:
+                        print("\t".join(
+                            "" if v is None else str(v) for v in row))
+                else:
+                    print(f"{result.rowcount} 行（save で md に出る）")
+            # INSERT / UPDATE / DELETE。**通したら残す**（そのあと save）
+            conn.commit()
         return 0
 
     if args.command == "sync":
