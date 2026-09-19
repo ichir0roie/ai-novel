@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, create_model
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import DeclarativeBase
 
-import schema
+import DEM.db.schema as schema
 from stamp import Stamp
 
 # 列の型 → pydantic (python) の型

@@ -5,11 +5,14 @@ import os
 
 from sqlalchemy import (
     BigInteger, Boolean, Integer, String, DECIMAL, TypeDecorator,
-    create_engine, ForeignKey,
+    create_engine, ForeignKey, select, update, Select
+)
+from sqlalchemy.orm import (
+    Session
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from stamp import Stamp
+from DEM.db.stamp import Stamp
 
 
 class StampType(TypeDecorator):
@@ -65,7 +68,8 @@ def location_text(values) -> str | None:
 
 
 class Base(DeclarativeBase):
-    pass
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
 
 
 class MarkdownBase(Base):
@@ -73,25 +77,16 @@ class MarkdownBase(Base):
 
     text: Mapped[str] = mapped_column(String,  nullable=False)
 
-    filepath: Mapped[str] = mapped_column(
-        String, primary_key=True,
-        comment="主キー。**置き場所そのもの**（novels/ からの相対パス、拡張子なし）。"
-                "md には書かない。読み込むときに置き場所から入る")
+    filepath: Mapped[str] = mapped_column(String, unique=True, index=True)
 
 
-class RecordBase(Base):
-    __abstract__ = True
+class Location(MarkdownBase):
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-
-class Place(MarkdownBase):
-
-    __tablename__ = "place"
+    __tablename__ = "location"
 
     name: Mapped[str | None] = mapped_column(String)
     kind: Mapped[str | None] = mapped_column(String)
-    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
 
     # 位置は**一つの座標系だけ**で持つ。経度・緯度・高度で持ち、
     # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
@@ -121,27 +116,27 @@ class Event(MarkdownBase):
     kind: Mapped[str] = mapped_column(String, default="")
     time: Mapped[Stamp] = mapped_column(StampType, index=True)
 
-    parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.filepath"))
+    parent_event_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("event.id"))
 
-    place_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.filepath"), index=True)
-    place: Mapped[Place | None] = relationship(lazy="noload")
+    place_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("location.id"), index=True)
+    place: Mapped[Location | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
     # 誰の行動かをこの二つが持ち、掛かり先の出来事は `parent_event_id`。
     # どちらも空なら、誰の行動でもない「ただ起きたこと」。
-    character_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("character.filepath"), index=True,
+    character_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("character.id"), index=True,
         comment="その行動をした人物")
-    object_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("object.filepath"), index=True,
+    object_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("object.id"), index=True,
         comment="その行動をした個体（群）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
     parent_event: Mapped["Event | None"] = relationship(
-        remote_side="Event.filepath", back_populates="child_events", lazy="noload"
+        remote_side="Event.id", back_populates="child_events", lazy="noload"
     )
     child_events: Mapped[list["Event"]] = relationship(
         back_populates="parent_event", lazy="noload", cascade="all, delete-orphan"
@@ -157,12 +152,12 @@ class Kind(MarkdownBase):
 
 
 class ObjectBase:
-    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    root_place_name: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
 
     name: Mapped[str | None] = mapped_column(String)
     read: Mapped[str | None] = mapped_column(String)
 
-    kind_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.filepath"))
+    kind_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("kind.id"))
 
     world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える")
 
@@ -174,11 +169,11 @@ class Object(MarkdownBase, ObjectBase):
     __tablename__ = "object"
 
 
-class ObjectPlace(RecordBase):
+class ObjectPlace(Base):
     __tablename__ = "object_place"
 
-    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.filepath"))
+    object_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("object.id"))
+    place_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("location.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -189,8 +184,8 @@ class Character(MarkdownBase, ObjectBase):
     __tablename__ = "character"
 
     # --- 出自 -------------------------------------------------------------
-    born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
-    belong_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"), comment="所属。個体のどれか")
+    born_place_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
+    belong_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("object.id"), comment="所属。個体のどれか")
 
     # --- 体格 -------------------------------------------------------------
     sex: Mapped[str] = mapped_column(String,  comment="性別")
@@ -228,12 +223,12 @@ class Character(MarkdownBase, ObjectBase):
         lazy="noload",  order_by="CharacterEmotion.start.desc()")
 
 
-class CharacterPlace(RecordBase):
+class CharacterPlace(Base):
 
     __tablename__ = "character_place"
 
-    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.filepath"))
+    character_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("character.id"))
+    place_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("location.id"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
@@ -256,14 +251,14 @@ class Skill(MarkdownBase):
     constraint: Mapped[str] = mapped_column(String,  comment="制約")
 
 
-class CharacterSkill(RecordBase):
+class CharacterSkill(Base):
 
     __tablename__ = "character_skill"
 
-    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
-    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"))
+    character_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("character.id"))
+    object_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("object.id"))
 
-    skill_id: Mapped[str] = mapped_column(String, ForeignKey("skill.filepath"), nullable=False)
+    skill_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("skill.id"), nullable=False)
 
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
 
@@ -272,7 +267,7 @@ class CharacterEmotion(MarkdownBase):
 
     __tablename__ = "character_drive"
 
-    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+    character_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("character.id"))
 
     text: Mapped[str] = mapped_column(String, nullable=False)
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
@@ -287,12 +282,12 @@ class Term(MarkdownBase):
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
 
-    restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
-    restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
-    restrict_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    restrict_world_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
+    restrict_planet_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
+    restrict_place_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("location.id"))
 
-    parent_term_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("term.filepath"), comment="上位の語。置いたディレクトリで決まる")
+    parent_term_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
 
 
 class Story(MarkdownBase):
@@ -301,10 +296,10 @@ class Story(MarkdownBase):
 
     name: Mapped[str] = mapped_column(String)
 
-    world_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.filepath"), comment="使用する世界線")
-    place_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.filepath"), comment="立つ場所。断面を取るのに使う")
+    world_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("location.id"), comment="使用する世界線")
+    place_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("location.id"), comment="立つ場所。断面を取るのに使う")
     narration: Mapped[str] = mapped_column(String,  comment="語り")
     state: Mapped[str] = mapped_column(String,  comment="状態")
 
@@ -316,7 +311,7 @@ class Episode(MarkdownBase):
 
     __tablename__ = "episode"
 
-    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.filepath"))
+    story_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("story.id"))
     number: Mapped[int | None] = mapped_column(
         Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(
@@ -329,7 +324,10 @@ class Episode(MarkdownBase):
                 "オフの話があるあいだは、次の話の材料を読み出せない")
 
 
-def create_db(path):
+DB_PATH = os.environ.get("DEM_DB_PATH", "novel.db")
+
+
+def create_db(path=DB_PATH):
     """**db ファイルを作り直して、空のテーブルを張る。**
 
     台帳から何度でも組み直せるので、既にあれば消して作り直す。
@@ -343,6 +341,8 @@ def create_db(path):
     return engine
 
 
-def open_db(path):
-    """既にある db を開く。"""
-    return create_engine(f"sqlite:///{os.path.abspath(path)}", future=True)
+engine = create_engine(f"sqlite:///{os.path.abspath(DB_PATH)}", future=True)
+
+
+def get_session():
+    return Session(engine)
