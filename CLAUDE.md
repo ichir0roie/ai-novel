@@ -19,12 +19,19 @@
 （`core/` と `tools/` は普通に読み書きしてよい。ここでの話は `novels/` だけ）
 
 ```
-作業開始時  python3 tools/novel.py load     md を全部 novels/novel.db へ読み込む
+作業開始時  python3 tools/novel.py start --story <作品名>
+                                            load したうえで、企画・プロット・直前の話・
+                                            断面・顔ぶれを一度に出す（作品が決まっていない
+                                            ときは python3 tools/novel.py load だけでよい）
 （作業中）  読むのも書くのも db 相手。下の表の入口を使う
 作業終了時  python3 tools/novel.py save     db を md へ書き出す
 ```
 
-**始めに `load`、終わりに `save`。** これを飛ばすと、db と md が食い違う。
+**始めに `start`（または `load`）、終わりに `save`。** これを飛ばすと、db と md が食い違う。
+
+**一件ずつ呼ばない。** 入口はどれも、呼ぶたびに `novels/` を頭から読み直す。
+引くものが何件もあるなら `batch`、書き換えが何件もあるなら `sql --file` で、
+一度にまとめて流す。往復も読み込みも一回で済む。
 
 | したいこと           | 使う入口                                                      |
 | -------------------- | ------------------------------------------------------------- |
@@ -40,7 +47,10 @@
 | 話を書く・直す       | `novel.py write <作品名>/<話数> --file <下書き>`                |
 | 設定を足す・直す     | `novel.py sql "INSERT …" / "UPDATE …"`（そのあと `save`）      |
 | その場・その時を引く | `novel.py scene --place <場所> --time <年>`                     |
-| 込み入った問い合わせ | `novel.py sql "SELECT …"`                                      |
+| 込み入った問い合わせ | `novel.py sql "SELECT …"`。`;` で区切れば何本でも              |
+| 書き換えをまとめる   | `novel.py sql --file <文を並べたファイル>`（そのあと `save`）   |
+| 引くものが何件もある | `novel.py batch --file <命令を並べたファイル>`                  |
+| 開始時にまとめて読む | `novel.py start --story <作品名>`                              |
 
 下書きは scratch（リポジトリの外）に置いて `write` で流し込む。
 **`novels/` の下に手でファイルを作らない。**
