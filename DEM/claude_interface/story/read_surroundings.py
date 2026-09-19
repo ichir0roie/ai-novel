@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import sys
 
+from DEM.claude_interface.story import _rows
 from DEM.data_access_logic.query import character_simulation_query, common_query
 from DEM.db.schema import get_session
 from DEM.db.schema_pydantic import to_dict_with
@@ -36,8 +37,7 @@ def read_surroundings(character_id: int, time, reach: int = 60) -> dict:
             "reach": int(reach),
             "characters": [to_dict_with(c, text=False) for c in characters],
             "objects": [to_dict_with(o, text=False) for o in objects],
-            "events": [to_dict_with(e, relations=common_query.EVENT_RELATIONS)
-                       for e in events],
+            "events": [_rows.event_row(e) for e in events],
         }
 
 
