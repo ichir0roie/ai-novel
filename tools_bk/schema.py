@@ -13,11 +13,6 @@ from stamp import Stamp
 
 
 class StampType(TypeDecorator):
-    """作中の時刻。**桁を並べた整数として持つ。**
-    python の `datetime` は 9999 年までしか持てず、作中の暦はそれを越える。
-    `tools/stamp.py` の `Stamp` を、`年月日時分秒` を並べた整数へ落として入れる。
-    並びがそのまま時の前後になるので、`ORDER BY` も `<` もそのまま効く。
-    """
 
     impl = BigInteger
     cache_ok = True
@@ -69,7 +64,13 @@ def location_text(values) -> str | None:
         for tag, part in zip(_LOCATION_TAGS, parts))
 
 
-class MarkdownBase(DeclarativeBase):
+class Base(DeclarativeBase):
+    pass
+
+
+class MarkdownBase(Base):
+    __abstract__ = True
+
     text: Mapped[str] = mapped_column(String,  nullable=False)
 
     filepath: Mapped[str] = mapped_column(
@@ -78,20 +79,19 @@ class MarkdownBase(DeclarativeBase):
                 "md には書かない。読み込むときに置き場所から入る")
 
 
-class RecordBase(DeclarativeBase):
+class RecordBase(Base):
+    __abstract__ = True
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
 
 class Place(MarkdownBase):
-    """
-    novels/worlds/{place_name}/**/{place_name}.md
-    """
 
     __tablename__ = "place"
 
     name: Mapped[str | None] = mapped_column(String)
     kind: Mapped[str | None] = mapped_column(String)
-    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
 
     # 位置は**一つの座標系だけ**で持つ。経度・緯度・高度で持ち、
     # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
@@ -114,16 +114,6 @@ class Place(MarkdownBase):
 
 
 class Event(MarkdownBase):
-    """
-    novels/worlds/{place_name}/**/events/{yyyymmddhhmmss}_{event_name}.md
-    novels/objects/{world_name}/**/{object_name}/events/{yyyymmddhhmmss}_{action_name}.md
-    novels/characters/{born_place_name}/**/{character_name}/events/{yyyymmddhhmmss}_{action_name}.md
-
-    **起きたことは、ぜんぶここに入る。** 場所で起きたことも、人物・個体が
-    したことも同じ表。行動は `character_id` / `object_id` が誰かを持ち、
-    掛かり先の出来事を `parent_event_id` が指す。
-    ある時刻・ある場所の要素は `place` と結んで一度に引ける。
-    """
 
     __tablename__ = "event"
 
@@ -131,40 +121,34 @@ class Event(MarkdownBase):
     kind: Mapped[str] = mapped_column(String, default="")
     time: Mapped[Stamp] = mapped_column(StampType, index=True)
 
-    parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.id"))
+    parent_event_id: Mapped[str | None] = mapped_column(String, ForeignKey("event.filepath"))
 
     place_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.id"), index=True)
+        String, ForeignKey("place.filepath"), index=True)
     place: Mapped[Place | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
     # 誰の行動かをこの二つが持ち、掛かり先の出来事は `parent_event_id`。
     # どちらも空なら、誰の行動でもない「ただ起きたこと」。
     character_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("character.id"), index=True,
+        String, ForeignKey("character.filepath"), index=True,
         comment="その行動をした人物")
     object_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("object.id"), index=True,
+        String, ForeignKey("object.filepath"), index=True,
         comment="その行動をした個体（群）")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
     parent_event: Mapped["Event | None"] = relationship(
-        remote_side="Event.id", back_populates="child_events", lazy="noload"
+        remote_side="Event.filepath", back_populates="child_events", lazy="noload"
     )
     child_events: Mapped[list["Event"]] = relationship(
-        back_populates="parent_event", lazy="selectin", cascade="all, delete-orphan"
+        back_populates="parent_event", lazy="noload", cascade="all, delete-orphan"
     )
 
 
 class Kind(MarkdownBase):
-    """
-    novels/objects/{root_place_name}/{kind_name}.md
-
-    **型。** 何であるかの分類（系統・国・組織・仕組み）。
-    個体はこの型にぶら下がる。
-    """
 
     __tablename__ = "kind"
 
@@ -173,12 +157,12 @@ class Kind(MarkdownBase):
 
 
 class ObjectBase:
-    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    root_place_name: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
 
     name: Mapped[str | None] = mapped_column(String)
     read: Mapped[str | None] = mapped_column(String)
 
-    kind_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.id"))
+    kind_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.filepath"))
 
     world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える")
 
@@ -187,48 +171,31 @@ class ObjectBase:
 
 
 class Object(MarkdownBase, ObjectBase):
-    """
-    novels/objects/{world_name}/**/{object_name}/{object_name}.md
-
-    **種族・組織・仕組みなど、まとまりとして振る舞うもの。**
-    一人ひとりの人間は `Character` が持つ。ここは群としての行動を持つ。
-    """
     __tablename__ = "object"
 
 
-class ObjectPlace(MarkdownBase):
-    """
-    {object_name}/places/{yyyymmddhhmmss}_{place_name}.md
-    """
-
+class ObjectPlace(RecordBase):
     __tablename__ = "object_place"
 
-    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
+    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"))
+    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.filepath"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
 
 class Character(MarkdownBase, ObjectBase):
-    """
-    novels/characters/{born_place_name}/**/{character_name}/{character_name}.md
-
-    **一人ひとりの人間。** 本文で一人称・二人称・三人称を書き分けるために、
-    ここがいちばん細かい。群としての振る舞いは `Object` の側にある。
-    """
 
     __tablename__ = "character"
 
     # --- 出自 -------------------------------------------------------------
-    born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    belong_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"), comment="所属。個体のどれか")
+    born_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    belong_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"), comment="所属。個体のどれか")
 
     # --- 体格 -------------------------------------------------------------
     sex: Mapped[str] = mapped_column(String,  comment="性別")
     height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm")
     build: Mapped[str] = mapped_column(String,  comment="体格")
-    race_id: Mapped[str | None] = mapped_column(String, ForeignKey("kind.id"), comment="種族。種別のどれか")
 
     # --- 口調 -------------------------------------------------------------
     first_person: Mapped[str] = mapped_column(String,  comment="一人称")
@@ -251,33 +218,29 @@ class Character(MarkdownBase, ObjectBase):
 
     # relationships
 
-    places: Mapped[list[ObjectPlace]] = relationship(
-        back_populates="Character", lazy="selectin", cascade="all, delete-orphan", order_by="ObjectPlace.start.desc()"
+    places: Mapped[list[CharacterPlace]] = relationship(
+        back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
     )
-    skills: Mapped[list[CharacterSkill]] = relationship(lazy="selectin", cascade="all, delete-orphan", order_by="CharacterSkill.id.asc()")
+    skills: Mapped[list[CharacterSkill]] = relationship(
+        lazy="noload",  order_by="CharacterSkill.id.asc()")
+    emotions: Mapped[list[CharacterEmotion]] = relationship(
+        lazy="noload",  order_by="CharacterEmotion.start.desc()")
 
 
-class CharacterPlace(MarkdownBase):
-    """
-    {character_name}/places/{yyyymmddhhmmss}_{place_name}.md
-    """
+class CharacterPlace(RecordBase):
 
     __tablename__ = "character_place"
 
-    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.id"))
-    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.id"))
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+    place_id: Mapped[str] = mapped_column(String, ForeignKey("place.filepath"))
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
+    character: Mapped[Character | None] = relationship(back_populates="places", lazy="noload")
+
 
 class Skill(MarkdownBase):
-    """
-    novels/skills/{skill_name}/{skill_name}.md
-
-    **技能。** 何ができるかの分類（戦闘・魔法・工作・交渉）。
-    個体はこの技能にぶら下がる。
-    """
 
     __tablename__ = "skill"
 
@@ -296,50 +259,51 @@ class CharacterSkill(RecordBase):
 
     __tablename__ = "character_skill"
 
-    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.id"))
-    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.id"))
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+    object_id: Mapped[str | None] = mapped_column(String, ForeignKey("object.filepath"))
 
-    skill_id: Mapped[str] = mapped_column(String, ForeignKey("skill.id"), nullable=False)
+    skill_id: Mapped[str] = mapped_column(String, ForeignKey("skill.filepath"), nullable=False)
 
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
 
 
-class Term(MarkdownBase):
-    """
-    novels/terms/**/{term_name}/{term_name}.md
+class CharacterEmotion(MarkdownBase):
 
-    **入れ子。** ディレクトリが上下を表す。`{term_name}/{term_name}.md` がその語、
-    その下のディレクトリがその語にぶら下がる語。
-    """
+    __tablename__ = "character_drive"
+
+    character_id: Mapped[str | None] = mapped_column(String, ForeignKey("character.filepath"))
+
+    text: Mapped[str] = mapped_column(String, nullable=False)
+    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    start: Mapped[Stamp | None] = mapped_column(StampType)
+    end: Mapped[Stamp | None] = mapped_column(StampType)
+
+
+class Term(MarkdownBase):
     __tablename__ = "term"
 
     name: Mapped[str] = mapped_column(String)
     kind: Mapped[str] = mapped_column(String)
 
-    restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
-    restrict_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.id"))
+    restrict_world_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    restrict_planet_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
+    restrict_place_id: Mapped[str | None] = mapped_column(String, ForeignKey("place.filepath"))
 
     parent_term_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
+        String, ForeignKey("term.filepath"), comment="上位の語。置いたディレクトリで決まる")
 
 
 class Story(MarkdownBase):
-    """
-    novels/stories/{story_name}/meta.md
-
-    **作品。** 本文の入れ物。どの世界線のどこに立つかをここが持つ。
-    作品は世界線をまたがない。
-    """
 
     __tablename__ = "story"
 
     name: Mapped[str] = mapped_column(String)
 
     world_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.id"), comment="使用する世界線")
+        String, ForeignKey("place.filepath"), comment="使用する世界線")
     place_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("place.id"), comment="立つ場所。断面を取るのに使う")
+        String, ForeignKey("place.filepath"), comment="立つ場所。断面を取るのに使う")
     narration: Mapped[str] = mapped_column(String,  comment="語り")
     state: Mapped[str] = mapped_column(String,  comment="状態")
 
@@ -348,16 +312,10 @@ class Story(MarkdownBase):
 
 
 class Episode(MarkdownBase):
-    """
-    novels/stories/{story_name}/episodes/{話数}.md
-
-    **一話。** `text` が原稿そのもの。データは `同期` だけを持つ。
-    話数はファイル名、題と字数は原稿から採る（書き戻すときも足さない）。
-    """
 
     __tablename__ = "episode"
 
-    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.id"))
+    story_id: Mapped[str] = mapped_column(String, ForeignKey("story.filepath"))
     number: Mapped[int | None] = mapped_column(
         Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
     title: Mapped[str] = mapped_column(
@@ -380,7 +338,7 @@ def create_db(path):
     if os.path.exists(path):
         os.remove(path)
     engine = create_engine(f"sqlite:///{path}", future=True)
-    MarkdownBase.metadata.create_all(engine)
+    Base.metadata.create_all(engine)
     return engine
 
 
