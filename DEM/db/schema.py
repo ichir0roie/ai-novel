@@ -69,15 +69,15 @@ def location_text(values) -> str | None:
 
 class Base(DeclarativeBase):
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # SQLite は「INTEGER PRIMARY KEY」だけを rowid の別名として autoincrement する。
+    # BigInteger だと型名が INTEGER と一致せず insert のたびに id が NULL のまま失敗する。
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
 
 class MarkdownBase(Base):
     __abstract__ = True
 
     text: Mapped[str] = mapped_column(String,  nullable=False)
-
-    filepath: Mapped[str] = mapped_column(String, unique=True, index=True)
 
 
 class Location(MarkdownBase):
@@ -128,6 +128,8 @@ class Event(MarkdownBase):
     character_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("character.id"), index=True,
         comment="その行動をした人物")
+    character: Mapped["Character | None"] = relationship(
+        back_populates="events", lazy="noload")
     object_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("object.id"), index=True,
         comment="その行動をした個体（群）")
@@ -221,6 +223,10 @@ class Character(MarkdownBase, ObjectBase):
         lazy="noload",  order_by="CharacterSkill.id.asc()")
     emotions: Mapped[list[CharacterEmotion]] = relationship(
         lazy="noload",  order_by="CharacterEmotion.start.desc()")
+
+    events: Mapped[list[Event]] = relationship(
+        back_populates="character", lazy="noload", order_by="Event.start.desc()"
+    )
 
 
 class CharacterPlace(Base):
