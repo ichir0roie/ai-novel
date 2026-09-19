@@ -91,9 +91,12 @@ class Place(Base):
     # （星ごとに基準が変わり、上の場所と突き合わせられないため）。
     location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W")
     location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P")
-    location_longitude: Mapped[float | None] = mapped_column(DECIMAL, comment="経度 X")
-    location_latitude: Mapped[float | None] = mapped_column(DECIMAL, comment="緯度 Y")
-    location_altitude: Mapped[float | None] = mapped_column(DECIMAL, comment="高度 Z")
+    location_x: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="X。星の基準点から東へ何 km")
+    location_y: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="Y。星の赤道から北へ何 km")
+    location_z: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="Z。基準面から上へ何 m")
 
     location_key: Mapped[str | None] = mapped_column(
         String, unique=True, index=True,
