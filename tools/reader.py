@@ -27,10 +27,25 @@ novels/
 **ディレクトリ名と同じ名前の md だけが場所のレコード。** それ以外の md は
 自由文書として読み飛ばされるので、`解釈表.md` のような読み物を隣に置いてよい。
 
-**id は資料に書かない。** 読むときに、上位のレコードの id と自分の名から
-ここで採番する（`入植星/森`、`森/43400101000000_耐用年数の満了`）。
-他のレコードを指す欄（`親` `場所` `出来事` `分類` `種族` `所属`）には
-**名前を書く。** 名前から id へは読み込みのときに寄せ直す。
+**id は置き場所そのもの。** `novels/` からの相対パスで、拡張子を落としたもの。
+ディレクトリが一件になるレコード（場所・個体・人物・語・作品）はディレクトリの
+パス、ファイルが一件になるレコード（出来事・居場所・種別・話）はファイルのパス。
+
+```
+worlds/SFファンタジー/ノウル/ナヘレ/抱き森/フリステ
+worlds/SFファンタジー/ノウル/ナヘレ/抱き森/フリステ/events/4354_09_28_灯らない掌
+characters/フリステ/オリオ
+stories/めぐる旅路は枯れゆく世界と/episodes/5
+```
+
+**他のレコードを指す欄には、このパスを書く。** 名前では書かない。名前は重なるし、
+変えれば指し先が黙って外れる。パスなら、どのファイルを指しているかがそのまま読め、
+置き場所が動けば `check` が気づく。
+
+**ただし、置き場所とファイル名から自動で埋まる既定だけは名前で寄せる**
+（`characters/<出身地>/` の出身、`places/{時刻}_{場所}.md` の場所）。
+ここは人が書いた参照ではなく、構造から来る値だからで、同じ名が二つあれば
+不備として上げる。書き出すときは、寄せたあとのパスがデータに入る。
 """
 from __future__ import annotations
 
@@ -110,7 +125,8 @@ FIELDS: dict[str, dict[str, str]] = {
     "place": {
         "名": "name", "種別": "kind", "親": "parent_id",
         "世界番号": "location_world", "惑星番号": "location_planet",
-        "X": "location_x", "Y": "location_y", "Z": "location_z",
+        "経度": "location_longitude", "緯度": "location_latitude",
+        "高度": "location_altitude",
         "始": "start", "終": "end",
     },
     # 行動もここ。`人物` `個体` が誰の行動かを持ち、`親` が掛かり先の出来事
@@ -223,6 +239,8 @@ class Record:
     table: str
     path: str
     values: dict = field(default_factory=dict)
+    # 置き場所・ファイル名から来た欄。**ここだけは名前で寄せてよい**
+    derived: set = field(default_factory=set)
 
     @property
     def id(self) -> str:
@@ -247,7 +265,8 @@ class Library:
 
 # ---------------------------------------------------------------- 一件を読む
 
-def read_record(path: str, table: str, defaults: dict) -> Record:
+def read_record(path: str, table: str, defaults: dict,
+                derived: set | None = None) -> Record:
     with open(path, encoding="utf-8") as fh:
         head, body = split_front_matter(fh.read())
 
@@ -284,7 +303,11 @@ def read_record(path: str, table: str, defaults: dict) -> Record:
     for column in ("name", "read", "kind"):
         if column in fields.values():
             values.setdefault(column, "")
-    return Record(table, path, values)
+    # 資料に書いてあった欄は、構造から来た既定ではない
+    came_from_structure = {column for column in (derived or set())
+                           if column not in
+                           {fields.get(str(k)) for k in head}}
+    return Record(table, path, values, came_from_structure)
 
 
 # ---------------------------------------------------------------- 全体を歩く
@@ -300,7 +323,7 @@ def _place_dirs(world_dir: str):
     return found
 
 
-def _read_owners(lib, fail, *, root, table, owner_column,
+def _read_owners(lib, fail, *, novels_dir, root, table, owner_column,
                  sub_tables, defaults):
     """`<入れ物>/**/<名>/<名>.md` と、その下の `places/` `events/` を読む。
 
@@ -323,9 +346,11 @@ def _read_owners(lib, fail, *, root, table, owner_column,
             if marker not in files:
                 continue
             path = os.path.join(current, marker)
-            trail = os.path.relpath(current, root).replace(os.sep, "/")
             try:
-                owner = read_record(path, table, defaults(top, name, trail))
+                owner = read_record(
+                    path, table,
+                    defaults(top, name, rel_id(current, novels_dir)),
+                    {"born_place_id"})
             except ReadError as err:
                 fail(path, err)
                 continue
@@ -338,15 +363,18 @@ def _read_owners(lib, fail, *, root, table, owner_column,
                 for item in _stamped_files(os.path.join(current, sub)):
                     try:
                         when, label = split_stamped_name(_stem(item))
-                        base = {"id": f"{owner.id}/{_stem(item)}",
+                        base = {"id": rel_id(item, novels_dir),
                                 owner_column: owner.id, "start": when}
+                        marks = set()
                         if sub_table == place_table:
                             base[ref] = label
+                            marks = {ref}
                         else:
                             # 行動＝出来事。名と時はファイル名から採る。
                             # 場所は掛かり先の出来事から継ぐ（_inherit_places）
                             base.update(name=label, time=when)
-                        lib.records.append(read_record(item, sub_table, base))
+                        lib.records.append(
+                            read_record(item, sub_table, base, marks))
                     except ReadError as err:
                         fail(item, err)
 
@@ -372,7 +400,7 @@ def read_library(novels_dir: str) -> Library:
             parent = place_id_of_dir.get(os.path.dirname(place_dir))
             try:
                 rec = read_record(path, "place", {
-                    "id": f"{parent}/{name}" if parent else name,
+                    "id": rel_id(place_dir, novels_dir),
                     "name": name,
                     **({"parent_id": parent} if parent else {}),
                 })
@@ -388,7 +416,7 @@ def read_library(novels_dir: str) -> Library:
             try:
                 when, name = split_stamped_name(_stem(path))
                 lib.records.append(read_record(path, "event", {
-                    "id": f"{place_id}/{_stem(path)}", "name": name,
+                    "id": rel_id(path, novels_dir), "name": name,
                     "time": when, "place_id": place_id,
                 }))
             except ReadError as err:
@@ -398,39 +426,40 @@ def read_library(novels_dir: str) -> Library:
     for world, path in _world_files(os.path.join(novels_dir, "objects")):
         try:
             lib.records.append(read_record(path, "kind", {
-                "id": f"{world}/{_stem(path)}", "name": _stem(path),
-                "root_place_id": world,
+                "id": rel_id(path, novels_dir), "name": _stem(path),
+                "root_place_id": f"worlds/{world}",
             }))
         except ReadError as err:
             fail(path, err)
 
     # --- 個体と、その居場所・行動 -----------------------------------------
     _read_owners(
-        lib, fail,
+        lib, fail, novels_dir=novels_dir,
         root=os.path.join(novels_dir, "objects"),
         table="object", owner_column="object_id",
         sub_tables=("object_place", "event"),
-        defaults=lambda world, name, trail: {
-            "id": trail, "name": name, "root_place_name": world,
+        defaults=lambda world, name, here: {
+            "id": here, "name": name, "root_place_name": f"worlds/{world}",
         },
     )
 
     # --- 人物と、その居場所・行動 -----------------------------------------
     _read_owners(
-        lib, fail,
+        lib, fail, novels_dir=novels_dir,
         root=os.path.join(novels_dir, "characters"),
         table="character", owner_column="character_id",
         sub_tables=("character_place", "event"),
-        defaults=lambda born, name, trail: {
-            "id": trail, "name": name, "born_place_id": born,
+        defaults=lambda born, name, here: {
+            "id": here, "name": name, "born_place_id": born,
         },
     )
 
     # --- 語（入れ子）------------------------------------------------------
-    _read_terms(lib, fail, os.path.join(novels_dir, "terms"))
+    _read_terms(lib, fail, os.path.join(novels_dir, "terms"), novels_dir)
 
     # --- 作品と、その話 ---------------------------------------------------
-    _read_stories(lib, fail, os.path.join(novels_dir, "stories"))
+    _read_stories(lib, fail, os.path.join(novels_dir, "stories"),
+                  novels_dir)
 
     _resolve_refs(lib)
     _fill_locations(lib)
@@ -503,7 +532,7 @@ def _inherit_places(lib: Library) -> None:
             parent = events.get(parent.values.get("parent_event_id"))
 
 
-def _read_terms(lib: Library, fail, terms_dir: str) -> None:
+def _read_terms(lib: Library, fail, terms_dir: str, novels_dir: str) -> None:
     """`terms/**/<語>.md`（子を持たない語）と `terms/**/<語>/<語>.md`
     （子を持つ語。下にぶら下がる語を置ける）を、浅いほうから読む。
     ディレクトリ自身の記事は `<語>.md` のほか、名を省いた `.md` でもよい。
@@ -525,7 +554,7 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
             path = os.path.join(current, own_marker)
             try:
                 rec = read_record(path, "term", {
-                    "id": f"{container_parent}/{name}" if container_parent else name,
+                    "id": rel_id(current, novels_dir),
                     "name": name,
                     **({"parent_term_id": container_parent} if container_parent else {}),
                 })
@@ -545,8 +574,7 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
             path = os.path.join(current, leaf)
             try:
                 rec = read_record(path, "term", {
-                    "id": f"{effective_parent}/{leaf_name}"
-                          if effective_parent else leaf_name,
+                    "id": rel_id(path, novels_dir),
                     "name": leaf_name,
                     **({"parent_term_id": effective_parent}
                        if effective_parent else {}),
@@ -584,7 +612,8 @@ def _read_terms(lib: Library, fail, terms_dir: str) -> None:
 _NUMBERED = re.compile(r"\A(\d+)\Z")
 
 
-def _read_stories(lib: Library, fail, stories_dir: str) -> None:
+def _read_stories(lib: Library, fail, stories_dir: str,
+                  novels_dir: str) -> None:
     """`stories/<作品名>/meta.md` と `stories/<作品名>/episodes/{話数}.md` を読む。
 
     **作品の id は作品名、話の id は `<作品名>/<話数>`。** 話数はファイル名の
@@ -601,7 +630,8 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
         if not os.path.isdir(story_dir) or not os.path.exists(meta):
             continue
         try:
-            story = read_record(meta, "story", {"id": name, "name": name})
+            story = read_record(meta, "story", {
+                "id": rel_id(story_dir, novels_dir), "name": name})
         except ReadError as err:
             fail(meta, err)
             continue
@@ -617,7 +647,7 @@ def _read_stories(lib: Library, fail, stories_dir: str) -> None:
             number = int(found.group(1))
             try:
                 rec = read_record(path, "episode", {
-                    "id": f"{story.id}/{number}", "story_id": story.id,
+                    "id": rel_id(path, novels_dir), "story_id": story.id,
                     "number": number, "synced": False,
                 })
             except ReadError as err:
@@ -646,10 +676,12 @@ def _episode_title(body: str) -> str:
 
 
 def _resolve_refs(lib: Library) -> None:
-    """他のレコードを名前で指している欄を、採番した id へ寄せ直す。
+    """指し先の欄を検める。**参照は id、つまり置き場所のパスで書く。**
 
-    同じ名が二つあって決められないときは、不備として上げる。
-    **黙って片方を選ばない。**
+    パスで書いてあれば、そのまま通る。書いていないものは不備として上げる。
+    名前で寄せるのは、**置き場所とファイル名から来た欄だけ**
+    （`characters/<出身地>/` の出身、`places/{時刻}_{場所}.md` の場所）で、
+    そこも同じ名が二つあれば止める。**黙って片方を選ばない。**
     """
     def is_action(table: str, rec_id: str) -> bool:
         """その出来事が、誰かの行動かどうか。"""
@@ -672,6 +704,13 @@ def _resolve_refs(lib: Library) -> None:
             value = rec.values.get(column)
             if not value or value in known[table]:
                 continue
+            if column not in rec.derived:
+                lib.problems.append(
+                    f"{os.path.relpath(rec.path, lib.root)}: "
+                    f"{column} の指す「{value}」が{LABEL[table]}に無い。"
+                    f"参照は novels/ からのパスで書く"
+                    f"（`worlds/<世界線>/…/<場所>`）")
+                continue
             hits = [hit for hit in by_name[table].get(str(value), [])
                     if hit != rec.id]
             if len(hits) > 1 and table == "event":
@@ -686,7 +725,11 @@ def _resolve_refs(lib: Library) -> None:
                 lib.problems.append(
                     f"{os.path.relpath(rec.path, lib.root)}: "
                     f"{column} の「{value}」が{LABEL[table]}に {len(hits)} 件ある。"
-                    f"名を分ける")
+                    f"データに指し先のパスを書いて分ける")
+            else:
+                lib.problems.append(
+                    f"{os.path.relpath(rec.path, lib.root)}: "
+                    f"{column} の指す「{value}」が{LABEL[table]}に無い")
 
 
 # ---------------------------------------------------------------- 小道具
@@ -714,3 +757,13 @@ def _world_files(path: str):
 
 def _stem(path: str) -> str:
     return os.path.splitext(os.path.basename(path))[0]
+
+
+def rel_id(path: str, root: str) -> str:
+    """**置き場所を id にする。** `novels/` からの相対パス、拡張子なし。
+
+    ディレクトリならそのまま、ファイルなら `.md` を落とす。
+    区切りは `/` に揃えるので、windows で読んでも同じ id になる。
+    """
+    rel = os.path.relpath(path, root).replace(os.sep, "/")
+    return rel[:-len(".md")] if rel.endswith(".md") else rel
