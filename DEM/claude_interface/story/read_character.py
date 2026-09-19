@@ -14,14 +14,14 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.claude_interface.story import _rows
 from DEM.db.schema import get_session
 
 
 def read_character(character_id: int, time=None, count: int = 5) -> dict:
     """人物一件を、本文を書くのに要る形でそろえて返す。"""
     with get_session() as session:
-        return query.character_sheet(session, int(character_id), until=time,
+        return _rows.character_sheet(session, int(character_id), until=time,
                                      count=int(count))
 
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.claude_interface.story import _rows
 from DEM.db.schema import get_session
 
 
@@ -24,7 +24,7 @@ def read_episodes(story_id: int, count: int = 10, before: int | None = None,
                   text: bool = True) -> list[dict]:
     """その作品の話を古い順に返す。`text=False` なら話数と題だけ。"""
     with get_session() as session:
-        return query.episodes(session, int(story_id), count=int(count),
+        return _rows.episodes(session, int(story_id), count=int(count),
                               before=before, text=text)
 
 

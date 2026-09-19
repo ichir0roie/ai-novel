@@ -16,14 +16,14 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.claude_interface.story import _rows
 from DEM.db.schema import get_session
 
 
 def read_cast(story_id: int, time=None, count: int = 5, levels: int = 1) -> dict:
     """その時点の顔ぶれを辞書で返す。"""
     with get_session() as session:
-        return query.cast(session, int(story_id), time, count=int(count),
+        return _rows.cast(session, int(story_id), time, count=int(count),
                           levels=int(levels))
 
 

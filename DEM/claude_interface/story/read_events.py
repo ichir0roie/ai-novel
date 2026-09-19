@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.claude_interface.story import _rows
 from DEM.db.schema import get_session
 
 
@@ -27,8 +27,8 @@ def read_events(time=None, record_id: int | None = None, limit: int | None = Non
         raise ValueError("time か record_id のどちらか一方だけを渡す")
     with get_session() as session:
         if time is not None:
-            return query.events_at(session, time, limit=limit)
-        return query.events_of(session, int(record_id), until=until, limit=limit)
+            return _rows.events_at(session, time, limit=limit)
+        return _rows.events_of(session, int(record_id), until=until, limit=limit)
 
 
 if __name__ == "__main__":

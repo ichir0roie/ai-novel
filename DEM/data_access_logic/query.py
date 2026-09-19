@@ -5,21 +5,34 @@ claude はここを直接呼ばない。`DEM/claude_interface/story/` の入口�
 
 引く条件は**時刻とレコードの id だけ**で表す（`IHG/workflow.md`）。
 呼ぶ側が SQL を組み立てなくて済むように、モード 2 で要る引き方を
-ここに関数として並べる。戻り値は**素の辞書だけ**——
-プロセスをまたいでも中身が運べるように、ORM のオブジェクトも session も返さない。
+ここに関数として並べる。
+
+**ここでは `session.execute` / `session.scalars(...).all()` のような
+「実行」をしない。** 関数はどれも `Select` を返すだけにとどめ、実行と
+ORM→dict の変換は呼び出し側（`DEM/claude_interface/`）へ渡す。
+そのために、関連名の解決（旧: 追加クエリで引く `_name()`）は
+select 文に `selectinload` で relationship を積んでおき、呼び出し側が
+`DEM.db.schema_pydantic.to_dict_with` でロード済みの関連から読む形にする。
+
+例外は次の二つだけ:
+
+- `_get` / `get_story`: 存在確認のための単発 `session.get()`。
+  一覧でも関連取得でもないので select にする意味が無い
+- `descendant_place_ids` / `place_path`: 場所の木を親へ・子へとたどる処理。
+  何段あるか分からないので、木を一段ずつ select する小さなループを
+  ここに残す（一発の select では表せない）
 """
 from __future__ import annotations
 
 import re
 
-from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import Select, or_, select
+from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterPlace, CharacterSkill, Episode,
-    Event, Kind, Location, Object, ObjectPlace, Skill, Story, Term,
+    Event, Kind, Location, Object, ObjectPlace, Story, Term,
 )
-from DEM.db.schema_pydantic import to_dict
 from DEM.db.stamp import Stamp, StampError
 
 # 出来事が「誰の・どこの・どれに掛かる」を持つ欄
@@ -27,6 +40,11 @@ EVENT_REFS = ("place_id", "character_id", "object_id", "parent_event_id")
 
 # 断面に出さない出来事の種別（裏の設計。住人が知らないこと）
 HIDDEN_EVENT_KINDS = ("裏", "伏線")
+
+# `_event_row` 相当（claude_interface 側で使う）の relationship 名。
+# `to_dict_with(event, relations=EVENT_RELATIONS)` で place_name などが付く。
+EVENT_RELATIONS = {"place": "place_name", "character": "character_name",
+                    "object": "object_name"}
 
 
 class NotFoundError(LookupError):
@@ -63,6 +81,13 @@ def resolve_time(session: Session, when, story: Story | None) -> tuple[Stamp, St
     raise ValueError("時刻が決まらない（作品に立つ年が無いので time を渡す）")
 
 
+def _get(session: Session, model, id_: int, label: str):
+    row = session.get(model, id_)
+    if row is None:
+        raise NotFoundError(f"{label}={id_} という id の {model.__tablename__} が見つからない")
+    return row
+
+
 def get_story(session: Session, story_id: int) -> Story:
     """作品一件を引く。無ければ `NotFoundError`。"""
     return _get(session, Story, int(story_id), "story_id")
@@ -79,41 +104,14 @@ def _alive(model, until: Stamp):
             or_(model.end.is_(None), model.end > until))
 
 
-# ---------------------------------------------------------------- 取り出し
-
-def _get(session: Session, model, id_: int, label: str):
-    row = session.get(model, id_)
-    if row is None:
-        raise NotFoundError(f"{label}={id_} という id の {model.__tablename__} が見つからない")
-    return row
-
-
-def _row(row, *, text: bool = True) -> dict:
-    data = to_dict(row)
-    if not text:
-        data.pop("text", None)
-    return data
-
-
-def _name(session: Session, model, id_) -> str | None:
-    if id_ is None:
-        return None
-    row = session.get(model, id_)
-    return None if row is None else getattr(row, "name", None)
-
-
-def _event_row(session: Session, event: Event, *, text: bool = True) -> dict:
-    data = _row(event, text=text)
-    data["place_name"] = _name(session, Location, event.place_id)
-    data["character_name"] = _name(session, Character, event.character_id)
-    data["object_name"] = _name(session, Object, event.object_id)
-    return data
-
-
 # ---------------------------------------------------------------- 場所の木
 
 def descendant_place_ids(session: Session, place_id: int) -> list[int]:
-    """その場所と、その配下にぶら下がる場所の id を全部返す。"""
+    """その場所と、その配下にぶら下がる場所の id を全部返す。
+
+    何段掘るか分からないので、一発の select では表せない
+    （`query.py` に残す数少ない「実行する」関数の一つ）。
+    """
     _get(session, Location, place_id, "place_id")
     found = [place_id]
     frontier = [place_id]
@@ -126,34 +124,12 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
     return found
 
 
-def objects(session: Session, kind: str | None = None) -> list[dict]:
-    """個体（群）を一覧で返す。`kind` を渡すとその種別の名前だけに絞る。"""
-    query_ = select(Object)
-    if kind is not None:
-        query_ = query_.join(Kind, Object.kind_id == Kind.id).where(Kind.name == kind)
-    rows = session.scalars(query_.order_by(Object.id.asc())).all()
-    return [{"id": row.id, "name": row.name, "kind_id": row.kind_id,
-              "kind_name": _name(session, Kind, row.kind_id)} for row in rows]
-
-
-def kinds(session: Session) -> list[dict]:
-    """種別を一覧で返す。"""
-    rows = session.scalars(select(Kind).order_by(Kind.id.asc())).all()
-    return [{"id": row.id, "name": row.name, "read": row.read} for row in rows]
-
-
-def places(session: Session, kind: str | None = None) -> list[dict]:
-    """場所を一覧で返す。`kind` を渡すとその種別だけに絞る（例: `"村"`）。"""
-    query = select(Location)
-    if kind is not None:
-        query = query.where(Location.kind == kind)
-    rows = session.scalars(query.order_by(Location.id.asc())).all()
-    return [{"id": row.id, "name": row.name, "kind": row.kind,
-              "parent_id": row.parent_id} for row in rows]
-
-
 def place_path(session: Session, place_id: int) -> list[dict]:
-    """その場所までの道筋を、上（世界線）から順に返す。"""
+    """その場所までの道筋を、上（世界線）から順に返す。
+
+    何段のぼるか分からないので `descendant_place_ids` と同じ理由で
+    ループのまま残す。
+    """
     chain: list[dict] = []
     seen: set[int] = set()
     current = session.get(Location, place_id)
@@ -164,7 +140,7 @@ def place_path(session: Session, place_id: int) -> list[dict]:
     return list(reversed(chain))
 
 
-def _up(session: Session, place_id: int, levels: int) -> int:
+def place_up(session: Session, place_id: int, levels: int) -> int:
     """その場所から親を `levels` 段のぼった場所の id（根で止まる）。"""
     current = _get(session, Location, place_id, "place_id")
     for _ in range(max(0, levels)):
@@ -177,271 +153,196 @@ def _up(session: Session, place_id: int, levels: int) -> int:
     return current.id
 
 
+# ---------------------------------------------------------------- 個体・種別・場所
+
+def objects_select(kind: str | None = None) -> Select:
+    """個体（群）の一覧。`kind` を渡すとその種別の名前だけに絞る。"""
+    query = select(Object).options(selectinload(Object.kind))
+    if kind is not None:
+        query = query.join(Kind, Object.kind_id == Kind.id).where(Kind.name == kind)
+    return query.order_by(Object.id.asc())
+
+
+def kinds_select() -> Select:
+    """種別の一覧。"""
+    return select(Kind).order_by(Kind.id.asc())
+
+
+def places_select(kind: str | None = None) -> Select:
+    """場所の一覧。`kind` を渡すとその種別だけに絞る（例: `"村"`）。"""
+    query = select(Location)
+    if kind is not None:
+        query = query.where(Location.kind == kind)
+    return query.order_by(Location.id.asc())
+
+
 # ---------------------------------------------------------------- 出来事
 
-def events_at(session: Session, when, *, place_ids=None, limit=None,
-              text: bool = True) -> list[dict]:
+def events_at_select(when, *, place_ids=None, limit=None) -> Select:
     """**その時（その幅）の出来事と行動。** 場所で絞ってもよい。"""
     since, until = span(when)
-    query = select(Event).where(_in_span(Event.time, since, until))
+    query = (select(Event)
+             .options(selectinload(Event.place), selectinload(Event.character),
+                      selectinload(Event.object))
+             .where(_in_span(Event.time, since, until)))
     if place_ids is not None:
         query = query.where(Event.place_id.in_(list(place_ids)))
     query = query.order_by(Event.time.desc(), Event.id.desc())
     if limit:
         query = query.limit(limit)
-    return [_event_row(session, event, text=text)
-            for event in session.scalars(query).all()]
+    return query
 
 
-def events_of(session: Session, record_id: int, *, until=None, limit=5,
-              text: bool = True) -> list[dict]:
+def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     """**その id に掛かる出来事と行動を、新しい順に。**
 
     場所の id ならそこで起きたこと、人物・個体の id ならその者の行動、
     出来事の id ならそれにぶら下がる行動。
     """
-    query = select(Event).where(
-        or_(*[getattr(Event, column) == record_id for column in EVENT_REFS]))
+    query = (select(Event)
+             .options(selectinload(Event.place), selectinload(Event.character),
+                      selectinload(Event.object))
+             .where(or_(*[getattr(Event, column) == record_id
+                          for column in EVENT_REFS])))
     if until is not None:
         query = query.where(Event.time <= span(until)[1])
     query = query.order_by(Event.time.desc(), Event.id.desc())
     if limit:
         query = query.limit(limit)
-    return [_event_row(session, event, text=text)
-            for event in session.scalars(query).all()]
+    return query
 
 
-def _open_events(session: Session, place_ids, until: Stamp) -> list[dict]:
+def open_events_select(place_ids, until: Stamp) -> Select:
     """**まだ終わっていない出来事**（`end` が空か、その先）。張っているもの。"""
-    query = (select(Event)
-             .where(Event.place_id.in_(list(place_ids)))
-             .where(Event.time <= until)
-             .where(or_(Event.end.is_(None), Event.end > until))
-             .where(Event.character_id.is_(None), Event.object_id.is_(None))
-             .order_by(Event.time.desc(), Event.id.desc()))
-    return [_event_row(session, event) for event in session.scalars(query).all()]
+    return (select(Event)
+            .options(selectinload(Event.place), selectinload(Event.character),
+                     selectinload(Event.object))
+            .where(Event.place_id.in_(list(place_ids)))
+            .where(Event.time <= until)
+            .where(or_(Event.end.is_(None), Event.end > until))
+            .where(Event.character_id.is_(None), Event.object_id.is_(None))
+            .order_by(Event.time.desc(), Event.id.desc()))
 
 
 # ---------------------------------------------------------------- 人物・個体
 
-def _emotions(session: Session, character_id: int, until: Stamp) -> list[dict]:
+def emotions_select(character_id: int, until: Stamp) -> Select:
     """その時点で生きている情動（欲・恐れ・嘘・必要）。"""
-    query = (select(CharacterEmotion)
-             .where(CharacterEmotion.character_id == character_id)
-             .where(*_alive(CharacterEmotion, until))
-             .order_by(CharacterEmotion.start.desc(), CharacterEmotion.id.desc()))
-    return [_row(emotion) for emotion in session.scalars(query).all()]
+    return (select(CharacterEmotion)
+            .where(CharacterEmotion.character_id == character_id)
+            .where(*_alive(CharacterEmotion, until))
+            .order_by(CharacterEmotion.start.desc(), CharacterEmotion.id.desc()))
 
 
-def _skills(session: Session, character_id: int) -> list[dict]:
-    query = (select(CharacterSkill, Skill)
-             .join(Skill, Skill.id == CharacterSkill.skill_id)
-             .where(CharacterSkill.character_id == character_id)
-             .order_by(CharacterSkill.id))
-    return [{"skill_id": skill.id, "name": skill.name, "level": held.level,
-             "cost": skill.cost, "effect": skill.effect, "range": skill.range,
-             "duration": skill.duration, "target": skill.target,
-             "constraint": skill.constraint}
-            for held, skill in session.execute(query).all()]
+def skills_select(character_id: int) -> Select:
+    """人物が持つ技。`CharacterSkill.skill` に技本体をロードしておく。"""
+    return (select(CharacterSkill)
+            .options(selectinload(CharacterSkill.skill))
+            .where(CharacterSkill.character_id == character_id)
+            .order_by(CharacterSkill.id))
 
 
-def _place_at(session: Session, model, owner_column, owner_id: int,
-              until: Stamp) -> dict | None:
-    """その時点の居場所（`character_place` / `object_place` の生きている行）。"""
-    query = (select(model)
-             .where(owner_column == owner_id)
-             .where(*_alive(model, until))
-             .order_by(model.start.desc(), model.id.desc()))
-    row = session.scalars(query).first()
-    if row is None:
-        return None
-    return {"place_id": row.place_id,
-            "place_name": _name(session, Location, row.place_id),
-            "start": None if row.start is None else str(row.start)}
+def character_place_select(character_id: int, until: Stamp) -> Select:
+    """その時点の居場所（`character_place` の生きている行、新しい順）。"""
+    return (select(CharacterPlace)
+            .options(selectinload(CharacterPlace.place))
+            .where(CharacterPlace.character_id == character_id)
+            .where(*_alive(CharacterPlace, until))
+            .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc()))
 
 
-def residents(session: Session, place_ids, until: Stamp) -> tuple[list[int], list[int]]:
-    """その時点でその場所（群）に居る人物と個体の id。"""
-    place_ids = list(place_ids)
-    character_ids = session.scalars(
-        select(CharacterPlace.character_id).distinct()
-        .where(CharacterPlace.place_id.in_(place_ids))
-        .where(*_alive(CharacterPlace, until))).all()
-    object_ids = session.scalars(
-        select(ObjectPlace.object_id).distinct()
-        .where(ObjectPlace.place_id.in_(place_ids))
-        .where(*_alive(ObjectPlace, until))).all()
-    return ([id_ for id_ in character_ids if id_ is not None],
-            [id_ for id_ in object_ids if id_ is not None])
+def object_place_select(object_id: int, until: Stamp) -> Select:
+    """その時点の居場所（`object_place` の生きている行、新しい順）。"""
+    return (select(ObjectPlace)
+            .options(selectinload(ObjectPlace.place))
+            .where(ObjectPlace.object_id == object_id)
+            .where(*_alive(ObjectPlace, until))
+            .order_by(ObjectPlace.start.desc(), ObjectPlace.id.desc()))
 
 
-def character_sheet(session: Session, character_id: int, *, until=None,
-                    count: int = 5, text: bool = True) -> dict:
-    """人物一件を、**本文を書くのに要るものだけ**そろえて返す。
-
-    口調（一人称・二人称・三人称）・性格の値・技・生きている情動・
-    その時点の居場所・直近の行動。
-    """
-    character = _get(session, Character, character_id, "character_id")
-    at = span(until)[1] if until is not None else Stamp(99999, 12, 31, 23, 59, 59)
-    sheet = _row(character, text=text)
-    sheet["kind_name"] = _name(session, Kind, character.kind_id)
-    sheet["belong_name"] = _name(session, Object, character.belong_id)
-    sheet["born_place_name"] = _name(session, Location, character.born_place_id)
-    sheet["place"] = _place_at(session, CharacterPlace,
-                               CharacterPlace.character_id, character_id, at)
-    sheet["emotions"] = _emotions(session, character_id, at)
-    sheet["skills"] = _skills(session, character_id)
-    sheet["recent_events"] = events_of(
-        session, character_id, until=None if until is None else at,
-        limit=count, text=text)
-    return sheet
+def resident_character_ids_select(place_ids, until: Stamp) -> Select:
+    """その時点でその場所（群）に居る人物の id。"""
+    return (select(CharacterPlace.character_id).distinct()
+            .where(CharacterPlace.place_id.in_(list(place_ids)))
+            .where(*_alive(CharacterPlace, until)))
 
 
-def object_sheet(session: Session, object_id: int, *, until=None,
-                 count: int = 5, text: bool = True) -> dict:
-    """個体（群）一件。人物と同じ形でそろえる。"""
-    obj = _get(session, Object, object_id, "object_id")
-    at = span(until)[1] if until is not None else Stamp(99999, 12, 31, 23, 59, 59)
-    sheet = _row(obj, text=text)
-    sheet["kind_name"] = _name(session, Kind, obj.kind_id)
-    sheet["place"] = _place_at(session, ObjectPlace, ObjectPlace.object_id,
-                               object_id, at)
-    sheet["recent_events"] = events_of(
-        session, object_id, until=at, limit=count, text=text)
-    return sheet
+def resident_object_ids_select(place_ids, until: Stamp) -> Select:
+    """その時点でその場所（群）に居る個体（群）の id。"""
+    return (select(ObjectPlace.object_id).distinct()
+            .where(ObjectPlace.place_id.in_(list(place_ids)))
+            .where(*_alive(ObjectPlace, until)))
+
+
+def character_select(character_id: int) -> Select:
+    """人物一件。口調・性格の列に加え、種別・所属・出自の関連を積んでおく。"""
+    return (select(Character)
+            .options(selectinload(Character.kind), selectinload(Character.belong),
+                     selectinload(Character.born_place))
+            .where(Character.id == character_id))
+
+
+def object_select(object_id: int) -> Select:
+    """個体（群）一件。種別の関連を積んでおく。"""
+    return (select(Object)
+            .options(selectinload(Object.kind))
+            .where(Object.id == object_id))
 
 
 # ---------------------------------------------------------------- 作品
 
-def story_digest(session: Session, story: Story) -> dict:
-    """作品一件の見出し。話数・未同期の数まで含める。"""
-    episodes = session.scalars(
-        select(Episode).where(Episode.story_id == story.id)
-        .order_by(Episode.number)).all()
-    digest = _row(story)
-    digest["world_name"] = _name(session, Location, story.world_id)
-    digest["place_name"] = _name(session, Location, story.place_id)
-    digest["episode_count"] = len(episodes)
-    digest["last_episode"] = episodes[-1].number if episodes else None
-    digest["unsynced"] = [episode.number for episode in episodes if not episode.synced]
-    return digest
+def story_select(story_id: int) -> Select:
+    """作品一件。世界線・立つ場所の関連を積んでおく。"""
+    return (select(Story)
+            .options(selectinload(Story.world), selectinload(Story.place))
+            .where(Story.id == story_id))
 
 
-def stories(session: Session) -> list[dict]:
-    return [story_digest(session, story)
-            for story in session.scalars(select(Story).order_by(Story.id)).all()]
+def stories_select() -> Select:
+    """作品の一覧。世界線・立つ場所の関連を積んでおく。"""
+    return (select(Story)
+            .options(selectinload(Story.world), selectinload(Story.place))
+            .order_by(Story.id))
 
 
-def episodes(session: Session, story_id: int, *, count: int = 10, before=None,
-             text: bool = True) -> list[dict]:
-    """**直前の `count` 話を、古い順に並べて返す。**
+def story_episodes_select(story_id: int) -> Select:
+    """その作品の話を、話数の若い順に全部（`story_digest` が数えるのに使う）。"""
+    return (select(Episode)
+            .where(Episode.story_id == story_id)
+            .order_by(Episode.number))
 
-    `before` を渡すと、その話数より前の `count` 話。`text=False` なら
-    話数と題だけ（一覧を見るとき）。
+
+def episodes_select(story_id: int, *, count: int = 10, before=None) -> Select:
+    """**直前の `count` 話を、話数の新しい順に返す select。**
+
+    呼び出し側は取り出した後に `reversed()` して古い順に並べ直す
+    （新しい順に `limit` するため、select 自体は新しい順のまま返す）。
+    `before` を渡すと、その話数より前の `count` 話。
     """
-    _get(session, Story, story_id, "story_id")
     query = select(Episode).where(Episode.story_id == story_id)
     if before is not None:
         query = query.where(Episode.number < int(before))
-    rows = session.scalars(
-        query.order_by(Episode.number.desc()).limit(count)).all()
-    return [_row(episode, text=text) for episode in reversed(rows)]
+    return query.order_by(Episode.number.desc()).limit(count)
 
 
-def unsynced_episodes(session: Session, story_id: int | None = None) -> list[dict]:
-    """**同期フラグの下りている話。** 一件でも残っていればモード 3 が先。"""
-    query = select(Episode).where(Episode.synced.is_(False))
+def unsynced_episodes_select(story_id: int | None = None) -> Select:
+    """**同期フラグの下りている話。** 作品名を引けるよう `story` を積む。"""
+    query = (select(Episode)
+             .options(selectinload(Episode.story))
+             .where(Episode.synced.is_(False)))
     if story_id is not None:
         query = query.where(Episode.story_id == story_id)
-    rows = session.scalars(query.order_by(Episode.story_id, Episode.number)).all()
-    return [{"id": episode.id, "story_id": episode.story_id,
-             "story_name": _name(session, Story, episode.story_id),
-             "number": episode.number, "title": episode.title}
-            for episode in rows]
+    return query.order_by(Episode.story_id, Episode.number)
 
 
-# ---------------------------------------------------------------- 断面と顔ぶれ
+# ---------------------------------------------------------------- 断面
 
-def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
-          full: bool = False) -> dict:
-    """**世界がいまどうなっているか**（断面）を一枚にまとめる。
-
-    その場所の道筋、配下で張っている出来事、`reach` 年ぶんの直近の出来事、
-    そこで使われる語、いま居る者の名前。
-
-    `full=False`（既定）では裏の種別（`裏` `伏線`）を伏せる。
-    住人が知らないことを本文に書かないため。
-    """
-    location = _get(session, Location, place_id, "place_id")
-    if when is None:
-        raise ValueError("時刻が決まらない（when を渡す）")
-    since, until = span(when)
-    place_ids = descendant_place_ids(session, place_id)
-
-    def visible(rows):
-        if full:
-            return rows
-        return [row for row in rows if row.get("kind") not in HIDDEN_EVENT_KINDS]
-
-    recent_query = (select(Event)
-                    .where(Event.place_id.in_(place_ids))
-                    .where(Event.time <= until)
-                    .where(Event.time >= Stamp(max(1, since.year - reach)))
-                    .order_by(Event.time.desc(), Event.id.desc()))
-    recent = [_event_row(session, event)
-              for event in session.scalars(recent_query).all()]
-
-    character_ids, object_ids = residents(session, place_ids, until)
-    terms = session.scalars(
-        select(Term).where(or_(Term.restrict_place_id.in_(place_ids),
-                               Term.restrict_planet_id.in_(place_ids),
-                               Term.restrict_world_id.in_(place_ids),
-                               Term.restrict_place_id.is_(None)))
-        .order_by(Term.id)).all()
-
-    return {
-        "place": _row(location),
-        "path": place_path(session, place_id),
-        "time": str(until),
-        "reach": reach,
-        "open_events": visible(_open_events(session, place_ids, until)),
-        "recent_events": visible(recent),
-        "terms": [{"id": term.id, "name": term.name, "kind": term.kind,
-                   "text": term.text} for term in terms],
-        "present_characters": [
-            {"id": id_, "name": _name(session, Character, id_)}
-            for id_ in character_ids],
-        "present_objects": [
-            {"id": id_, "name": _name(session, Object, id_)}
-            for id_ in object_ids],
-    }
-
-
-def cast(session: Session, story_id: int, when=None, *, count: int = 5,
-         levels: int = 1) -> dict:
-    """**その話に出せる顔ぶれ。**
-
-    作品の立つ場所から `levels` 段のぼったところを基準に、その配下に
-    その時点で居る人物と個体を集め、一人（一群）ずつ直近 `count` 件の
-    出来事を添える。隣の集落にいる者も枠に入れるため、既定で一段のぼる。
-    """
-    story = _get(session, Story, story_id, "story_id")
-    if story.place_id is None:
-        raise ValueError(f"作品 {story.name} に立つ場所（place_id）が無い")
-    _, until = resolve_time(session, when, story)
-    root_id = _up(session, story.place_id, levels)
-    place_ids = descendant_place_ids(session, root_id)
-    character_ids, object_ids = residents(session, place_ids, until)
-    return {
-        "story": {"id": story.id, "name": story.name},
-        "time": str(until),
-        "scope": {"id": root_id, "name": _name(session, Location, root_id),
-                  "path": place_path(session, root_id)},
-        "characters": [
-            character_sheet(session, id_, until=until, count=count, text=False)
-            for id_ in character_ids],
-        "objects": [
-            object_sheet(session, id_, until=until, count=count, text=False)
-            for id_ in object_ids],
-    }
+def terms_select(place_ids) -> Select:
+    """その場所（群）で使われる語。場所に縛られない語（restrict が空）も含む。"""
+    place_ids = list(place_ids)
+    return (select(Term)
+            .where(or_(Term.restrict_place_id.in_(place_ids),
+                       Term.restrict_planet_id.in_(place_ids),
+                       Term.restrict_world_id.in_(place_ids),
+                       Term.restrict_place_id.is_(None)))
+            .order_by(Term.id))

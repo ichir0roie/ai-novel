@@ -79,6 +79,8 @@ class MarkdownBase(Base):
 
     text: Mapped[str] = mapped_column(String,  nullable=False)
 
+    filepath: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+
 
 class Location(MarkdownBase):
 

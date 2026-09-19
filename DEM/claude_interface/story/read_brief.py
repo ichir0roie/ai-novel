@@ -15,14 +15,14 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.claude_interface.story import _rows
 from DEM.db.schema import get_session
 
 
 def read_brief(place_id: int, time, reach: int = 60, full: bool = False) -> dict:
     """その場所・その時点の断面を辞書で返す。"""
     with get_session() as session:
-        return query.brief(session, int(place_id), time, reach=int(reach),
+        return _rows.brief(session, int(place_id), time, reach=int(reach),
                            full=full)
 
 

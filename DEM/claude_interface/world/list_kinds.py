@@ -17,7 +17,8 @@ from DEM.db.schema import get_session
 def list_kinds() -> list[dict]:
     """種別を一覧で返す。"""
     with get_session() as session:
-        return query.kinds(session)
+        rows = session.scalars(query.kinds_select()).all()
+        return [{"id": row.id, "name": row.name, "read": row.read} for row in rows]
 
 
 if __name__ == "__main__":
