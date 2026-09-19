@@ -126,6 +126,32 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
     return found
 
 
+def objects(session: Session, kind: str | None = None) -> list[dict]:
+    """個体（群）を一覧で返す。`kind` を渡すとその種別の名前だけに絞る。"""
+    query_ = select(Object)
+    if kind is not None:
+        query_ = query_.join(Kind, Object.kind_id == Kind.id).where(Kind.name == kind)
+    rows = session.scalars(query_.order_by(Object.id.asc())).all()
+    return [{"id": row.id, "name": row.name, "kind_id": row.kind_id,
+              "kind_name": _name(session, Kind, row.kind_id)} for row in rows]
+
+
+def kinds(session: Session) -> list[dict]:
+    """種別を一覧で返す。"""
+    rows = session.scalars(select(Kind).order_by(Kind.id.asc())).all()
+    return [{"id": row.id, "name": row.name, "read": row.read} for row in rows]
+
+
+def places(session: Session, kind: str | None = None) -> list[dict]:
+    """場所を一覧で返す。`kind` を渡すとその種別だけに絞る（例: `"村"`）。"""
+    query = select(Location)
+    if kind is not None:
+        query = query.where(Location.kind == kind)
+    rows = session.scalars(query.order_by(Location.id.asc())).all()
+    return [{"id": row.id, "name": row.name, "kind": row.kind,
+              "parent_id": row.parent_id} for row in rows]
+
+
 def place_path(session: Session, place_id: int) -> list[dict]:
     """その場所までの道筋を、上（世界線）から順に返す。"""
     chain: list[dict] = []
