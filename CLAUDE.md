@@ -76,6 +76,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 場所を一覧で見る               | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`（`kind="村"` のように絞れる。db には触れない） |
 | ランダムな場所の下書きを作る   | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`（db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す） |
 | 作った場所の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`（`parent_id` の実在確認をしてから書き込む） |
+| 誤って確定した場所を消す       | `DEM.claude_interface.randomizer.delete_place.DeletePlace(<場所id>).run()`（子の場所が残っていると止まる） |
 | 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.ListKinds().run()`（`kind_id` に渡す id を拾う。db には触れない） |
 | 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.ListObjects(kind=None).run()`（`belong_id` に渡す id を拾う。db には触れない） |
 | 語をキーワードで検索する       | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`（`term.text` にキーワードを含む語を返す。db には触れない） |
