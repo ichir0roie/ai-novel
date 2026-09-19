@@ -66,10 +66,14 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 本文を db へ確定する（2-4）   | `DEM.claude_interface.story.commit_episode.commit_episode(<辞書かJSON>)`（字数を数えて入れる。`synced` は必ず下りる） |
 | 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.set_episode_synced(<作品id>, <話数>)` |
 | db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.export_db()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
+| 場所を一覧で見る               | `DEM.claude_interface.world.list_places.list_places(kind=None)`（`kind="村"` のように絞れる。db には触れない） |
+| 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.list_kinds()`（`kind_id` に渡す id を拾う。db には触れない） |
+| 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.list_objects(kind=None)`（`belong_id` に渡す id を拾う。db には触れない） |
+| ランダムな出来事の下書きを作る | `DEM.claude_interface.randomizer.create_random_event.create_random_event(...)`（db には触れない。辞書を返すだけ） |
+| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.commit_event(<辞書かJSON>)`（`place_id` `character_id` `object_id` `parent_event_id` の実在確認をしてから書き込む） |
 
-上の表にない操作（旧 `tools/novel.py` が持っていた `check` `index` `template`、
-世界の側（場所・種別・個体・語）を確定する入口など）はまだ
-`DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
+上の表にない操作（旧 `tools/novel.py` が持っていた `check` `index` `template`
+など）はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
 沿って足す。**無いものを推測で呼び出そうとしない。**
 
 読む側の入口（`read_*` `list_*` `start_story`）の中身は
