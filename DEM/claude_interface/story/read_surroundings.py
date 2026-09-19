@@ -8,41 +8,34 @@
 
 `DEM/data_access_logic/query/character_simulation_query.character_around_event`
 の薄い呼び出し面。db には触れない。
-
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.story.read_surroundings <人物id> <時刻>
 """
 from __future__ import annotations
 
-import json
-import sys
-
 from DEM.claude_interface.story import _rows
+from DEM.claude_interface.story._base import StoryQuery
 from DEM.data_access_logic.query import character_simulation_query, common_query
-from DEM.db.schema import get_session
 from DEM.db.schema_pydantic import to_dict_with
 
 
-def read_surroundings(character_id: int, time, reach: int = 60) -> dict:
+class ReadSurroundings(StoryQuery):
     """その人物の周辺の人物・個体・出来事を辞書で返す。"""
-    if time is None:
-        raise ValueError("時刻が決まらない（time を渡す）")
-    with get_session() as session:
-        _, until = common_query.span(time)
+
+    def __init__(self, character_id: int, time, reach: int = 60):
+        if time is None:
+            raise ValueError("時刻が決まらない（time を渡す）")
+        self.character_id = character_id
+        self.time = time
+        self.reach = reach
+
+    def execute(self, session) -> dict:
+        _, until = common_query.span(self.time)
         characters, objects, events = character_simulation_query.character_around_event(
-            session, int(character_id), until, reach=int(reach))
+            session, int(self.character_id), until, reach=int(self.reach))
         return {
-            "character_id": int(character_id),
+            "character_id": int(self.character_id),
             "time": str(until),
-            "reach": int(reach),
+            "reach": int(self.reach),
             "characters": [to_dict_with(c, text=False) for c in characters],
             "objects": [to_dict_with(o, text=False) for o in objects],
             "events": [_rows.event_row(e) for e in events],
         }
-
-
-if __name__ == "__main__":
-    character_id = int(sys.argv[1])
-    when = sys.argv[2]
-    print(json.dumps(read_surroundings(character_id, when),
-                     ensure_ascii=False, indent=2))

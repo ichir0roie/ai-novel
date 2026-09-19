@@ -6,26 +6,22 @@
 
 **`full=True` を付けない。** 付けると住人が知らない裏（種別 `裏` `伏線`）
 まで出て、それを本文に書いてしまう。裏を設計するときだけ付ける。
-
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.story.read_brief <場所id> <時刻>
 """
 from __future__ import annotations
 
-import json
-import sys
-
 from DEM.claude_interface.story import _rows
-from DEM.db.schema import get_session
+from DEM.claude_interface.story._base import StoryQuery
 
 
-def read_brief(place_id: int, time, reach: int = 60, full: bool = False) -> dict:
+class ReadBrief(StoryQuery):
     """その場所・その時点の断面を辞書で返す。"""
-    with get_session() as session:
-        return _rows.brief(session, int(place_id), time, reach=int(reach),
-                           full=full)
 
+    def __init__(self, place_id: int, time, reach: int = 60, full: bool = False):
+        self.place_id = place_id
+        self.time = time
+        self.reach = reach
+        self.full = full
 
-if __name__ == "__main__":
-    print(json.dumps(read_brief(int(sys.argv[1]), sys.argv[2]),
-                     ensure_ascii=False, indent=2))
+    def execute(self, session) -> dict:
+        return _rows.brief(session, int(self.place_id), self.time,
+                           reach=int(self.reach), full=self.full)

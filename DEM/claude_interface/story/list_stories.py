@@ -4,23 +4,15 @@
 どの作品があるか、どの世界線のどこに立つか、何話まで書いたか、
 未同期の話が残っていないか（`unsynced`）が一枚で分かる。
 作品の id をここで拾って、以降の入口に渡す。
-
-CLI としても呼べる:
-    python3 -m DEM.claude_interface.story.list_stories
 """
 from __future__ import annotations
 
-import json
-
 from DEM.claude_interface.story import _rows
-from DEM.db.schema import get_session
+from DEM.claude_interface.story._base import StoryQuery
 
 
-def list_stories() -> list[dict]:
+class ListStories(StoryQuery):
     """作品を全件、見出しの辞書で返す。"""
-    with get_session() as session:
+
+    def execute(self, session) -> list[dict]:
         return _rows.stories(session)
-
-
-if __name__ == "__main__":
-    print(json.dumps(list_stories(), ensure_ascii=False, indent=2))

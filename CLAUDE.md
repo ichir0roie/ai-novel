@@ -30,12 +30,17 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 
 ### 入口の作り方
 
-`DEM/claude_interface/<領域>/<動詞_対象>.py` に一つ、**一つの呼び出し機能だけ**を
+`DEM/claude_interface/<領域>/<動詞_対象>.py` に一つ、**一つの呼び出しクラスだけ**を
 置く（`DEM/claude_interface/readme.md`）。ランダム生成の一対
 （`create_random_character.py` / `commit_character.py`）が現状唯一の実例で、
 パターンは次の通り:
 
-- 呼び出し可能な関数として書く（CLI 引数のパースはしない。Claude が import して呼ぶ）
+- 呼び出し可能なクラスとして書く（CLI 引数のパースはしない。`if __name__ ==
+  "__main__"` も置かない。Claude が import して `<クラス>(...).run()` を呼ぶ）
+- 各ファイルのクラスは、その領域の基底クラス（`<領域>/_base.py`）を継ぐ。
+  領域をまたいで共通する処理（db セッションを開いて渡す・「確定する」系の
+  実在確認とスキーマ列チェック）は、さらに上位の `DEM/claude_interface/_base.py`
+  に置く。ファイル固有の処理だけをそのクラスに書き、共通の部分は基底へ寄せる
 - **「作る」と「db へ確定する」を別ファイルに分ける。** 「作る」側
   （`DEM/randomizer/` の `factory.DictFactory` 等）は db に一切触れず、
   素の辞書 / JSON を返すだけにする。db を触るのは「確定する」側の入口だけに絞る
@@ -44,8 +49,9 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
   戻り値にすると、次の呼び出しでは中身が失われる（session が切れているため）
 - 実在レコードを指す欄（id）は、確定する側の入口が呼び出し時に db に実在するか
   確かめ、無ければ分かりやすい例外を投げる（SQL を組み立てて確かめない。
-  `session.get(Model, id)` のように ORM 越しに引く）。スキーマに無い欄が
-  混ざっていたら、それも確定する側の入口で止める
+  `session.get(Model, id)` のように ORM 越しに引く。基底クラスの
+  `check_exists` がこれをやる）。スキーマに無い欄が混ざっていたら、それも
+  確定する側の入口で止める（`check_columns`）
 - 「作る」側だけを何度呼んでもデータは増えない。db に触れるのは「確定する」側の
   入口を呼んだときだけ
 
@@ -53,26 +59,29 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 
 | したいこと                     | 使う入口                                                                              |
 | ------------------------------ | -------------------------------------------------------------------------------------- |
-| ランダムな人物の下書きを作る   | `DEM.claude_interface.randomizer.create_random_character.create_random_character(...)`（db には触れない。辞書を返すだけ） |
-| 作った下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_character.commit_character(<辞書かJSON>)`（id の実在確認をしてから書き込む） |
-| 作品の一覧と未同期の有無を見る | `DEM.claude_interface.story.list_stories.list_stories()` |
-| モード 2 の材料を一度に出す   | `DEM.claude_interface.story.start_story.start_story(<作品id>, time=None)`（同期の確認・直前の話・断面・顔ぶれ。未同期の話があれば止まる） |
-| 未同期の話を並べる（2-0）     | `DEM.claude_interface.story.list_unsynced_episodes.list_unsynced_episodes(<作品id>)` |
-| 直前の N 話を読む（2-1）      | `DEM.claude_interface.story.read_episodes.read_episodes(<作品id>, count=10, before=None)` |
-| 顔ぶれを取る（2-3）           | `DEM.claude_interface.story.read_cast.read_cast(<作品id>, time=None)`（立つ場所の一つ上の配下に居る人物・個体と直近の出来事） |
-| 断面を取る（2-3）             | `DEM.claude_interface.story.read_brief.read_brief(<場所id>, <時刻>, reach=60)`（`full=True` を付けない） |
-| 喋る人物を一件読む（2-3）     | `DEM.claude_interface.story.read_character.read_character(<人物id>, time=None)`（口調・性格・技・情動・直近の行動） |
-| 人物を軸にその時刻の周辺を読む | `DEM.claude_interface.story.read_surroundings.read_surroundings(<人物id>, <時刻>, reach=60)`（同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う） |
-| 出来事を引く                   | `DEM.claude_interface.story.read_events.read_events(time=…)` / `read_events(record_id=…)` |
-| 本文を db へ確定する（2-4）   | `DEM.claude_interface.story.commit_episode.commit_episode(<辞書かJSON>)`（字数を数えて入れる。`synced` は必ず下りる） |
-| 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.set_episode_synced(<作品id>, <話数>)` |
-| db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.export_db()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
-| 場所を一覧で見る               | `DEM.claude_interface.world.list_places.list_places(kind=None)`（`kind="村"` のように絞れる。db には触れない） |
-| 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.list_kinds()`（`kind_id` に渡す id を拾う。db には触れない） |
-| 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.list_objects(kind=None)`（`belong_id` に渡す id を拾う。db には触れない） |
-| 語をキーワードで検索する       | `DEM.claude_interface.world.search_terms.search_terms(<キーワード>)`（`term.text` にキーワードを含む語を返す。db には触れない） |
-| ランダムな出来事の下書きを作る | `DEM.claude_interface.randomizer.create_random_event.create_random_event(...)`（db には触れない。辞書を返すだけ） |
-| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.commit_event(<辞書かJSON>)`（`place_id` `parent_event_id` と、`character_ids` `object_ids`（人物・個体の id のリスト。多対多で何人・何個体でも渡せる）の実在確認をしてから書き込む） |
+| ランダムな人物の下書きを作る   | `DEM.claude_interface.randomizer.create_random_character.CreateRandomCharacter(...).run()`（db には触れない。辞書を返すだけ） |
+| 作った下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_character.CommitCharacter(<辞書かJSON>).run()`（id の実在確認をしてから書き込む） |
+| 作品の一覧と未同期の有無を見る | `DEM.claude_interface.story.list_stories.ListStories().run()` |
+| モード 2 の材料を一度に出す   | `DEM.claude_interface.story.start_story.StartStory(<作品id>, time=None).run()`（同期の確認・直前の話・断面・顔ぶれ。未同期の話があれば止まる） |
+| 未同期の話を並べる（2-0）     | `DEM.claude_interface.story.list_unsynced_episodes.ListUnsyncedEpisodes(<作品id>).run()` |
+| 直前の N 話を読む（2-1）      | `DEM.claude_interface.story.read_episodes.ReadEpisodes(<作品id>, count=10, before=None).run()` |
+| 顔ぶれを取る（2-3）           | `DEM.claude_interface.story.read_cast.ReadCast(<作品id>, time=None).run()`（立つ場所の一つ上の配下に居る人物・個体と直近の出来事） |
+| 断面を取る（2-3）             | `DEM.claude_interface.story.read_brief.ReadBrief(<場所id>, <時刻>, reach=60).run()`（`full=True` を付けない） |
+| 喋る人物を一件読む（2-3）     | `DEM.claude_interface.story.read_character.ReadCharacter(<人物id>, time=None).run()`（口調・性格・技・情動・直近の行動） |
+| 人物を軸にその時刻の周辺を読む | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`（同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う） |
+| 出来事を引く                   | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()` |
+| 本文を db へ確定する（2-4）   | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`（字数を数えて入れる。`synced` は必ず下りる） |
+| 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()` |
+| db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.ExportDb().run()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
+| 場所を一覧で見る               | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`（`kind="村"` のように絞れる。db には触れない） |
+| ランダムな場所の下書きを作る   | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`（db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す） |
+| 作った場所の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`（`parent_id` の実在確認をしてから書き込む） |
+| 誤って確定した場所を消す       | `DEM.claude_interface.randomizer.delete_place.DeletePlace(<場所id>).run()`（子の場所が残っていると止まる） |
+| 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.ListKinds().run()`（`kind_id` に渡す id を拾う。db には触れない） |
+| 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.ListObjects(kind=None).run()`（`belong_id` に渡す id を拾う。db には触れない） |
+| 語をキーワードで検索する       | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`（`term.text` にキーワードを含む語を返す。db には触れない） |
+| ランダムな出来事の下書きを作る | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`（db には触れない。辞書を返すだけ） |
+| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`（`place_id` `parent_event_id` と、`character_ids` `object_ids`（人物・個体の id のリスト。多対多で何人・何個体でも渡せる）の実在確認をしてから書き込む） |
 
 上の表にない操作（旧 `tools/novel.py` が持っていた `check` `index` `template`
 など）はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
@@ -107,7 +116,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
   — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
 - 対象作品の直前の話・企画・その作品が立つ世界線の断面
-  （`DEM.claude_interface.story.start_story.start_story(<作品id>)` で一度に出る）
+  （`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る）
 
 ## 守ること
 
@@ -123,7 +132,10 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
   カタカナ英語で名づける。音読み二字熟語の造語を重ねない（`IHG/naming.md`）
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
 - **アバウトな要素は乱数で決める**: `DEM/randomizer/roll.py` を使い、引いた目を記録に残す。
-  AI の第一想起で埋めない
+  AI の第一想起で埋めない。**現状 `DEM/randomizer/tables.json` が無く、`roll.py`
+  は動かない。** 直すか作者に確認するまでは、`random` で代用しつつシードを
+  会話に残す（実施例: `create_random_place` で大陸を作ったとき、固有名詞の
+  言語ロールをこの方法で代用した）
 - **同じ世界線の中で矛盾しない**: 暦・共通現象・星どうしの関係は星をまたいで一致させる。
   世界線が違えば矛盾してよい（平行世界）
 - **既存設定の優先**: 世界の側にあるレコードと食い違う本文は書かない。
