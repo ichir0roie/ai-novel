@@ -263,14 +263,14 @@ def object_place_select(object_id: int, until: Stamp) -> Select:
 def resident_character_ids_select(place_ids, until: Stamp) -> Select:
     """その時点でその場所（群）に居る人物の id。"""
     return (select(CharacterPlace.character_id).distinct()
-            .where(CharacterPlace.place_id.in_(list(place_ids)))
+            .where(CharacterPlace.location_id.in_(list(place_ids)))
             .where(*_alive(CharacterPlace, until)))
 
 
 def resident_object_ids_select(place_ids, until: Stamp) -> Select:
     """その時点でその場所（群）に居る個体（群）の id。"""
     return (select(ObjectPlace.object_id).distinct()
-            .where(ObjectPlace.place_id.in_(list(place_ids)))
+            .where(ObjectPlace.location_id.in_(list(place_ids)))
             .where(*_alive(ObjectPlace, until)))
 
 
