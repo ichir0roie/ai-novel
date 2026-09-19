@@ -29,27 +29,19 @@
 
 置き場所の決まりは chronicle.md。形は `tools/schema.py` が決めている。
 
-## どのモードでも共通：md は python 越しにしか触らない
+## どのモードでも共通：db は DEM/claude_interface 越しにしか触らない
 
-`novels/` のマークダウンを直に開かない。**作業の始めに読み込み、終わりに書き出す。**
+**`novel.db` を直に開かない。`worlds/` の md も直に開かない**（md は db の写し。
+書き出しは `DEM.claude_interface.sync.export_db.export_db()`）。読むのも書くのも
+`DEM/claude_interface/` の入口を import して呼ぶ。入口の一覧は CLAUDE.md。
 
-```
-python3 tools/novel.py start --story <作品名>   はじめに一度。load して、読むものを出す
-python3 tools/novel.py load                     作品が決まっていないときはこちらだけ
-python3 tools/novel.py save                     おわりに一度。db を md へ書き出す
-```
+**一度に出せるものは一度に出す。** 入口は呼ぶたびに db を開き直す。モード 2 の
+材料（同期の確認・直前の話・断面・顔ぶれ）は `start_story` 一本で出るので、
+個別の入口は出す範囲を変えたいときだけ使う。
 
-作業中は db 相手に読み書きする。設定は `brief` `list` `show` `events` `show-id` で読み、
-本文は `stories` `read` `write` で読み書きする（一覧は CLAUDE.md）。
-入口が足りなければ `tools/` に関数を足す。md を直に開いて済ませない。
-
-**入口は、呼ぶたびに `novels/` を頭から読み直す。** 一件ずつ何度も呼ぶのは、
-同じ読み込みをその回数ぶん繰り返すということである。引くものが何件もあるなら
-`batch --file`（命令を並べたファイルを、一度の読み込みで流す）にまとめる。
-`show` は id を並べて渡せる。
-
-**SQL は組み立てない。** db に文を渡す入口は無い。引く条件は時刻と
-レコードの id で表し、足りない引き方は `tools/query.py` に関数を足す。
+**SQL は組み立てない。** 引く条件は時刻とレコードの id で表し、足りない
+引き方は `DEM/data_access_logic/query.py` に関数を足して、
+`DEM/claude_interface/story/` に一つ入口を被せる。
 
 ---
 
@@ -136,24 +128,24 @@ python3 tools/novel.py index --world <世界線>      # 用語索引を作り直
 `episodes` `brief` `cast` は材料を出さずに止まる。古い台帳の上で
 次の話を組み立てると、断面も顔ぶれも一話ぶん古いままになるからである。
 
-```
-python3 tools/novel.py sync                          未同期の話を並べる
-python3 tools/novel.py sync <作品名>/<話数>           モード 3 のあと、立てる
-python3 tools/novel.py sync <作品名>/<話数> --off     下ろす
+```python
+list_unsynced_episodes(<作品id>)              未同期の話を並べる
+set_episode_synced(<作品id>, <話数>)          モード 3 のあと、立てる
+set_episode_synced(<作品id>, <話数>, False)   下ろす
 ```
 
 **止まったら、モード 2 をいったん置いてモード 3 をやる。**
-`--skip-sync` は、読むだけで何も書かないときの逃げ道であって、
+`skip_sync=True` は、読むだけで何も書かないときの逃げ道であって、
 これを付けて次の話を書かない。
 
 **2-0 から 2-3 までを一度に出す入口がある。**
 
-```
-python3 tools/novel.py start --story <作品名>
+```python
+start_story(<作品id>)              # time を省くと作品の立つ年
 ```
 
-同期の確認・企画・プロット・直前の話・断面・顔ぶれが、この一本で出る。
-未同期の話があれば、そこで止まる（2-0 と同じ扱い）。
+同期の確認・作品の見出し・直前の話・断面・顔ぶれが、この一本で出る。
+未同期の話があれば、そこで止まる（`stopped` が立ち、材料は出ない）。
 下の節は、その中身を一つずつ見たいときと、出す範囲を変えたいときに使う。
 
 ## 2-1 直前の 10 話を読む
@@ -162,14 +154,14 @@ python3 tools/novel.py start --story <作品名>
 前の話で誰が何を言ったか、どこで終わったかを覚えていないまま次を考えると、
 同じ場面をもう一度書く・前話の引きを拾い落とす・口調が変わる。
 
-```
-python3 tools/novel.py episodes --story <作品名>              # 最新 10 話
-python3 tools/novel.py episodes --story <作品名> --before 15  # 15 話の前 10 話
-python3 tools/novel.py episodes --story <作品名> --list       # 話数と題だけ
+```python
+read_episodes(<作品id>)                        # 最新 10 話
+read_episodes(<作品id>, before=15)             # 15 話の前 10 話
+read_episodes(<作品id>, count=50, text=False)  # 話数と題だけ
 ```
 
-読むのは原稿そのもの（`novels/stories/<作品名>/episodes/` の中身が
-そのまま出る）。10 話に満たなければ、あるだけ出る。
+読むのは原稿そのもの（`episode.text` がそのまま出る）。
+10 話に満たなければ、あるだけ出る。
 **読んでから 2-2 のプロットに進む。**
 
 ## 2-2 プロット
@@ -194,13 +186,15 @@ python3 tools/novel.py episodes --story <作品名> --list       # 話数と題�
 
 ### 顔ぶれ（誰がいて、その人に何が起きたか）
 
-```
-python3 tools/novel.py cast --story めぐる旅路は枯れゆく世界と
+```python
+read_cast(<作品id>)                       # time を省くと作品の立つ年
+read_cast(<作品id>, "4360", count=8, levels=2)
 ```
 
 作品が立つ場所の**一つ上**を基準に、その配下の場所にその時点で居る
 人物と個体を集め、一人（一群）ずつ**直近 5 件の出来事**を並べる。
-`--time` を付けなければ作品の始まりの年、`--count` で件数を変えられる。
+`time` を渡さなければ作品の始まりの年、`count` で件数、`levels` で
+何段のぼるかを変えられる。
 
 一つ上を基準にするのは、その話に出せる者が村の中だけとは限らないからである。
 隣の集落にいる者も、島を回っている群も、同じ枠に入ってくる。
@@ -208,26 +202,26 @@ python3 tools/novel.py cast --story めぐる旅路は枯れゆく世界と
 
 ### 断面（世界がどうなっているか）
 
-```
-python3 tools/novel.py brief --place ムシュヴァン --time 4360
+```python
+read_brief(<場所id>, "4360")
 ```
 
-**顔ぶれも断面も年で見る。** `--time 4354` はその年いっぱいを指すので、
+**顔ぶれも断面も年で見る。** `"4354"` はその年いっぱいを指すので、
 同じ年の後半に書き足した出来事も材料に入る。
 
 いま数がどちらへ動いているか、まだ終わっていない出来事は何か、
 誰がその場にいて、何が張っているかが出る。
-**3 節の「直近の出来事」は既定で 60 年ぶん。** もっと遡りたいときは
-`--reach 200` のように伸ばす。
+**「直近の出来事」は既定で 60 年ぶん。** もっと遡りたいときは
+`reach=200` のように伸ばす。
 
-> **`--full` を付けない。** 付けると住人が知らないことまで出て、
-> それを本文に書いてしまう。裏を設計するときだけ付ける。
+> **`full=True` を付けない。** 付けると住人が知らないこと（種別 `裏` `伏線`）
+> まで出て、それを本文に書いてしまう。裏を設計するときだけ付ける。
 
 断面の「その場にいる者」には、個体（群）と人物が並んで出る。
 **その話で喋る人物は、断面のあとに一件ずつ読んでおく。**
 
-```
-python3 tools/novel.py show <人名>
+```python
+read_character(<人物id>, "4354")
 ```
 
 一人称・二人称・三人称・口調がここにある。**本文の呼び方はこれに従う。**
@@ -235,8 +229,9 @@ python3 tools/novel.py show <人名>
 
 ## 2-4 本文
 
-`novels/stories/<作品名>/episodes/<話数>.md`。**1 話 1 ファイル**、
-ファイル名は話数だけ（`3.md`）。**ゼロ埋めしない。**
+本文は `commit_episode({"story_id": …, "number": …, "title": …, "text": …})`
+で db へ確定する。**1 話 1 レコード**、字数は入口が数えて入れる。
+同期フラグは必ず下りた状態で入る（立てるのはモード 3 の締め）。
 
 書きはじめる前に、その話の中で**変化するもの**を 1 つ確認する。
 関係・情報・状況のいずれかが動かない話は、**削れる話**である。
@@ -293,14 +288,12 @@ checklist.md を上から順に当てる。
 
 ## 3-3 締め
 
-```
-python3 tools/novel.py sync <作品名>/<話数>        # 同期フラグを立てる
-python3 tools/novel.py check                      # error 0 で終える
-python3 tools/novel.py index --world <世界線>      # 語を足したなら
-python3 tools/novel.py build                      # 断面を次に取るために組み直す
+```python
+set_episode_synced(<作品id>, <話数>)   # 同期フラグを立てる
+export_db()                            # 読む用の md（worlds/）を作り直す
 ```
 
-**error を残したまま次の話へ行かない。** 次の断面が嘘になる。
+**台帳へ戻さないまま次の話へ行かない。** 次の断面が嘘になる。
 **同期フラグを立てないまま次の話へも行かない。** 2-0 で止まる。
 
 ---

@@ -55,12 +55,27 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | ------------------------------ | -------------------------------------------------------------------------------------- |
 | ランダムな人物の下書きを作る   | `DEM.claude_interface.randomizer.create_random_character.create_random_character(...)`（db には触れない。辞書を返すだけ） |
 | 作った下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_character.commit_character(<辞書かJSON>)`（id の実在確認をしてから書き込む） |
+| 作品の一覧と未同期の有無を見る | `DEM.claude_interface.story.list_stories.list_stories()` |
+| モード 2 の材料を一度に出す   | `DEM.claude_interface.story.start_story.start_story(<作品id>, time=None)`（同期の確認・直前の話・断面・顔ぶれ。未同期の話があれば止まる） |
+| 未同期の話を並べる（2-0）     | `DEM.claude_interface.story.list_unsynced_episodes.list_unsynced_episodes(<作品id>)` |
+| 直前の N 話を読む（2-1）      | `DEM.claude_interface.story.read_episodes.read_episodes(<作品id>, count=10, before=None)` |
+| 顔ぶれを取る（2-3）           | `DEM.claude_interface.story.read_cast.read_cast(<作品id>, time=None)`（立つ場所の一つ上の配下に居る人物・個体と直近の出来事） |
+| 断面を取る（2-3）             | `DEM.claude_interface.story.read_brief.read_brief(<場所id>, <時刻>, reach=60)`（`full=True` を付けない） |
+| 喋る人物を一件読む（2-3）     | `DEM.claude_interface.story.read_character.read_character(<人物id>, time=None)`（口調・性格・技・情動・直近の行動） |
+| 出来事を引く                   | `DEM.claude_interface.story.read_events.read_events(time=…)` / `read_events(record_id=…)` |
+| 本文を db へ確定する（2-4）   | `DEM.claude_interface.story.commit_episode.commit_episode(<辞書かJSON>)`（字数を数えて入れる。`synced` は必ず下りる） |
+| 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.set_episode_synced(<作品id>, <話数>)` |
 | db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.export_db()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
 
-上の表にない操作（断面を読む・一覧を見る・話を読み書きする・同期を管理する、等、
-旧 `tools/novel.py` が持っていたもの）はまだ `DEM/claude_interface/` に無い。
-必要になった時点で、上の「入口の作り方」に沿って足す。**無いものを推測で
-呼び出そうとしない。**
+上の表にない操作（旧 `tools/novel.py` が持っていた `check` `index` `template`、
+世界の側（場所・種別・個体・語）を確定する入口など）はまだ
+`DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
+沿って足す。**無いものを推測で呼び出そうとしない。**
+
+読む側の入口（`read_*` `list_*` `start_story`）の中身は
+`DEM/data_access_logic/query.py` にある。引く条件は**時刻とレコードの id
+だけ**で表し、**SQL は組み立てない。** 引き方が足りなければ `query.py` に
+関数を足して、`DEM/claude_interface/story/` に一つ入口を被せる。
 
 ## まず、どのモードかを決める
 
@@ -86,7 +101,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
   — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
 - 対象作品の直前の話・企画・その作品が立つ世界線の断面
-  （**現状これらを一括で出す入口が無い**。個別に db を読む入口を先に足す）
+  （`DEM.claude_interface.story.start_story.start_story(<作品id>)` で一度に出る）
 
 ## 守ること
 
