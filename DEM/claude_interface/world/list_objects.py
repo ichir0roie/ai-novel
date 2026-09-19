@@ -14,12 +14,15 @@ import sys
 
 from DEM.data_access_logic import query
 from DEM.db.schema import get_session
+from DEM.db.schema_pydantic import relation_names
 
 
 def list_objects(kind: str | None = None) -> list[dict]:
     """個体（群）を一覧で返す。"""
     with get_session() as session:
-        return query.objects(session, kind=kind)
+        rows = session.scalars(query.objects_select(kind=kind)).all()
+        return [{"id": row.id, "name": row.name, "kind_id": row.kind_id,
+                 **relation_names(row, ["kind"])} for row in rows]
 
 
 if __name__ == "__main__":

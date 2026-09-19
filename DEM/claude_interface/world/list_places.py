@@ -19,7 +19,9 @@ from DEM.db.schema import get_session
 def list_places(kind: str | None = None) -> list[dict]:
     """場所を一覧で返す。db には書き込まない。"""
     with get_session() as session:
-        return query.places(session, kind=kind)
+        rows = session.scalars(query.places_select(kind=kind)).all()
+        return [{"id": row.id, "name": row.name, "kind": row.kind,
+                 "parent_id": row.parent_id} for row in rows]
 
 
 if __name__ == "__main__":

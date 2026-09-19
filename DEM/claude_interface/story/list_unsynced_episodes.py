@@ -13,14 +13,14 @@ from __future__ import annotations
 import json
 import sys
 
-from DEM.data_access_logic import query
+from DEM.claude_interface.story import _rows
 from DEM.db.schema import get_session
 
 
 def list_unsynced_episodes(story_id: int | None = None) -> list[dict]:
     """未同期の話を返す。空なら次の話へ進んでよい。"""
     with get_session() as session:
-        return query.unsynced_episodes(
+        return _rows.unsynced_episodes(
             session, None if story_id is None else int(story_id))
 
 

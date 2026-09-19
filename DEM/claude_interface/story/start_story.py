@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import sys
 
+from DEM.claude_interface.story import _rows
 from DEM.data_access_logic import query
 from DEM.db.schema import get_session
 
@@ -27,9 +28,9 @@ def start_story(story_id: int, time=None, episodes: int = 10, count: int = 5,
     story_id = int(story_id)
     with get_session() as session:
         story = query.get_story(session, story_id)
-        unsynced = query.unsynced_episodes(session, story_id)
+        unsynced = _rows.unsynced_episodes(session, story_id)
         result = {
-            "story": query.story_digest(session, story),
+            "story": _rows.story_digest(session, story),
             "unsynced": unsynced,
             "stopped": bool(unsynced) and not skip_sync,
         }
@@ -41,11 +42,11 @@ def start_story(story_id: int, time=None, episodes: int = 10, count: int = 5,
 
         _, until = query.resolve_time(session, time, story)
         result["time"] = str(until)
-        result["episodes"] = query.episodes(session, story_id, count=int(episodes))
-        result["cast"] = query.cast(session, story_id, until, count=int(count),
+        result["episodes"] = _rows.episodes(session, story_id, count=int(episodes))
+        result["cast"] = _rows.cast(session, story_id, until, count=int(count),
                                     levels=int(levels))
         if story.place_id is not None:
-            result["brief"] = query.brief(session, story.place_id, until,
+            result["brief"] = _rows.brief(session, story.place_id, until,
                                           reach=int(reach))
         return result
 
