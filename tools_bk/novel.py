@@ -662,7 +662,7 @@ def start(lib: reader.Library, story: str, when: stamp.Stamp | None,
     def nest(block: str) -> str:
         """挟み込むぶん、中の見出しを一段ずつ下げる。"""
         return "\n".join("#" + line if line.startswith("#") else line
-                          for line in block.splitlines())
+                         for line in block.splitlines())
 
     warning = sync_warning(lib, story)
     if warning:
@@ -801,9 +801,9 @@ def template(table: str) -> str:
         return EPISODE_TEMPLATE
     fields = reader.FIELDS[table]
     head = ["# data"] + [f"{k}:" for k in fields] + ["# text", "",
-                      f"# （{reader.LABEL[table]}の名）", "",
-                      "（データの下は人間が読む文章。",
-                      "  データに書いたことを繰り返さない）"]
+                                                     f"# （{reader.LABEL[table]}の名）", "",
+                                                     "（データの下は人間が読む文章。",
+                                                     "  データに書いたことを繰り返さない）"]
     where = {
         "place": "novels/worlds/<世界線>/**/<場所>/<場所>.md",
         "event": ("novels/worlds/<世界線>/**/<場所>/events/{時刻}_{名}.md"
@@ -925,7 +925,7 @@ def story_rows(engine) -> list:
     from sqlalchemy.orm import Session
 
     with Session(engine) as session:
-        rows = session.query(schema.Story).order_by(schema.Story.id).all()
+        rows = session.query(schema.Story).order_by(schema.Story.filepath).all()
         session.expunge_all()
         return rows
 
@@ -987,7 +987,7 @@ def set_synced(engine, path: str, value: bool) -> str:
             raise LookupError(f"「{story}」の {number} 話は db に無い")
         row.synced = value
         session.commit()
-        return row.id
+        return row.filepath
 
 
 def write_episode(engine, path: str, text: str, synced: bool = False) -> str:

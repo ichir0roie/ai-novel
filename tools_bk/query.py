@@ -74,7 +74,7 @@ def events_at(engine, when) -> list:
     since, until = span(when)
     return _rows(engine, schema.Event,
                  schema.Event.time.between(since, until),
-                 (schema.Event.time, schema.Event.id))
+                 (schema.Event.time, schema.Event.filepath))
 
 
 def events_of(engine, record_id: str) -> list:
@@ -87,7 +87,7 @@ def events_of(engine, record_id: str) -> list:
 
     where = or_(*[getattr(schema.Event, c) == record_id for c in EVENT_REFS])
     return _rows(engine, schema.Event, where,
-                 (schema.Event.time, schema.Event.id))
+                 (schema.Event.time, schema.Event.filepath))
 
 
 def record(engine, record_id: str):
