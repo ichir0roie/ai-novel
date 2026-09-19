@@ -410,7 +410,6 @@ def read_library(novels_dir: str) -> Library:
             place_id_of_dir[place_dir] = rec.id
             lib.records.append(rec)
 
-
     for place_dir, place_id in place_id_of_dir.items():
         for path in _stamped_files(os.path.join(place_dir, "events")):
             try:

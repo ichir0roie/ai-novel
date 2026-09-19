@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""schema.py の ORM モデルから、pydantic モデルを自動で組む。
+
+**欄の一元管理は schema.py のまま。** ここでは欄を並べ直さず、
+SQLAlchemy のマッパー情報（列の型・Nullable・ForeignKey・relationship）を
+そのまま読み取って pydantic モデルを作る。schema.py に欄を足せば、
+ここは何も書き換えずに追随する。
+
+使い方:
+    from schema_pydantic import to_model
+    row = session.get(schema.Character, some_id)
+    model = to_model(row)            # pydantic インスタンス
+    model.model_dump_json()          # JSON 文字列
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, create_model
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.orm import DeclarativeBase
+
+import schema
+from stamp import Stamp
+
+# 列の型 → pydantic (python) の型
+_TYPE_MAP = {
+    Decimal: float,
+}
+
+
+def _python_type(column_type) -> type:
+    py_type = column_type.python_type
+    return _TYPE_MAP.get(py_type, py_type)
+
+
+def _field_type(column) -> type:
+    if isinstance(column.type, schema.StampType):
+        py_type = Stamp
+    else:
+        py_type = _python_type(column.type)
+    return py_type | None if column.nullable else py_type
+
+
+_MODELS: dict[type, type[BaseModel]] = {}
+
+
+def _build_model(orm_cls: type[DeclarativeBase]) -> type[BaseModel]:
+    """一つの ORM クラスから、対応する pydantic モデルを組む。"""
+    mapper = sa_inspect(orm_cls)
+    fields: dict[str, Any] = {}
+    for column in mapper.columns:
+        default = None if column.nullable or column.primary_key else ...
+        fields[column.key] = (_field_type(column), default)
+
+    model = create_model(
+        orm_cls.__name__,
+        __config__=ConfigDict(from_attributes=True, arbitrary_types_allowed=True),
+        **fields,
+    )
+    return model
+
+
+def _model_for(orm_cls: type[DeclarativeBase]) -> type[BaseModel]:
+    model = _MODELS.get(orm_cls)
+    if model is None:
+        model = _build_model(orm_cls)
+        _MODELS[orm_cls] = model
+    return model
+
+
+def to_model(row) -> BaseModel:
+    """ORM インスタンス一件を、対応する pydantic モデルへ変換する。
+
+    relationship でぶら下がる先（`Event.place` など）は含まない。
+    列だけを持つ、素の一件分のデータになる。
+    """
+    return _model_for(type(row)).model_validate(row)
+
+
+def to_dict(row) -> dict:
+    """`to_model` の JSON 化しやすい dict 版（Stamp は文字列にする）。"""
+    return _to_jsonable(to_model(row).model_dump())
+
+
+def _to_jsonable(value):
+    if isinstance(value, Stamp):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _to_jsonable(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(val) for val in value]
+    return value
+
+
+def to_json(row) -> str:
+    """ORM インスタンス一件を JSON 文字列にする。"""
+    import json
+    return json.dumps(to_dict(row), ensure_ascii=False)
+
+
+def models_for_all_tables() -> dict[str, type[BaseModel]]:
+    """`schema.py` の全テーブルぶんの pydantic モデルを、テーブル名をキーに返す。"""
+    result = {}
+    for mapper in schema.Base.registry.mappers:
+        orm_cls = mapper.class_
+        result[orm_cls.__tablename__] = _model_for(orm_cls)
+    return result

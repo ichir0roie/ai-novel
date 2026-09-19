@@ -2,3 +2,4 @@
 # 記録の形は tools/schema.py、マークダウンの読み取りは tools/reader.py
 sqlalchemy>=2.0
 pyyaml>=6.0
+pydantic>=2.0
