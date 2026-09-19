@@ -74,6 +74,8 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()` |
 | db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.ExportDb().run()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
 | 場所を一覧で見る               | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`（`kind="村"` のように絞れる。db には触れない） |
+| ランダムな場所の下書きを作る   | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`（db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す） |
+| 作った場所の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`（`parent_id` の実在確認をしてから書き込む） |
 | 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.ListKinds().run()`（`kind_id` に渡す id を拾う。db には触れない） |
 | 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.ListObjects(kind=None).run()`（`belong_id` に渡す id を拾う。db には触れない） |
 | 語をキーワードで検索する       | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`（`term.text` にキーワードを含む語を返す。db には触れない） |
@@ -129,7 +131,10 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
   カタカナ英語で名づける。音読み二字熟語の造語を重ねない（`IHG/naming.md`）
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
 - **アバウトな要素は乱数で決める**: `DEM/randomizer/roll.py` を使い、引いた目を記録に残す。
-  AI の第一想起で埋めない
+  AI の第一想起で埋めない。**現状 `DEM/randomizer/tables.json` が無く、`roll.py`
+  は動かない。** 直すか作者に確認するまでは、`random` で代用しつつシードを
+  会話に残す（実施例: `create_random_place` で大陸を作ったとき、固有名詞の
+  言語ロールをこの方法で代用した）
 - **同じ世界線の中で矛盾しない**: 暦・共通現象・星どうしの関係は星をまたいで一致させる。
   世界線が違えば矛盾してよい（平行世界）
 - **既存設定の優先**: 世界の側にあるレコードと食い違う本文は書かない。
