@@ -5,7 +5,7 @@
 <https://huggingface.co/google/gemma-4-E2B>
 
 `oracle/system-idea/ローカル環境AI.md` の設計に沿う: notePC(テスト、
-`gemma-4-e2b` 想定)とGPU PC(本番、`gemma-4-12b-it` 想定)で呼び出し処理は
+`gemma4:e2b` 想定)とGPU PC(本番、`gemma4:12b` 想定)で呼び出し処理は
 共通にし、差分はホスト／モデル名の環境変数だけに閉じる。
 
 - `DEM_LOCAL_AI_HOST`: OllamaのベースURL(既定 `http://localhost:11434`)
