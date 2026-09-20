@@ -28,7 +28,8 @@ _SYSTEM_PROMPT = (
     "場所の名前・種別・環境を渡すので、そこにある資源を1件だけ考えてください。"
     "JSON で答えてください。キーは kind(資源の種別。木材/鉱石/水などの一言)、"
     "quantity(総量。100〜100000の整数)、unit(単位。一言)、"
-    "years(この量が尽きるまでの年数。1〜500の整数)の四つだけ。"
+    "years(この量が尽きるまでの年数。1〜500の整数)、"
+    "text(一言で分かる説明)の五つだけ。"
 )
 
 _DEFAULT_YEARS = 50
@@ -54,13 +55,14 @@ def _create_resource(
         f"現在の時刻: {time}\n"
         "この場所にある資源を1件、決めてください。"
     )
-    decided = ai_client.generate_json(prompt, system=_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, system=_SYSTEM_PROMPT)
 
     draft = build_location_resource(
         location_id=location.id,
         kind=decided.get("kind") or "資源",
         quantity=int(decided.get("quantity") or _DEFAULT_QUANTITY),
         unit=decided.get("unit") or "単位",
+        text=decided.get("text") or "",
         start=time,
         end=_end_after_years(time, int(decided.get("years") or _DEFAULT_YEARS)),
     )

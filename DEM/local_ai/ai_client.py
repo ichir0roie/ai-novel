@@ -90,3 +90,24 @@ def generate_json(
     except json.JSONDecodeError as error:
         raise LocalAIError(
             f"ローカルAIサーバの応答がJSONとしてパースできない: {text!r}") from error
+
+
+def try_generate_json(
+    prompt: str,
+    *,
+    system: str | None = None,
+    timeout: float = 120.0,
+) -> dict:
+    """`generate_json` を試し、失敗(接続不可・応答がJSONとして壊れている)なら
+    空の辞書を返す。
+
+    `DEM/local_ai/time_keepr/` の常駐ループは claude を介さず回り続ける前提
+    なので、一件の応答が壊れていたというだけでループ全体を止めない。呼び出し
+    側は返る辞書に対して `.get(key) or 既定値` の形で使う想定(空辞書なら
+    その件はすべて既定値で進む)。
+    """
+    try:
+        return generate_json(prompt, system=system, timeout=timeout)
+    except LocalAIError as error:
+        print(f"[ai_client] ローカルAIの応答が使えなかったため既定値で進める: {error}")
+        return {}

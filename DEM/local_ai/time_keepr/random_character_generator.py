@@ -81,7 +81,7 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
         f"現在の時刻: {time}\n"
         "この場所・種別に自然な人物を1件、決めてください。"
     )
-    decided = ai_client.generate_json(prompt, system=_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, system=_SYSTEM_PROMPT)
 
     draft["name"] = decided.get("name") or draft["name"]
     draft["read"] = decided.get("read") or draft["read"]

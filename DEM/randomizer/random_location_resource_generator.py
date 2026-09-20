@@ -17,6 +17,7 @@ class LocationResourceFactory(factory.DictFactory):
     kind = "資源"
     quantity = 1000
     unit = "単位"
+    text = ""
     start = None
     end = None
 
