@@ -177,7 +177,7 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
 
     recent_query = (select(Event)
                     .options(*common_query.EVENT_LOAD_OPTIONS)
-                    .where(Event.place_id.in_(place_ids))
+                    .where(Event.location_id.in_(place_ids))
                     .where(Event.time <= until)
                     .where(Event.time >= Stamp(max(1, since.year - reach)))
                     .order_by(Event.time.desc(), Event.id.desc()))

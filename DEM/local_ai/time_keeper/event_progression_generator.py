@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
+from typing import Mapping
 
 from sqlalchemy import select
 
@@ -24,11 +25,15 @@ from DEM.randomizer.random_location_resource_generator import (
 
 PLACE_PROBABILITY = 0.15  # 月に一度、人物・個体が居る場所1件につき15%の確率で
 
-_EVENT_TEXT_INSTRUCTION = (
-    "event_text は要約(「〜という出来事があった」)で済ませない。"
-    "軽い小説として1000文字程度で、その時その場の思考・行動・"
-    "(この出来事が及ぼす)影響を、場面として書く。"
-)
+_EVENT_TEXT_INSTRUCTION = """
+
+軽い小説として1000文字程度で、引数として受け取った場所、キャラクター、オブジェクトの内容を下に、
+それぞれのキャラクターごとの行動を決定する。
+直近のeventのリストから、状況を把握する。
+キャラクターのパラメーター、drive,skillを下に、状況に対して行動を決定する。
+
+"""
+
 
 _DRIVE_TEXT_INSTRUCTION = (
     "text はその人物の信念・思考の核になる情報として扱う。この出来事が"
@@ -85,11 +90,7 @@ _PLACE_SYSTEM_PROMPT = (
     "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
     "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
     "{name, kind, text, environment}。無ければ null), "
-    "resource_depleted(bool。この出来事でこの場所の資源が尽きた・失われたか), "
-    "resource_created(この出来事で新しい資源が見つかったなら "
-    "{kind, quantity(総量。100〜100000の整数), unit, "
-    "years(尽きるまでの年数。1〜500の整数), text}。無ければ null)"
-    "の十一個だけ。" + _LOCATION_CHANGE_INSTRUCTION
+    + _LOCATION_CHANGE_INSTRUCTION
 )
 
 
@@ -174,7 +175,7 @@ def _progress_place(
     character_ids = {c.id: c for c in characters}
     object_ids = {o.id: o for o in objects}
 
-    def _valid_ids(raw, pool: dict[int, object]) -> list[int]:
+    def _valid_ids(raw, pool: Mapping[int, object]) -> list[int]:
         result: list[int] = []
         for value in raw or []:
             try:
@@ -208,7 +209,7 @@ def _progress_place(
         if not isinstance(drive, dict):
             continue
         try:
-            character_id = int(drive.get("character_id"))
+            character_id = int(drive.get("character_id") or 0)
         except (TypeError, ValueError):
             continue
         text = drive.get("text")
@@ -238,7 +239,7 @@ def _progress_place(
         if not isinstance(growth, dict):
             continue
         try:
-            character_id = int(growth.get("character_id"))
+            character_id = int(growth.get("character_id") or 0)
         except (TypeError, ValueError):
             continue
         skill_name = growth.get("skill_name")
@@ -269,7 +270,7 @@ def _progress_place(
         if not isinstance(update, dict):
             continue
         try:
-            character_id = int(update.get("character_id"))
+            character_id = int(update.get("character_id") or 0)
         except (TypeError, ValueError):
             continue
         character = character_ids.get(character_id)
@@ -338,10 +339,12 @@ def _progress_place(
 
     session.commit()
     when = format_time(time)
-    involved_names = (
-        [character_ids[cid].name for cid in involved_character_ids]
-        + [object_ids[oid].name for oid in involved_object_ids]
-    )
+    involved_names = [
+        name for name in (
+            [character_ids[cid].name for cid in involved_character_ids]
+            + [object_ids[oid].name for oid in involved_object_ids]
+        ) if name
+    ]
     print(f"[time_keepr/event] {when} 場所id={place_id}: "
           f"{record.name}({record.kind}) {record.text}"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
