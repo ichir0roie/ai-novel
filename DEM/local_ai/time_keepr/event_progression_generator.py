@@ -98,7 +98,7 @@ def _progress_character(
         f"現在の時刻: {time}\n"
         "この人物に、この時点で起きる出来事を1件、決めてください。"
     )
-    decided = ai_client.generate_json(prompt, system=_CHARACTER_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, system=_CHARACTER_SYSTEM_PROMPT)
 
     if not decided.get("event_name"):
         return None
@@ -153,7 +153,7 @@ def _progress_object(
         f"現在の時刻: {time}\n"
         "この個体に、この時点で起きる出来事を1件、決めてください。"
     )
-    decided = ai_client.generate_json(prompt, system=_OBJECT_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, system=_OBJECT_SYSTEM_PROMPT)
 
     if not decided.get("event_name"):
         return None
