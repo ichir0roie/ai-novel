@@ -10,9 +10,11 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import os
 import re
+import shutil
 
 from DEM.db.schema import Base, MarkdownBase, StampType, get_session
 from DEM.db.stamp import Stamp
@@ -50,6 +52,11 @@ def _parse(content: str, path: str) -> tuple[dict, str]:
 
 def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     """md を db へ読み戻して、テーブル名ごとの件数を辞書で返す。"""
+    date_str = datetime.now().strftime("%Y%m%d%H%M%S")
+    backup_path = f"backup/{date_str}.db.bk"
+    os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+    shutil.copy("novel.db", backup_path)
+
     models_by_table = _markdown_models()
 
     counts: dict[str, int] = {}
