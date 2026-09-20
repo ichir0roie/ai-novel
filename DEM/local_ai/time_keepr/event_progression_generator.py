@@ -10,12 +10,23 @@ AI(`ai_client`)に委ねる)。
 出来事を一件起こす。人物に起きた出来事には、`DEM/claude_interface/
 randomizer/commit_event.py` の `character_drives` `character_skills` と
 同じ形で、情動(`CharacterEmotion`。テーブル名は `character_drive`)の
-変化と技(`CharacterSkill`)の熟練度もその場でまとめて記録する
+変化と技(`CharacterSkill`)の熟練度もその場でまとめて記録できる
 (個体には情動・技の欄が無いので、個体の出来事はそこまでで止める)。
+
+**情動(`character_drives`)は、その人物の信念・思考の核になる情報として
+扱う(`IHG/chronicle.md`「人物感情は…」)。** 毎月ロールする日常の出来事の
+たびに積み増すものではなく、その人物にとって信念を揺らすほど大きな出来事の
+ときだけ動かす。それ以外はローカル AI に空のまま返させる
+(`_DRIVE_TEXT_INSTRUCTION`)。
 
 技は**新しく作らない**。名づけ(`IHG/naming.md`)が要る判断なので、
 既にある技(`Skill`)の中から AI に選ばせるだけにとどめる。当てはまる
 ものが無ければ、その出来事の技の伸びは見送る。
+
+`event_text` は `commit_event`(`DEM/claude_interface/randomizer/commit_event.py`)
+と同じ基準に揃える。要約で済ませず、**軽い小説として1000文字程度**で
+思考・行動・影響を場面として書かせる(`IHG/chronicle.md`「出来事の text は
+場面で書く」)。プロンプト側の指示は `_EVENT_TEXT_INSTRUCTION` に持つ。
 """
 from __future__ import annotations
 
@@ -36,13 +47,25 @@ from DEM.local_ai.time_keepr._format import format_time
 CHARACTER_PROBABILITY = 0.10  # 月に一度、生きている人物1人につき10%の確率で
 OBJECT_PROBABILITY = 0.05  # 月に一度、生きている個体1件につき5%の確率で
 
+_EVENT_TEXT_INSTRUCTION = (
+    "event_text は要約(「〜という出来事があった」)で済ませない。"
+    "軽い小説として1000文字程度で、その時その場の思考・行動・"
+    "(この出来事が及ぼす)影響を、場面として書く。"
+)
+
+_DRIVE_TEXT_INSTRUCTION = (
+    "drive_text はその人物の信念・思考の核になる情報として扱う。この出来事が"
+    "信念を揺らすほど大きいときだけ、動いた情動・欲求を書く。日常の細かな"
+    "出来事なら空文字のままにする。"
+)
+
 _CHARACTER_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、人物の日々を描写する設定作家です。"
     "人物の情報と周囲の状況を渡すので、この時点でその人物に起きる出来事を"
     "1件だけ考えてください。JSON で答えてください。キーは "
     "event_name(出来事の名前), event_kind(出来事の種別。一言。"
-    "無ければ空文字), event_text(出来事の内容。一言), "
-    "drive_text(この出来事で動いた情動・欲求。無ければ空文字), "
+    "無ければ空文字), event_text(出来事の内容。" + _EVENT_TEXT_INSTRUCTION + "), "
+    "drive_text(" + _DRIVE_TEXT_INSTRUCTION + "), "
     "drive_level(その情動の強さ。1〜10の整数。無ければ0), "
     "skill_name(この出来事で伸びた技の名前。渡した技の候補の中からだけ選ぶ。"
     "当てはまるものが無ければ空文字), "
@@ -54,7 +77,7 @@ _OBJECT_SYSTEM_PROMPT = (
     "個体の情報と周囲の状況を渡すので、この時点でその個体に起きる出来事を"
     "1件だけ考えてください。JSON で答えてください。キーは "
     "event_name(出来事の名前), event_kind(出来事の種別。一言。"
-    "無ければ空文字), event_text(出来事の内容。一言)の三つだけ。"
+    "無ければ空文字), event_text(出来事の内容。" + _EVENT_TEXT_INSTRUCTION + ")の三つだけ。"
 )
 
 
