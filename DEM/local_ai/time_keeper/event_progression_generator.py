@@ -18,8 +18,8 @@ from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
 from DEM.db.schema import (
-    Character, CharacterDrive, CharacterSkill, Event, EventCharacter,
-    EventObject, Location, LocationResource, Object, Session, Skill, Stamp,
+    Character, CharacterDrive, Event, EventCharacter,
+    EventObject, Location, LocationResource, Object, Session, Stamp,
 )
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import random_location_resource_generator
@@ -34,15 +34,14 @@ PLACE_PROBABILITY = 0.10  # ロールのたび、場所1件につき10%の確率
 
 _EVENT_TEXT_INSTRUCTION = (
     "直近のeventのリストから、状況を把握する。年齢、性別、性格、emotion、"
-    "skillをベースに人物像を推測する。状況と人物像に基づいて、行動を決定"
+    "textをベースに人物像を推測する。状況と人物像に基づいて、行動を決定"
     "する。キャラクターはそれぞれ、自分や他のキャラクター、場所、オブジェ"
     "クトに影響を与える。" + EVENT_PROGRESSION_INSTRUCTION + EVENT_SCENE_INSTRUCTION
 )
 
 
 _DRIVE_TEXT_INSTRUCTION = (
-    "text はその人物の信念・思考の核になる情報として扱う。この出来事が"
-    "信念を揺らすほど大きいときだけ、動いた情動・欲求を書く。日常の細かな"
+    "text はその人物の信念・思考の核になる情報として扱う。"
     "出来事なら character_drives 自体を空リストのままにする。"
 )
 
@@ -84,9 +83,6 @@ _PLACE_SYSTEM_PROMPT = (
     "character_drives(関わった人物のうち、情動・欲求が動いた者だけのリスト。"
     "各要素は character_id(対象の人物 id), text(" + _DRIVE_TEXT_INSTRUCTION +
     "), level(その情動の強さ。1〜10の整数)の三つ), "
-    "character_skills(関わった人物のうち、技が伸びた者だけのリスト。各要素は"
-    "character_id(対象の人物 id), skill_name(伸びた技の名前。渡した技の"
-    "候補の中からだけ選ぶ), level(その技の熟練度。1〜10の整数)の三つ), "
     "character_updates(関わった人物のうち、この出来事で人物レコード自体が"
     "変わった者だけのリスト。各要素は character_id(対象の人物 id)と、"
     + _CHARACTER_UPDATE_INSTRUCTION + "), "
@@ -157,7 +153,6 @@ def _progress_place(
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
-    catalog = session.scalars(select(Skill)).all()
     place = session.get(Location, place_id)
     plots = story_createion_query.load_location_plot(session, place_id, time)
 
@@ -167,7 +162,6 @@ def _progress_place(
         f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
         f"居合わせる個体: {[(o.id, o.name, o.text) for o in objects[:20]]}\n"
         f"直近の出来事(名前, 種別): {[(e.name, e.kind) for e in recent_events]}\n"
-        f"選べる技の候補: {sorted(s.name for s in catalog)}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
@@ -240,37 +234,6 @@ def _progress_place(
                 level=level, start=time, end=None,
             ))
         drive_notes.append(f"{character_ids[character_id].name}: {text}")
-
-    skill_notes = []
-    for growth in decided.get("character_skills") or []:
-        if not isinstance(growth, dict):
-            continue
-        try:
-            character_id = int(growth.get("character_id") or 0)
-        except (TypeError, ValueError):
-            continue
-        skill_name = growth.get("skill_name")
-        if character_id not in character_ids or not skill_name:
-            continue
-        skill = session.scalar(select(Skill).where(Skill.name == skill_name))
-        if skill is None:
-            print(f"[time_keepr/event] 既存に無い技名 {skill_name!r} は見送り")
-            continue
-        level = int(growth.get("level") or 1)
-        # 同じ人物が同じ技を既に持っていれば、行を増やさずに熟練度だけ更新する。
-        existing_skill = session.scalar(
-            select(CharacterSkill).where(
-                CharacterSkill.character_id == character_id,
-                CharacterSkill.skill_id == skill.id,
-            )
-        )
-        if existing_skill is not None:
-            existing_skill.level = level
-        else:
-            session.add(CharacterSkill(
-                character_id=character_id, skill_id=skill.id, level=level,
-            ))
-        skill_notes.append(f"{character_ids[character_id].name}: {skill_name}(lv{level})")
 
     update_notes = []
     for update in decided.get("character_updates") or []:
@@ -359,7 +322,6 @@ def _progress_place(
           f"{record.name}({record.kind}) {record.text}"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
-          + (f" / 技: {'; '.join(skill_notes)}" if skill_notes else "")
           + (f" / 人物更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 場所: {'; '.join(location_notes)}" if location_notes else "")
           + (f" / 資源: {'; '.join(resource_notes)}" if resource_notes else ""))

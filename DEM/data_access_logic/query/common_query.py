@@ -30,7 +30,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
-    Character, CharacterDrive, CharacterPlace, CharacterSkill, Episode,
+    Character, CharacterDrive, CharacterPlace, Episode,
     Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
     Plot, Story, Term,
 )
@@ -258,14 +258,6 @@ def emotions_select(character_id: int, until: Stamp) -> Select:
             .order_by(CharacterDrive.start.desc(), CharacterDrive.id.desc()))
 
 
-def skills_select(character_id: int) -> Select:
-    """人物が持つ技。`CharacterSkill.skill` に技本体をロードしておく。"""
-    return (select(CharacterSkill)
-            .options(selectinload(CharacterSkill.skill))
-            .where(CharacterSkill.character_id == character_id)
-            .order_by(CharacterSkill.id))
-
-
 def character_place_select(character_id: int, until: Stamp) -> Select:
     """その時点の居場所(`character_place` の生きている行、新しい順)。"""
     return (select(CharacterPlace)
@@ -309,8 +301,7 @@ def character_select(character_id: int) -> Select:
 def characters_select() -> Select:
     """人物の一覧。既存キャラクターを一括で見渡すのに使う。"""
     return (select(Character)
-            .options(selectinload(Character.skills),
-                     selectinload(Character.emotions))
+            .options(selectinload(Character.emotions))
             .order_by(Character.id.asc()))
 
 

@@ -76,8 +76,8 @@ def character_sheet(session: Session, character_id: int, *, until=None,
                     count: int = 5, text: bool = True) -> dict:
     """人物一件を、**本文を書くのに要るものだけ**そろえて返す。
 
-    口調(一人称・二人称・三人称)・性格の値・技・生きている情動・
-    その時点の居場所・直近の行動。
+    口調(一人称・二人称・三人称)・性格の値・生きている情動・
+    その時点の居場所・直近の行動。能力・特徴は `text` に含まれる。
     """
     character = session.scalars(common_query.character_select(character_id)).first()
     if character is None:
@@ -90,12 +90,6 @@ def character_sheet(session: Session, character_id: int, *, until=None,
     sheet["place"] = _place_at(session, common_query.character_place_select, character_id, at)
     sheet["emotions"] = [to_dict_with(row) for row in
                          session.scalars(common_query.emotions_select(character_id, at)).all()]
-    sheet["skills"] = [
-        {"skill_id": held.skill.id, "name": held.skill.name, "level": held.level,
-         "cost": held.skill.cost, "effect": held.skill.effect, "range": held.skill.range,
-         "duration": held.skill.duration, "target": held.skill.target,
-         "constraint": held.skill.constraint}
-        for held in session.scalars(common_query.skills_select(character_id)).all()]
     sheet["recent_events"] = events_of(
         session, character_id, until=None if until is None else at,
         limit=count, text=text)

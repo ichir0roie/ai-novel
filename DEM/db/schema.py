@@ -330,8 +330,6 @@ class Character(MarkdownBase, ObjectBase):
     places: Mapped[list[CharacterPlace]] = relationship(
         back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
     )
-    skills: Mapped[list[CharacterSkill]] = relationship(
-        lazy="noload",  order_by="CharacterSkill.id.asc()")
     emotions: Mapped[list[CharacterDrive]] = relationship(
         lazy="noload",  order_by="CharacterDrive.start.desc()")
 
@@ -355,32 +353,6 @@ class CharacterPlace(Base):
     place: Mapped[Location] = relationship(lazy="noload")
 
 
-class Skill(MarkdownBase):
-
-    __tablename__ = "skill"
-
-    name: Mapped[str] = mapped_column(String, sort_order=200)
-
-    # 現象、コスト、効果、範囲、持続時間、対象、条件、制約
-    cost: Mapped[int] = mapped_column(Integer, default=1, comment="コスト", sort_order=210)
-    effect: Mapped[str] = mapped_column(String, nullable=False, comment="効果", sort_order=220)
-    range: Mapped[str] = mapped_column(String, comment="範囲", sort_order=230)
-    duration: Mapped[str] = mapped_column(String, comment="持続時間", sort_order=240)
-    target: Mapped[str] = mapped_column(String, comment="対象", sort_order=250)
-    constraint: Mapped[str] = mapped_column(String,  comment="制約", sort_order=260)
-
-
-class CharacterSkill(Base):
-
-    __tablename__ = "character_skill"
-
-    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"), sort_order=100)
-    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), sort_order=110)
-
-    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skill.id"), nullable=False, sort_order=120)
-    skill: Mapped["Skill"] = relationship(lazy="noload")
-
-    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度", sort_order=130)
 
 
 class CharacterDrive(MarkdownBase):
