@@ -183,15 +183,21 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
     rng = random.Random(seed)
     created: list[Event] = []
 
-    for character in session.scalars(
-        world_createion_query.alive_characters_select(time)).all():
+    characters = session.scalars(
+        world_createion_query.alive_characters_select(time)).all()
+    total_characters = len(characters)
+    for i, character in enumerate(characters, start=1):
+        print(f"[time_keepr/event] 人物 {i}/{total_characters}: {character.name}(id={character.id})")
         if rng.random() < CHARACTER_PROBABILITY:
             event = _progress_character(session, character, time)
             if event is not None:
                 created.append(event)
 
-    for obj in session.scalars(
-        world_createion_query.alive_objects_select(time)).all():
+    objects = session.scalars(
+        world_createion_query.alive_objects_select(time)).all()
+    total_objects = len(objects)
+    for i, obj in enumerate(objects, start=1):
+        print(f"[time_keepr/event] 個体 {i}/{total_objects}: {obj.name}(id={obj.id})")
         if rng.random() < OBJECT_PROBABILITY:
             event = _progress_object(session, obj, time)
             if event is not None:
