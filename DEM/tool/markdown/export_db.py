@@ -61,6 +61,11 @@ def _render(data: dict, text: str) -> str:
     return f"# data\n```json\n{data_json}\n```\n\n# text\n{text}\n"
 
 
+ignore_columns = [
+    "text", "tag", "id"
+]
+
+
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     """db を md へ書き出して、テーブル名ごとの件数を辞書で返す。"""
     if os.path.exists(root):
@@ -79,7 +84,7 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                 data = {
                     column.key: _serialize(getattr(row, column.key))
                     for column in model.__table__.columns
-                    if column.key != "text"
+                    if column.key not in ignore_columns
                 }
                 text = row.text or ""
                 filename = f"{data.get('id') or ''}_{data.get('tag') or ''}.md"

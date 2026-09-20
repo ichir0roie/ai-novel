@@ -95,7 +95,7 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                 if row_id is not None:
                     row = session.get(model, row_id)
                     if row is None:
-                        raise ImportDbError(f"{path}: id={row_id} の {table_name} が db に無い")
+                        continue
                     for key, value in values.items():
                         setattr(row, key, value)
                 else:
@@ -109,3 +109,7 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
         session.commit()
 
     return counts
+
+
+if __name__ == "__main__":
+    import_db()
