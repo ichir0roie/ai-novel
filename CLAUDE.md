@@ -1,19 +1,19 @@
-# 作業指針（AI 向け）
+# 作業指針(AI 向け)
 
 このリポジトリはラノベの執筆用。コードではなく文章を書く。
 ローカル環境での実行の場合、現在のブランチ上で直接作業してよい。
 
 **このファイルはリストラクチャ中の状態を反映している。** `core/` → `IHG/`、
 `tools/novel.py` → `DEM/claude_interface/*`、`novels/` の md 群 → `novel.db`
-（`DEM/db/schema.py` の SQLAlchemy モデル）という移行の途中にあり、
+(`DEM/db/schema.py` の SQLAlchemy モデル)という移行の途中にあり、
 `DEM/claude_interface/` にはまだ全ての入口が揃っていない。無いものを
 あるかのように書かない。足りない入口が要るときは、その場で作者に相談するか、
 下の「入口の作り方」に沿って `DEM/claude_interface/` に足す。
 
 ## 指示があったときの手順の扱い
 
-作者から手順・方針を変える指示があったら、**その場で該当する `IHG/*.md`（や
-このファイル）を直しながら作業する。** 指示を実行するだけで、文書を古いまま
+作者から手順・方針を変える指示があったら、**その場で該当する `IHG/*.md`(や
+このファイル)を直しながら作業する。** 指示を実行するだけで、文書を古いまま
 放置しない。
 
 直そうとして、既存の手順と矛盾する・情報が足りないと分かったら、
@@ -21,86 +21,86 @@
 
 ## 執筆作業は DEM/claude_interface/* 越しにしか行わない
 
-**db（`novel.db`）を直に触らない。読むのも書くのも `DEM/claude_interface/` 配下の
+**db(`novel.db`)を直に触らない。読むのも書くのも `DEM/claude_interface/` 配下の
 スクリプトを通す。** `DEM.db.schema` を直接 import して読み書きする、`sqlite3` で
 `novel.db` を直接開く、あとから export される想定の md を手で作る——どれもしない。
-（`DEM/db/` `DEM/randomizer/` `DEM/data_access_logic/` は下地の実装であって、
+(`DEM/db/` `DEM/randomizer/` `DEM/data_access_logic/` は下地の実装であって、
 Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_interface/` がその薄い
-呼び出し面になる）
+呼び出し面になる)
 
 ### 入口の作り方
 
 `DEM/claude_interface/<領域>/<動詞_対象>.py` に一つ、**一つの呼び出しクラスだけ**を
-置く（`DEM/claude_interface/readme.md`）。ランダム生成の一対
-（`create_random_character.py` / `commit_character.py`）が現状唯一の実例で、
+置く(`DEM/claude_interface/readme.md`)。ランダム生成の一対
+(`create_random_character.py` / `commit_character.py`)が現状唯一の実例で、
 パターンは次の通り:
 
-- 呼び出し可能なクラスとして書く（CLI 引数のパースはしない。`if __name__ ==
-  "__main__"` も置かない。Claude が import して `<クラス>(...).run()` を呼ぶ）
-- 各ファイルのクラスは、その領域の基底クラス（`<領域>/_base.py`）を継ぐ。
-  領域をまたいで共通する処理（db セッションを開いて渡す・「確定する」系の
-  実在確認とスキーマ列チェック）は、さらに上位の `DEM/claude_interface/_base.py`
+- 呼び出し可能なクラスとして書く(CLI 引数のパースはしない。`if __name__ ==
+  "__main__"` も置かない。Claude が import して `<クラス>(...).run()` を呼ぶ)
+- 各ファイルのクラスは、その領域の基底クラス(`<領域>/_base.py`)を継ぐ。
+  領域をまたいで共通する処理(db セッションを開いて渡す・「確定する」系の
+  実在確認とスキーマ列チェック)は、さらに上位の `DEM/claude_interface/_base.py`
   に置く。ファイル固有の処理だけをそのクラスに書き、共通の部分は基底へ寄せる
 - **「作る」と「db へ確定する」を別ファイルに分ける。** 「作る」側
-  （`DEM/randomizer/` の `factory.DictFactory` 等）は db に一切触れず、
+  (`DEM/randomizer/` の `factory.DictFactory` 等)は db に一切触れず、
   素の辞書 / JSON を返すだけにする。db を触るのは「確定する」側の入口だけに絞る
-- 辞書 / JSON で受け渡しする理由は、Bash 呼び出しをまたいでも（＝プロセスが
-  切り替わっても）中身を運べるから。SQLAlchemy のオブジェクトや session を
-  戻り値にすると、次の呼び出しでは中身が失われる（session が切れているため）
-- 実在レコードを指す欄（id）は、確定する側の入口が呼び出し時に db に実在するか
-  確かめ、無ければ分かりやすい例外を投げる（SQL を組み立てて確かめない。
+- 辞書 / JSON で受け渡しする理由は、Bash 呼び出しをまたいでも(＝プロセスが
+  切り替わっても)中身を運べるから。SQLAlchemy のオブジェクトや session を
+  戻り値にすると、次の呼び出しでは中身が失われる(session が切れているため)
+- 実在レコードを指す欄(id)は、確定する側の入口が呼び出し時に db に実在するか
+  確かめ、無ければ分かりやすい例外を投げる(SQL を組み立てて確かめない。
   `session.get(Model, id)` のように ORM 越しに引く。基底クラスの
-  `check_exists` がこれをやる）。スキーマに無い欄が混ざっていたら、それも
-  確定する側の入口で止める（`check_columns`）
+  `check_exists` がこれをやる)。スキーマに無い欄が混ざっていたら、それも
+  確定する側の入口で止める(`check_columns`)
 - 「作る」側だけを何度呼んでもデータは増えない。db に触れるのは「確定する」側の
   入口を呼んだときだけ
 
 ### 現状ある入口
 
-| したいこと                     | 使う入口                                                                              |
-| ------------------------------ | -------------------------------------------------------------------------------------- |
-| ランダムな人物の下書きを作る   | `DEM.claude_interface.randomizer.create_random_character.CreateRandomCharacter(...).run()`（db には触れない。辞書を返すだけ） |
-| 作った下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_character.CommitCharacter(<辞書かJSON>).run()`（id の実在確認をしてから書き込む） |
-| 作品の一覧と未同期の有無を見る | `DEM.claude_interface.story.list_stories.ListStories().run()` |
-| モード 2 の材料を一度に出す   | `DEM.claude_interface.story.start_story.StartStory(<作品id>, time=None).run()`（同期の確認・直前の話・断面・顔ぶれ。未同期の話があれば止まる） |
-| 未同期の話を並べる（2-0）     | `DEM.claude_interface.story.list_unsynced_episodes.ListUnsyncedEpisodes(<作品id>).run()` |
-| 直前の N 話を読む（2-1）      | `DEM.claude_interface.story.read_episodes.ReadEpisodes(<作品id>, count=10, before=None).run()` |
-| 顔ぶれを取る（2-3）           | `DEM.claude_interface.story.read_cast.ReadCast(<作品id>, time=None).run()`（立つ場所の一つ上の配下に居る人物・個体と直近の出来事） |
-| 断面を取る（2-3）             | `DEM.claude_interface.story.read_brief.ReadBrief(<場所id>, <時刻>, reach=60).run()`（`full=True` を付けない） |
-| 喋る人物を一件読む（2-3）     | `DEM.claude_interface.story.read_character.ReadCharacter(<人物id>, time=None).run()`（口調・性格・技・情動・直近の行動） |
-| 人物を軸にその時刻の周辺を読む | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`（同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う） |
-| 出来事を引く                   | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()` |
-| 本文を db へ確定する（2-4）   | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`（字数を数えて入れる。`synced` は必ず下りる） |
-| 同期フラグを立てる（3-3）     | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()` |
-| db の本文を md へ書き出す      | `DEM.claude_interface.sync.export_db.ExportDb().run()`（`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない） |
-| 場所を一覧で見る               | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`（`kind="村"` のように絞れる。db には触れない） |
-| ランダムな場所の下書きを作る   | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`（db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す） |
-| 作った場所の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`（`parent_id` の実在確認をしてから書き込む） |
-| 誤って確定した場所を消す       | `DEM.claude_interface.randomizer.delete_place.DeletePlace(<場所id>).run()`（子の場所が残っていると止まる） |
-| 種別（系統）を一覧で見る       | `DEM.claude_interface.world.list_kinds.ListKinds().run()`（`kind_id` に渡す id を拾う。db には触れない） |
-| 個体（群）を一覧で見る         | `DEM.claude_interface.world.list_objects.ListObjects(kind=None).run()`（`belong_id` に渡す id を拾う。db には触れない） |
-| 語をキーワードで検索する       | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`（`term.text` にキーワードを含む語を返す。db には触れない） |
-| ランダムな出来事の下書きを作る | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`（db には触れない。辞書を返すだけ） |
-| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`（`place_id` `parent_event_id` と、`character_ids` `object_ids`（人物・個体の id のリスト。多対多で何人・何個体でも渡せる）の実在確認をしてから書き込む） |
+| したいこと                           | 使う入口                                                                                                                                                                                                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ランダムな人物の下書きを作る         | `DEM.claude_interface.randomizer.create_random_character.CreateRandomCharacter(...).run()`(db には触れない。辞書を返すだけ)                                                                                                                                      |
+| 作った下書きを db へ確定する         | `DEM.claude_interface.randomizer.commit_character.CommitCharacter(<辞書かJSON>).run()`(id の実在確認をしてから書き込む)                                                                                                                                          |
+| 作品の一覧と未同期の有無を見る       | `DEM.claude_interface.story.list_stories.ListStories().run()`                                                                                                                                                                                                    |
+| モード 2 の材料を一度に出す          | `DEM.claude_interface.story.start_story.StartStory(<作品id>, time=None).run()`(同期の確認・直前の話・断面・顔ぶれ。未同期の話があれば止まる)                                                                                                                     |
+| 未同期の話を並べる(2-0)              | `DEM.claude_interface.story.list_unsynced_episodes.ListUnsyncedEpisodes(<作品id>).run()`                                                                                                                                                                         |
+| 直前の N 話を読む(2-1)               | `DEM.claude_interface.story.read_episodes.ReadEpisodes(<作品id>, count=10, before=None).run()`                                                                                                                                                                   |
+| 顔ぶれを取る(2-3)                    | `DEM.claude_interface.story.read_cast.ReadCast(<作品id>, time=None).run()`(立つ場所の一つ上の配下に居る人物・個体と直近の出来事)                                                                                                                                 |
+| 断面を取る(2-3)                      | `DEM.claude_interface.story.read_brief.ReadBrief(<場所id>, <時刻>, reach=60).run()`(`full=True` を付けない)                                                                                                                                                      |
+| 喋る人物を一件読む(2-3)              | `DEM.claude_interface.story.read_character.ReadCharacter(<人物id>, time=None).run()`(口調・性格・技・情動・直近の行動)                                                                                                                                           |
+| 人物を軸にその時刻の周辺を読む       | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`(同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う) |
+| 出来事を引く                         | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()`                                                                                                                                                              |
+| 本文を db へ確定する(2-4)            | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`(字数を数えて入れる。`synced` は必ず下りる)                                                                                                                                         |
+| 同期フラグを立てる(3-3)              | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()`                                                                                                                                                                         |
+| db の本文を md へ書き出す            | `DEM.claude_interface.sync.export_db.ExportDb().run()`(`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない)                                                                                                                      |
+| 場所を一覧で見る                     | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`(`kind="村"` のように絞れる。db には触れない)                                                                                                                                                |
+| ランダムな場所の下書きを作る         | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`(db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す)                      |
+| 作った場所の下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`(`parent_id` の実在確認をしてから書き込む)                                                                                                                                         |
+| 誤って確定した場所を消す             | `DEM.claude_interface.randomizer.delete_place.DeletePlace(<場所id>).run()`(子の場所が残っていると止まる)                                                                                                                                                         |
+| 種別(系統)を一覧で見る               | `DEM.claude_interface.world.list_kinds.ListKinds().run()`(`kind_id` に渡す id を拾う。db には触れない)                                                                                                                                                           |
+| 個体(群)を一覧で見る                 | `DEM.claude_interface.world.list_objects.ListObjects(kind=None).run()`(`belong_id` に渡す id を拾う。db には触れない)                                                                                                                                            |
+| 語をキーワードで検索する             | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`(`term.text` にキーワードを含む語を返す。db には触れない)                                                                                                                               |
+| ランダムな出来事の下書きを作る       | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`(db には触れない。辞書を返すだけ)                                                                                                                                              |
+| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`place_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む)                              |
 
-上の表にない操作（旧 `tools/novel.py` が持っていた `check` `index` `template`
-など）はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
+上の表にない操作(旧 `tools/novel.py` が持っていた `check` `index` `template`
+など)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
 沿って足す。**無いものを推測で呼び出そうとしない。**
 
-読む側の入口（`read_*` `list_*` `start_story`）の中身は
+読む側の入口(`read_*` `list_*` `start_story`)の中身は
 `DEM/data_access_logic/query.py` にある。引く条件は**時刻とレコードの id
 だけ**で表し、**SQL は組み立てない。** 引き方が足りなければ `query.py` に
 関数を足して、`DEM/claude_interface/story/` に一つ入口を被せる。
 
 ## まず、どのモードかを決める
 
-作業は三つに分かれている。**一度に一つだけやる**（`IHG/workflow.md`）。
+作業は三つに分かれている。**一度に一つだけやる**(`IHG/workflow.md`)。
 
-| モード               | 何をするか                 | 触っていいところ                    |
-| -------------------- | --------------------------- | ------------------------------------ |
-| **1 世界観構成**     | 世界を作る・直す            | 場所・種別・個体・人物・語のレコード |
-| **2 ストーリー生成** | 本文を書く                  | 話（story / episode）のレコード**だけ** |
-| **3 世界観更新**     | 書いた本文を世界の側へ戻す  | 場所・種別・個体・人物・語のレコード |
+| モード               | 何をするか                 | 触っていいところ                      |
+| -------------------- | -------------------------- | ------------------------------------- |
+| **1 世界観構成**     | 世界を作る・直す           | 場所・種別・個体・人物・語のレコード  |
+| **2 ストーリー生成** | 本文を書く                 | 話(story / episode)のレコード**だけ** |
+| **3 世界観更新**     | 書いた本文を世界の側へ戻す | 場所・種別・個体・人物・語のレコード  |
 
 **モード 2 のあいだは世界の側を一行も書き換えない。**
 本文を書く途中で新しい設定が生まれたら、メモに控えてモード 3 まで持ち越す。
@@ -116,28 +116,28 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
   — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
 - 対象作品の直前の話・企画・その作品が立つ世界線の断面
-  （`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る）
+  (`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る)
 
 ## 守ること
 
 - **db を直に開かない**: 上の通り。`DEM/claude_interface/` の入口を通す
 - **レコードの型は `DEM/db/schema.py` が一か所で決めている**: 欄を増やしたければ
-  `schema.py` を直し、alembic でマイグレーションを一本切る（`DEM/db/alembic/`）
+  `schema.py` を直し、alembic でマイグレーションを一本切る(`DEM/db/alembic/`)
 - **参照は id で持つ**: 他のレコードを指す欄には、名前ではなく id を渡す。
-  id は呼び出し側（作者・Claude）が事前に db から引いたものだけを使い、
+  id は呼び出し側(作者・Claude)が事前に db から引いたものだけを使い、
   存在確認は入口側の責任にする
-- **設定の一元管理**: 本文で新しい設定（地名・組織・技名・過去の出来事）を作ったら、
+- **設定の一元管理**: 本文で新しい設定(地名・組織・技名・過去の出来事)を作ったら、
   モード 3 で必ず世界の側へ書き戻す。**本文にしか存在しない設定を残さない**
-- **用語は日本語として自然に**: 読者は日本人。日本的な漢字（訓読み）・ひらがな・
-  カタカナ英語で名づける。音読み二字熟語の造語を重ねない（`IHG/naming.md`）
+- **用語は日本語として自然に**: 読者は日本人。日本的な漢字(訓読み)・ひらがな・
+  カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
 - **アバウトな要素は乱数で決める**: `DEM/randomizer/roll.py` を使い、引いた目を記録に残す。
   AI の第一想起で埋めない。**現状 `DEM/randomizer/tables.json` が無く、`roll.py`
   は動かない。** 直すか作者に確認するまでは、`random` で代用しつつシードを
-  会話に残す（実施例: `create_random_place` で大陸を作ったとき、固有名詞の
-  言語ロールをこの方法で代用した）
+  会話に残す(実施例: `create_random_place` で大陸を作ったとき、固有名詞の
+  言語ロールをこの方法で代用した)
 - **同じ世界線の中で矛盾しない**: 暦・共通現象・星どうしの関係は星をまたいで一致させる。
-  世界線が違えば矛盾してよい（平行世界）
+  世界線が違えば矛盾してよい(平行世界)
 - **既存設定の優先**: 世界の側にあるレコードと食い違う本文は書かない。
   変えたいときは先に設定側を直す
 - **作品は世界線をまたがない**: どの世界線に立つ作品かは作品のレコードに持たせる。
@@ -150,9 +150,9 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 
 ## 作業の締め
 
-- **作っただけで終わらせず、確定する側の入口まで呼んだか確認する**（`create_random_character`
+- **作っただけで終わらせず、確定する側の入口まで呼んだか確認する**(`create_random_character`
   のような「作る」入口は db に触れない。`commit_character` のような「確定する」
-  入口を呼んで初めて db に残る）
+  入口を呼んで初めて db に残る)
 - 作業が終わったら、claude webで動作している場合、以下を実施。
   - **その内容でプルリクエストがなければ作成し、リンクを表示する**。
   - すでにあるなら、そのブランチへプッシュしてリンクを示す
@@ -161,6 +161,6 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 
 - `novel.db` を `DEM/claude_interface/` を通さずに直接読み書きする
 - 頼まれていない話数を勝手に書き足す
-- 既存の原稿を「ついでに」推敲して書き換える（指示があったときだけ）
-- プロットにない大きな展開の追加（提案は歓迎、無断実装は不可）
+- 既存の原稿を「ついでに」推敲して書き換える(指示があったときだけ)
+- プロットにない大きな展開の追加(提案は歓迎、無断実装は不可)
 - モードをまたいで、本文と設定を同時に書き換える

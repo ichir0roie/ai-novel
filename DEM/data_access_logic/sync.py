@@ -94,22 +94,22 @@ class MarkdownExporter:
 
     **テーブルを増やしたら、ここに一つ足して `root_exporters` か
     どこかの `children` に繋ぐ。** 継承関係から拾って勝手に増やさない
-    （どのレコードがどこに置かれるかを、この一覧だけで読めるようにする）。
+    (どのレコードがどこに置かれるかを、この一覧だけで読めるようにする)。
 
     置き場所は次の規則で決まる:
 
     - `folder` を親のディレクトリの下に掘り、その中へ書く
-    - 子を持ちうるもの（`children` がある・`self_parent_column` がある）は
+    - 子を持ちうるもの(`children` がある・`self_parent_column` がある)は
       自分のディレクトリを持ち、`<名>/<名>.md` に本文を置く。
       子はそのディレクトリの下に入る
     - 子を持たないものは `<名>.md` の一枚で済ませる
     - `stamp_column` があれば、ファイル名の頭に時刻を付ける
-      （`4354_09_28_170000_見たことを本人にだけ言う.md`）
+      (`4354_09_28_170000_見たことを本人にだけ言う.md`)
     """
 
     model: type[MarkdownBase]
     folder: str = ""
-    # 持ち主（別のテーブル）を指す欄。子の係だけが持つ
+    # 持ち主(別のテーブル)を指す欄。子の係だけが持つ
     parent_column: str | None = None
     # 同じテーブルの親を指す欄。階層を作るものだけが持つ
     self_parent_column: str | None = None
@@ -125,8 +125,8 @@ class MarkdownExporter:
     def load_query(self, parent_id: int | None = None) -> Select:
         """`parent_id` の配下にあるレコードを引く。
 
-        親の欄を持たないテーブル（`kind` `skill`）は全件。持つテーブルは、
-        `parent_id` が `None` なら親のいないもの（＝最上段）だけを引く。
+        親の欄を持たないテーブル(`kind` `skill`)は全件。持つテーブルは、
+        `parent_id` が `None` なら親のいないもの(＝最上段)だけを引く。
         """
         query = select(self.model)
         column_name = self.parent_column or self.self_parent_column
@@ -191,7 +191,7 @@ class MarkdownExporter:
 # ---------------------------------------------------------------- 各テーブル
 
 class CharacterEmotionExporter(MarkdownExporter):
-    """人物の情動（drive）。人物のディレクトリの下に置く。"""
+    """人物の情動(drive)。人物のディレクトリの下に置く。"""
 
     model = CharacterEmotion
     folder = CharacterEmotion.__tablename__
@@ -200,14 +200,14 @@ class CharacterEmotionExporter(MarkdownExporter):
 
 
 def _primary_character_id():
-    """出来事に掛かる人物のうち、id が一番小さいもの（相関サブクエリ）。"""
+    """出来事に掛かる人物のうち、id が一番小さいもの(相関サブクエリ)。"""
     return (select(func.min(EventCharacter.character_id))
             .where(EventCharacter.event_id == Event.id)
             .scalar_subquery())
 
 
 def _primary_object_id():
-    """出来事に掛かる個体のうち、id が一番小さいもの（相関サブクエリ）。"""
+    """出来事に掛かる個体のうち、id が一番小さいもの(相関サブクエリ)。"""
     return (select(func.min(EventObject.object_id))
             .where(EventObject.event_id == Event.id)
             .scalar_subquery())
@@ -224,11 +224,11 @@ def _has_object():
 
 
 class CharacterEventExporter(MarkdownExporter):
-    """人物の行動。**行動は出来事の一種で、別表を持たない**（`schema.py`）。
+    """人物の行動。**行動は出来事の一種で、別表を持たない**(`schema.py`)。
 
-    一つの出来事に何人でも掛かれる（多対多）が、md の置き場所は一つしか
+    一つの出来事に何人でも掛かれる(多対多)が、md の置き場所は一つしか
     選べないので、**掛かる人物のうち id が一番小さい者の下にだけ**置く。
-    他の関わりは db（`event_character`）の側にそのまま残る——md は読む専用の
+    他の関わりは db(`event_character`)の側にそのまま残る——md は読む専用の
     写しであって、多対多をそのまま木の形には表せない。
     """
 
@@ -242,8 +242,8 @@ class CharacterEventExporter(MarkdownExporter):
 
 
 class ObjectEventExporter(MarkdownExporter):
-    """個体（群）の行動。人物が一人も掛かっていない出来事だけを拾う
-    （人物が掛かっていれば `CharacterEventExporter` 側に置く）。"""
+    """個体(群)の行動。人物が一人も掛かっていない出来事だけを拾う
+    (人物が掛かっていれば `CharacterEventExporter` 側に置く)。"""
 
     model = Event
     folder = "events"
@@ -262,7 +262,7 @@ class EpisodeExporter(MarkdownExporter):
     parent_column = "story_id"
 
     def file_stem(self, record: MarkdownBase) -> str:
-        # 話数がそのままファイル名になる。**ゼロ埋めしない**（`schema.py`）
+        # 話数がそのままファイル名になる。**ゼロ埋めしない**(`schema.py`)
         number = getattr(record, "number", None)
         return str(number) if number is not None else f"id{record.id}"
 
@@ -321,7 +321,7 @@ class LooseEventExporter(MarkdownExporter):
 
 
 # `worlds/` の直下に立つ係。この順に書き出す。
-# 子を持つ係（人物・個体・作品）の下に、情動・行動・話がぶら下がる
+# 子を持つ係(人物・個体・作品)の下に、情動・行動・話がぶら下がる
 root_exporters: tuple[type[MarkdownExporter], ...] = (
     LocationExporter,
     TermExporter,
@@ -358,8 +358,8 @@ def _verify(s: Session, tally: _ExportTally) -> None:
             missing.append(f"{table_name}: {total} 件のうち {written} 件しか書き出せていない")
     if missing:
         raise ExportError(
-            "書き出せなかったレコードがある（親を指す欄が実在しない id を"
-            "指している／親子が輪になっている）:\n  " + "\n  ".join(missing))
+            "書き出せなかったレコードがある(親を指す欄が実在しない id を"
+            "指している／親子が輪になっている):\n  " + "\n  ".join(missing))
 
 
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
@@ -369,8 +369,8 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     毎回まるごと消してから書き直す。
 
     書き出せなかったレコードが一件でもあれば `ExportError` で止まる
-    （そのときも書けたところまでは `worlds/` に残る。db は触っていないので、
-    db の側を直してから呼び直せばよい）。
+    (そのときも書けたところまでは `worlds/` に残る。db は触っていないので、
+    db の側を直してから呼び直せばよい)。
 
     戻り値はテーブル名ごとの件数。
     """

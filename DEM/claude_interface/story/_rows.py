@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """**`query.py` の Select を実行して、辞書に組む共通処理。**
 
-先頭が `_` なので、それ自体は claude が呼ぶ入口ではない（`readme.md` の
+先頭が `_` なので、それ自体は claude が呼ぶ入口ではない(`readme.md` の
 「一つの呼び出し機能だけ」に沿って、この下の各 `read_*.py` / `list_*.py` /
-`start_story.py` が薄く被せる）。ただ、複数の入口が同じ組み立て
-（人物一件・断面・顔ぶれ…）を要るので、ここに一度だけ書く。
+`start_story.py` が薄く被せる)。ただ、複数の入口が同じ組み立て
+(人物一件・断面・顔ぶれ…)を要るので、ここに一度だけ書く。
 
 ORM → dict の変換は `DEM.db.schema_pydantic.to_dict_with` を使う。
 relationship はあらかじめ `query.py` 側の select が `selectinload` で
@@ -54,7 +54,7 @@ def open_events(session: Session, place_ids, until: Stamp) -> list[dict]:
 
 
 def residents(session: Session, place_ids, until: Stamp) -> tuple[list[int], list[int]]:
-    """その時点でその場所（群）に居る人物と個体の id。"""
+    """その時点でその場所(群)に居る人物と個体の id。"""
     character_ids = session.scalars(
         common_query.resident_character_ids_select(place_ids, until)).all()
     object_ids = session.scalars(
@@ -76,7 +76,7 @@ def character_sheet(session: Session, character_id: int, *, until=None,
                     count: int = 5, text: bool = True) -> dict:
     """人物一件を、**本文を書くのに要るものだけ**そろえて返す。
 
-    口調（一人称・二人称・三人称）・性格の値・技・生きている情動・
+    口調(一人称・二人称・三人称)・性格の値・技・生きている情動・
     その時点の居場所・直近の行動。
     """
     character = session.scalars(common_query.character_select(character_id)).first()
@@ -104,7 +104,7 @@ def character_sheet(session: Session, character_id: int, *, until=None,
 
 def object_sheet(session: Session, object_id: int, *, until=None,
                  count: int = 5, text: bool = True) -> dict:
-    """個体（群）一件。人物と同じ形でそろえる。"""
+    """個体(群)一件。人物と同じ形でそろえる。"""
     obj = session.scalars(common_query.object_select(object_id)).first()
     if obj is None:
         raise common_query.NotFoundError(f"object_id={object_id} という id の object が見つからない")
@@ -137,7 +137,7 @@ def episodes(session: Session, story_id: int, *, count: int = 10, before=None,
     """**直前の `count` 話を、古い順に並べて返す。**
 
     `before` を渡すと、その話数より前の `count` 話。`text=False` なら
-    話数と題だけ（一覧を見るとき）。
+    話数と題だけ(一覧を見るとき)。
     """
     common_query._get(session, Story, story_id, "story_id")
     rows = session.scalars(
@@ -156,17 +156,17 @@ def unsynced_episodes(session: Session, story_id: int | None = None) -> list[dic
 
 def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
           full: bool = False) -> dict:
-    """**世界がいまどうなっているか**（断面）を一枚にまとめる。
+    """**世界がいまどうなっているか**(断面)を一枚にまとめる。
 
     その場所の道筋、配下で張っている出来事、`reach` 年ぶんの直近の出来事、
     そこで使われる語、いま居る者の名前。
 
-    `full=False`（既定）では裏の種別（`裏` `伏線`）を伏せる。
+    `full=False`(既定)では裏の種別(`裏` `伏線`)を伏せる。
     住人が知らないことを本文に書かないため。
     """
     location = common_query._get(session, Location, place_id, "place_id")
     if when is None:
-        raise ValueError("時刻が決まらない（when を渡す）")
+        raise ValueError("時刻が決まらない(when を渡す)")
     since, until = common_query.span(when)
     place_ids = common_query.descendant_place_ids(session, place_id)
 
@@ -222,12 +222,12 @@ def cast(session: Session, story_id: int, when=None, *, count: int = 5,
     """**その話に出せる顔ぶれ。**
 
     作品の立つ場所から `levels` 段のぼったところを基準に、その配下に
-    その時点で居る人物と個体を集め、一人（一群）ずつ直近 `count` 件の
+    その時点で居る人物と個体を集め、一人(一群)ずつ直近 `count` 件の
     出来事を添える。隣の集落にいる者も枠に入れるため、既定で一段のぼる。
     """
     story = common_query._get(session, Story, story_id, "story_id")
     if story.place_id is None:
-        raise ValueError(f"作品 {story.name} に立つ場所（place_id）が無い")
+        raise ValueError(f"作品 {story.name} に立つ場所(place_id)が無い")
     _, until = common_query.resolve_time(session, when, story)
     root_id = common_query.place_up(session, story.place_id, levels)
     place_ids = common_query.descendant_place_ids(session, root_id)

@@ -1,7 +1,7 @@
 """event を人物・個体への多対多へ、中間テーブルを追加
 
-`event.character_id` `event.object_id`（単一の FK）を、`event_character`
-`event_object`（中間テーブル）へ置き換える。一つの出来事に何人・何個体でも
+`event.character_id` `event.object_id`(単一の FK)を、`event_character`
+`event_object`(中間テーブル)へ置き換える。一つの出来事に何人・何個体でも
 掛かれるようにするため。既存の値はそのまま中間テーブルへ一件ずつ移す。
 
 Revision ID: bf21fb9144ac
@@ -78,8 +78,8 @@ def downgrade() -> None:
         batch_op.create_index(batch_op.f('ix_event_object_id'), ['object_id'], unique=False)
 
     # 中間テーブルから一件ずつ戻す。一つの出来事に複数人・複数個体が
-    # 掛かっていた場合は、id が一番小さいものだけが残る（この形の宿命で、
-    # 多対多を単一の FK へは戻しきれない）
+    # 掛かっていた場合は、id が一番小さいものだけが残る(この形の宿命で、
+    # 多対多を単一の FK へは戻しきれない)
     op.execute(
         'UPDATE event SET character_id = ('
         '  SELECT MIN(character_id) FROM event_character WHERE event_character.event_id = event.id'

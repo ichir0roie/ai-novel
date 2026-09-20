@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 # filepath が実質の主キーだった MarkdownBase 系のテーブル。
-# 2 段階マイグレーション（stage1: id 列追加、stage2: FK を id へ）を終えた今、
+# 2 段階マイグレーション(stage1: id 列追加、stage2: FK を id へ)を終えた今、
 # ここで id を本当の PRIMARY KEY にし、filepath はただの UNIQUE 列に落とす。
 # 列構成そのものは stage1/2 の時点で schema.py の定義と一致しているので、
 # 列ごとの ALTER ではなく「schema.py の Table 定義でそのまま作り直す」。
@@ -49,8 +49,8 @@ def upgrade() -> None:
     # テーブルを later rename したときに、既に作り直した側の FK が
     # 存在しない "_old_<table>" を指したまま壊れてしまう。
     # これを避けるため、全テーブルの rename を先に終わらせてから
-    # まとめて create し直す（rename が全部終わったあとは、どの
-    # テーブルも re-create の対象にならないので巻き込まれない）。
+    # まとめて create し直す(rename が全部終わったあとは、どの
+    # テーブルも re-create の対象にならないので巻き込まれない)。
 
     # 1) 退避
     for table in _MARKDOWN_TABLES:

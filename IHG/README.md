@@ -2,21 +2,21 @@
 
 共通の作業方針とテクニックを書き留める場所。特定の作品に依存しない知見だけを置く。
 
-| ファイル | 内容 |
-| --- | --- |
-| `principles.md` | **プロジェクトの目的と禁止事項。最優先** |
-| `workflow.md` | **進め方。三つのモードに分かれている** |
-| `chronicle.md` | **記録の取り方と、話を尽きさせない仕組み** |
-| `writing-style.md` | 文体の既定値。作品ごとに上書き可 |
-| `naming.md` | **用語と名づけの基準。日本語として自然に** |
-| `structure.md` | 構成・プロット・引き・伏線 |
-| `characters.md` | キャラ造形と書き分け |
-| `dialogue.md` | 会話文の作り方 |
-| `checklist.md` | 推敲チェックリスト |
-| `templates/` | 各種ひな形 |
+| ファイル           | 内容                                       |
+| ------------------ | ------------------------------------------ |
+| `principles.md`    | **プロジェクトの目的と禁止事項。最優先**   |
+| `workflow.md`      | **進め方。三つのモードに分かれている**     |
+| `chronicle.md`     | **記録の取り方と、話を尽きさせない仕組み** |
+| `writing-style.md` | 文体の既定値。作品ごとに上書き可           |
+| `naming.md`        | **用語と名づけの基準。日本語として自然に** |
+| `structure.md`     | 構成・プロット・引き・伏線                 |
+| `characters.md`    | キャラ造形と書き分け                       |
+| `dialogue.md`      | 会話文の作り方                             |
+| `checklist.md`     | 推敲チェックリスト                         |
+| `templates/`       | 各種ひな形                                 |
 
 Python ツールは core の外、リポジトリ直下の `tools/` にある
-（`schema.py`、`stamp.py`、`reader.py`、`novel.py`、`roll.py`）。
+(`schema.py`、`stamp.py`、`reader.py`、`novel.py`、`roll.py`)。
 **データの欄も、置き場所の決まりも、この四つが決めている。**
 core はその使い方を書くところで、欄を増やす場所ではない。
 

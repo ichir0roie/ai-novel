@@ -4,9 +4,9 @@
 引く条件は時刻とレコードの id だけ。SQL は組み立てない。
 
     ReadEvents(time="4354").run()       その年の出来事と行動を全部
-    ReadEvents(record_id=8).run()       その id に掛かるもの（場所なら
+    ReadEvents(record_id=8).run()       その id に掛かるもの(場所なら
                                         そこで起きたこと、人物なら行動、
-                                        出来事ならぶら下がる行動）
+                                        出来事ならぶら下がる行動)
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class ReadEvents(StoryQuery):
     """時刻か id で出来事を引く。どちらか一方を渡す。"""
 
     def __init__(self, time=None, record_id: int | None = None,
-                limit: int | None = None, until=None):
+                 limit: int | None = None, until=None):
         if (time is None) == (record_id is None):
             raise ValueError("time か record_id のどちらか一方だけを渡す")
         self.time = time

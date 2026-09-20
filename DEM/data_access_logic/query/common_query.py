@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""**ストーリー生成（モード 2）のための問い合わせ。** 下地の実装。
+"""**ストーリー生成(モード 2)のための問い合わせ。** 下地の実装。
 
 claude はここを直接呼ばない。`DEM/claude_interface/story/` の入口越しに使う。
 
-引く条件は**時刻とレコードの id だけ**で表す（`IHG/workflow.md`）。
+引く条件は**時刻とレコードの id だけ**で表す(`IHG/workflow.md`)。
 呼ぶ側が SQL を組み立てなくて済むように、モード 2 で要る引き方を
 ここに関数として並べる。
 
 **ここでは `session.execute` / `session.scalars(...).all()` のような
 「実行」をしない。** 関数はどれも `Select` を返すだけにとどめ、実行と
-ORM→dict の変換は呼び出し側（`DEM/claude_interface/`）へ渡す。
-そのために、関連名の解決（旧: 追加クエリで引く `_name()`）は
+ORM→dict の変換は呼び出し側(`DEM/claude_interface/`)へ渡す。
+そのために、関連名の解決(旧: 追加クエリで引く `_name()`)は
 select 文に `selectinload` で relationship を積んでおき、呼び出し側が
 `DEM.db.schema_pydantic.to_dict_with` でロード済みの関連から読む形にする。
 
@@ -20,7 +20,7 @@ select 文に `selectinload` で relationship を積んでおき、呼び出し�
   一覧でも関連取得でもないので select にする意味が無い
 - `descendant_place_ids` / `place_path`: 場所の木を親へ・子へとたどる処理。
   何段あるか分からないので、木を一段ずつ select する小さなループを
-  ここに残す（一発の select では表せない）
+  ここに残す(一発の select では表せない)
 """
 from __future__ import annotations
 
@@ -36,13 +36,13 @@ from DEM.db.schema import (
 )
 from DEM.db.stamp import Stamp, StampError
 
-# 断面に出さない出来事の種別（裏の設計。住人が知らないこと）
+# 断面に出さない出来事の種別(裏の設計。住人が知らないこと)
 HIDDEN_EVENT_KINDS = ("裏", "伏線")
 
-# `_event_row` 相当（claude_interface 側で使う）の relationship 名。
+# `_event_row` 相当(claude_interface 側で使う)の relationship 名。
 # `to_dict_with(event, relations=EVENT_RELATIONS)` で place_name が付く。
-# 掛かる人物・個体（多対多）は `event_characters` `event_objects` から別途組む
-# （`_rows.event_row` を見る）。
+# 掛かる人物・個体(多対多)は `event_characters` `event_objects` から別途組む
+# (`_rows.event_row` を見る)。
 EVENT_RELATIONS = {"place": "place_name"}
 
 # 出来事の select に積んでおく関連。人物・個体は中間テーブル越しに二段でロードする。
@@ -60,7 +60,7 @@ class NotFoundError(LookupError):
 # ---------------------------------------------------------------- 時刻
 
 def span(when) -> tuple[Stamp, Stamp]:
-    """時刻の指定を、**そこに収まる幅**（始め, 終わり）へ開く。
+    """時刻の指定を、**そこに収まる幅**(始め, 終わり)へ開く。
 
     書いた粒度がそのまま幅になる。`4354` はその年いっぱい、`4354/09/28` は
     その日いっぱい、`4354/09/28 17:00:00` はその一点。
@@ -84,7 +84,7 @@ def resolve_time(session: Session, when, story: Story | None) -> tuple[Stamp, St
         return span(when)
     if story is not None and story.start is not None:
         return span(story.start.year)
-    raise ValueError("時刻が決まらない（作品に立つ年が無いので time を渡す）")
+    raise ValueError("時刻が決まらない(作品に立つ年が無いので time を渡す)")
 
 
 def _get(session: Session, model, id_: int, label: str):
@@ -100,12 +100,12 @@ def get_story(session: Session, story_id: int) -> Story:
 
 
 def _in_span(column, since: Stamp, until: Stamp):
-    # 列は `StampType` なので、`Stamp` のまま渡す（整数を渡すと年として読まれる）
+    # 列は `StampType` なので、`Stamp` のまま渡す(整数を渡すと年として読まれる)
     return column.between(since, until)
 
 
 def _alive(model, until: Stamp):
-    """その時点で**まだ続いている**行（始まっていて、終わっていない）。"""
+    """その時点で**まだ続いている**行(始まっていて、終わっていない)。"""
     return (or_(model.start.is_(None), model.start <= until),
             or_(model.end.is_(None), model.end > until))
 
@@ -121,7 +121,7 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
     """その場所と、その配下にぶら下がる場所の id を全部返す。
 
     何段掘るか分からないので、一発の select では表せない
-    （`query.py` に残す数少ない「実行する」関数の一つ）。
+    (`query.py` に残す数少ない「実行する」関数の一つ)。
     """
     _get(session, Location, place_id, "place_id")
     found = [place_id]
@@ -136,7 +136,7 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
 
 
 def place_path(session: Session, place_id: int) -> list[dict]:
-    """その場所までの道筋を、上（世界線）から順に返す。
+    """その場所までの道筋を、上(世界線)から順に返す。
 
     何段のぼるか分からないので `descendant_place_ids` と同じ理由で
     ループのまま残す。
@@ -152,7 +152,7 @@ def place_path(session: Session, place_id: int) -> list[dict]:
 
 
 def place_up(session: Session, place_id: int, levels: int) -> int:
-    """その場所から親を `levels` 段のぼった場所の id（根で止まる）。"""
+    """その場所から親を `levels` 段のぼった場所の id(根で止まる)。"""
     current = _get(session, Location, place_id, "place_id")
     for _ in range(max(0, levels)):
         if current.parent_id is None:
@@ -167,7 +167,7 @@ def place_up(session: Session, place_id: int, levels: int) -> int:
 # ---------------------------------------------------------------- 個体・種別・場所
 
 def objects_select(kind: str | None = None) -> Select:
-    """個体（群）の一覧。`kind` を渡すとその種別の名前だけに絞る。"""
+    """個体(群)の一覧。`kind` を渡すとその種別の名前だけに絞る。"""
     query = select(Object).options(selectinload(Object.kind))
     if kind is not None:
         query = query.join(Kind, Object.kind_id == Kind.id).where(Kind.name == kind)
@@ -180,7 +180,7 @@ def kinds_select() -> Select:
 
 
 def places_select(kind: str | None = None) -> Select:
-    """場所の一覧。`kind` を渡すとその種別だけに絞る（例: `"村"`）。"""
+    """場所の一覧。`kind` を渡すとその種別だけに絞る(例: `"村"`)。"""
     query = select(Location)
     if kind is not None:
         query = query.where(Location.kind == kind)
@@ -190,7 +190,7 @@ def places_select(kind: str | None = None) -> Select:
 # ---------------------------------------------------------------- 出来事
 
 def events_at_select(when, *, place_ids=None, limit=None) -> Select:
-    """**その時（その幅）の出来事と行動。** 場所で絞ってもよい。"""
+    """**その時(その幅)の出来事と行動。** 場所で絞ってもよい。"""
     since, until = span(when)
     query = (select(Event)
              .options(*EVENT_LOAD_OPTIONS)
@@ -226,10 +226,10 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
 
 
 def open_events_select(place_ids, until: Stamp) -> Select:
-    """**まだ終わっていない出来事**（`end` が空か、その先）。張っているもの。
+    """**まだ終わっていない出来事**(`end` が空か、その先)。張っているもの。
 
     誰の行動でもない「ただ起きたこと」だけを拾う
-    （人物・個体のどちらにも掛かっていないもの）。
+    (人物・個体のどちらにも掛かっていないもの)。
     """
     return (select(Event)
             .options(*EVENT_LOAD_OPTIONS)
@@ -243,7 +243,7 @@ def open_events_select(place_ids, until: Stamp) -> Select:
 # ---------------------------------------------------------------- 人物・個体
 
 def emotions_select(character_id: int, until: Stamp) -> Select:
-    """その時点で生きている情動（欲・恐れ・嘘・必要）。"""
+    """その時点で生きている情動(欲・恐れ・嘘・必要)。"""
     return (select(CharacterEmotion)
             .where(CharacterEmotion.character_id == character_id)
             .where(*_alive(CharacterEmotion, until))
@@ -259,7 +259,7 @@ def skills_select(character_id: int) -> Select:
 
 
 def character_place_select(character_id: int, until: Stamp) -> Select:
-    """その時点の居場所（`character_place` の生きている行、新しい順）。"""
+    """その時点の居場所(`character_place` の生きている行、新しい順)。"""
     return (select(CharacterPlace)
             .options(selectinload(CharacterPlace.place))
             .where(CharacterPlace.character_id == character_id)
@@ -268,7 +268,7 @@ def character_place_select(character_id: int, until: Stamp) -> Select:
 
 
 def object_place_select(object_id: int, until: Stamp) -> Select:
-    """その時点の居場所（`object_place` の生きている行、新しい順）。"""
+    """その時点の居場所(`object_place` の生きている行、新しい順)。"""
     return (select(ObjectPlace)
             .options(selectinload(ObjectPlace.place))
             .where(ObjectPlace.object_id == object_id)
@@ -277,14 +277,14 @@ def object_place_select(object_id: int, until: Stamp) -> Select:
 
 
 def resident_character_ids_select(place_ids, until: Stamp) -> Select:
-    """その時点でその場所（群）に居る人物の id。"""
+    """その時点でその場所(群)に居る人物の id。"""
     return (select(CharacterPlace.character_id).distinct()
             .where(CharacterPlace.location_id.in_(list(place_ids)))
             .where(*_alive(CharacterPlace, until)))
 
 
 def resident_object_ids_select(place_ids, until: Stamp) -> Select:
-    """その時点でその場所（群）に居る個体（群）の id。"""
+    """その時点でその場所(群)に居る個体(群)の id。"""
     return (select(ObjectPlace.object_id).distinct()
             .where(ObjectPlace.location_id.in_(list(place_ids)))
             .where(*_alive(ObjectPlace, until)))
@@ -299,7 +299,7 @@ def character_select(character_id: int) -> Select:
 
 
 def object_select(object_id: int) -> Select:
-    """個体（群）一件。種別の関連を積んでおく。"""
+    """個体(群)一件。種別の関連を積んでおく。"""
     return (select(Object)
             .options(selectinload(Object.kind))
             .where(Object.id == object_id))
@@ -322,7 +322,7 @@ def stories_select() -> Select:
 
 
 def story_episodes_select(story_id: int) -> Select:
-    """その作品の話を、話数の若い順に全部（`story_digest` が数えるのに使う）。"""
+    """その作品の話を、話数の若い順に全部(`story_digest` が数えるのに使う)。"""
     return (select(Episode)
             .where(Episode.story_id == story_id)
             .order_by(Episode.number))
@@ -332,7 +332,7 @@ def episodes_select(story_id: int, *, count: int = 10, before=None) -> Select:
     """**直前の `count` 話を、話数の新しい順に返す select。**
 
     呼び出し側は取り出した後に `reversed()` して古い順に並べ直す
-    （新しい順に `limit` するため、select 自体は新しい順のまま返す）。
+    (新しい順に `limit` するため、select 自体は新しい順のまま返す)。
     `before` を渡すと、その話数より前の `count` 話。
     """
     query = select(Episode).where(Episode.story_id == story_id)
@@ -354,7 +354,7 @@ def unsynced_episodes_select(story_id: int | None = None) -> Select:
 # ---------------------------------------------------------------- 断面
 
 def terms_select(place_ids) -> Select:
-    """その場所（群）で使われる語。場所に縛られない語（restrict が空）も含む。"""
+    """その場所(群)で使われる語。場所に縛られない語(restrict が空)も含む。"""
     place_ids = list(place_ids)
     return (select(Term)
             .where(or_(Term.restrict_place_id.in_(place_ids),

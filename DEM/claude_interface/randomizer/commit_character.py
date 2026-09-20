@@ -5,14 +5,20 @@
 ものを受け取る想定。db に触れるのはこのモジュールだけ——
 `create_random_character` 側は一切 db を見ない。
 
-実在レコードを指す欄（`kind_id` `root_place_name` `born_place_id`
-`belong_id`）は、渡された id が db に実在するかをここで確かめてから書き込む。
-`kind_id` は必須（種別なしの人物は作らない）。スキーマに無い欄が混じっていたら
-（`DEM/db/schema.py` の `Character` の列と照らして）そこで止める。
+実在レコードを指す欄(`kind_id` `root_place_name` `born_place_id`
+`belong_id`)は、渡された id が db に実在するかをここで確かめてから書き込む。
+`kind_id` は必須(種別なしの人物は作らない)。スキーマに無い欄が混じっていたら
+(`DEM/db/schema.py` の `Character` の列と照らして)そこで止める。
+
+`born_place_id` を持つ場合は、その場所に出自を持つ人物が既に
+`world_createion_query.MAX_PER_LOCATION`(10)件あれば止める。
+また、`start`〜`end` が `born_place_id` の場所の `start`〜`end` に収まって
+いるか(その場所がまだ無い時刻・既に終わった時刻に生まれていないか)も確かめる。
 """
 from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
+from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Character, Kind, Location, Object
 from DEM.db.schema_pydantic import to_dict
 
@@ -21,7 +27,7 @@ class CommitCharacter(CommitDraft):
     """人物を一件、db へ確定して、格納後の中身を辞書で返す。
 
     `character` は JSON 文字列でも辞書でもよい。`id` キーは無視する
-    （採番は db に任せる）。
+    (採番は db に任せる)。
     """
 
     model = Character
@@ -40,8 +46,31 @@ class CommitCharacter(CommitDraft):
         self.check_exists(session, Location, data.get("root_place_name"), "root_place_name")
         self.check_exists(session, Location, data.get("born_place_id"), "born_place_id")
         self.check_exists(session, Object, data.get("belong_id"), "belong_id")
+        self._check_capacity(session, data)
+        self._check_span(session, data)
 
         record = Character(**data)
         session.add(record)
         session.commit()
         return to_dict(record)
+
+    @staticmethod
+    def _check_capacity(session, data: dict) -> None:
+        born_place_id = data.get("born_place_id")
+        if born_place_id is None:
+            return
+        count = session.scalar(
+            world_createion_query.character_count_at_place_select(born_place_id))
+        if count >= world_createion_query.MAX_PER_LOCATION:
+            raise ValueError(
+                f"born_place_id={born_place_id} には既に人物が "
+                f"{world_createion_query.MAX_PER_LOCATION} 件あり、これ以上作れない")
+
+    @staticmethod
+    def _check_span(session, data: dict) -> None:
+        born_place_id = data.get("born_place_id")
+        if born_place_id is None:
+            return
+        born_place = session.get(Location, born_place_id)
+        world_createion_query.check_within_parent_span(
+            born_place, data.get("start"), data.get("end"), "character")

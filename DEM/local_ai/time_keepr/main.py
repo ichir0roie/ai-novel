@@ -13,31 +13,7 @@ from DEM.local_ai.time_keepr import (
     random_location_generator,
     # random_object_generator
 )
-
-# 月ごとの日数。うるう年（4で割れて、100で割れないか400で割れる）は2月を29日にする。
-_MONTH_DAYS = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-
-
-def _is_leap_year(year: int) -> bool:
-    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
-
-
-def _next_day(time: Stamp) -> Stamp:
-    """時刻を1日ぶん進める。"""
-    year, month, day = time.year, time.month, time.day
-    days_in_month = _MONTH_DAYS[month - 1]
-    if month == 2 and _is_leap_year(year):
-        days_in_month = 29
-
-    day += 1
-    if day > days_in_month:
-        day = 1
-        month += 1
-        if month > 12:
-            month = 1
-            year += 1
-
-    return Stamp(year, month, day, time.hour, time.minute, time.second)
+from DEM.local_ai.time_keepr._format import format_time, next_day
 
 
 def loop_time(start_time: Stamp | None = None):
@@ -49,10 +25,11 @@ def loop_time(start_time: Stamp | None = None):
     current_time = start_time
 
     while True:
+        print(f"[time_keepr] {format_time(current_time)}")
         with get_session() as s:
             time_process(s, current_time)
 
-        current_time = _next_day(current_time)
+        current_time = next_day(current_time)
 
 
 def time_process(

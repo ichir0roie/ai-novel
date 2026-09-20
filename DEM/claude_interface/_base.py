@@ -4,9 +4,9 @@
 `randomizer/` `story/` `sync/` `world/` の四領域に共通する部分だけをここへ
 置く。領域ごとの共通処理は `<領域>/_base.py` に置き、ここを継ぐ。
 
-呼び出し側（claude）は、各ファイル先頭に定義された継承クラスをインスタンス化
-して `run()` を呼ぶだけでよい（CLI 引数のパースはしない。`readme.md` の
-「一つの呼び出し機能だけ」がそのままクラス一つに対応する）。
+呼び出し側(claude)は、各ファイル先頭に定義された継承クラスをインスタンス化
+して `run()` を呼ぶだけでよい(CLI 引数のパースはしない。`readme.md` の
+「一つの呼び出し機能だけ」がそのままクラス一つに対応する)。
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class UnknownFieldError(ValueError):
 class CommitEntrypoint(SessionEntrypoint):
     """**「確定する」系入口の共通処理。**
 
-    サブクラスは `model`（対象の ORM モデル）をクラス属性で指し、
+    サブクラスは `model`(対象の ORM モデル)をクラス属性で指し、
     `execute(session)` の中で `parse` `check_columns` `check_exists` を使う。
     """
 

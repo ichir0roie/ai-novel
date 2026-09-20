@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""**直前の N 話を読む**、claude が呼ぶ入口（モード 2-1）。
+"""**直前の N 話を読む**、claude が呼ぶ入口(モード 2-1)。
 
 展開を考える前にここを通す。前の話の引き・口調・終わり方を持たないまま
 次を組み立てると、同じ場面をもう一度書くことになる。
@@ -18,7 +18,7 @@ class ReadEpisodes(StoryQuery):
     """その作品の話を古い順に返す。`text=False` なら話数と題だけ。"""
 
     def __init__(self, story_id: int, count: int = 10, before: int | None = None,
-                text: bool = True):
+                 text: bool = True):
         self.story_id = story_id
         self.count = count
         self.before = before

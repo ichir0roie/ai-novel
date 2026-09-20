@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 # filepath を主キーに持つ MarkdownBase 系のテーブル。
 # 既存データがあるので、まず NULL 許容で id を足し、
-# rowid で採番してから NOT NULL に締める（2 段階マイグレーションの 1 段目）。
+# rowid で採番してから NOT NULL に締める(2 段階マイグレーションの 1 段目)。
 _MARKDOWN_TABLES = (
     "character", "character_drive", "episode", "event",
     "kind", "location", "object", "skill", "story", "term",
@@ -41,48 +41,48 @@ def upgrade() -> None:
     # 既存の RecordBase 系テーブルは id 列は既にあるので型を BigInteger に揃えるだけ。
     with op.batch_alter_table('character_place', schema=None) as batch_op:
         batch_op.alter_column('id',
-               existing_type=sa.INTEGER(),
-               type_=sa.BigInteger(),
-               existing_nullable=False,
-               autoincrement=True)
+                              existing_type=sa.INTEGER(),
+                              type_=sa.BigInteger(),
+                              existing_nullable=False,
+                              autoincrement=True)
 
     with op.batch_alter_table('character_skill', schema=None) as batch_op:
         batch_op.alter_column('id',
-               existing_type=sa.INTEGER(),
-               type_=sa.BigInteger(),
-               existing_nullable=False,
-               autoincrement=True)
+                              existing_type=sa.INTEGER(),
+                              type_=sa.BigInteger(),
+                              existing_nullable=False,
+                              autoincrement=True)
 
     with op.batch_alter_table('object_place', schema=None) as batch_op:
         batch_op.alter_column('id',
-               existing_type=sa.INTEGER(),
-               type_=sa.BigInteger(),
-               existing_nullable=False,
-               autoincrement=True)
+                              existing_type=sa.INTEGER(),
+                              type_=sa.BigInteger(),
+                              existing_nullable=False,
+                              autoincrement=True)
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     with op.batch_alter_table('object_place', schema=None) as batch_op:
         batch_op.alter_column('id',
-               existing_type=sa.BigInteger(),
-               type_=sa.INTEGER(),
-               existing_nullable=False,
-               autoincrement=True)
+                              existing_type=sa.BigInteger(),
+                              type_=sa.INTEGER(),
+                              existing_nullable=False,
+                              autoincrement=True)
 
     with op.batch_alter_table('character_skill', schema=None) as batch_op:
         batch_op.alter_column('id',
-               existing_type=sa.BigInteger(),
-               type_=sa.INTEGER(),
-               existing_nullable=False,
-               autoincrement=True)
+                              existing_type=sa.BigInteger(),
+                              type_=sa.INTEGER(),
+                              existing_nullable=False,
+                              autoincrement=True)
 
     with op.batch_alter_table('character_place', schema=None) as batch_op:
         batch_op.alter_column('id',
-               existing_type=sa.BigInteger(),
-               type_=sa.INTEGER(),
-               existing_nullable=False,
-               autoincrement=True)
+                              existing_type=sa.BigInteger(),
+                              type_=sa.INTEGER(),
+                              existing_nullable=False,
+                              autoincrement=True)
 
     for table in reversed(_MARKDOWN_TABLES):
         with op.batch_alter_table(table, schema=None) as batch_op:
