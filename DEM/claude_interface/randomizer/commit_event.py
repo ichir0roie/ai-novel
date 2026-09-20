@@ -19,7 +19,7 @@
 一緒に記録する)。
 
 - `character_drives`: `[{character_id, text, level, start?, end?}, ...]`。
-  一件ごとに `CharacterEmotion`(テーブル名は `character_drive`)を一件足す
+  一件ごとに `CharacterDrive`(テーブル名は `character_drive`)を一件足す
 - `character_skills`: `[{character_id, skill_id, level, object_id?}, ...]`。
   一件ごとに `CharacterSkill` を一件足す(既にある技の熟練度を「直す」の
   ではなく、その時点の水準を新しい一件として積む)
@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
 from DEM.db.schema import (
-    Character, CharacterEmotion, CharacterSkill, Event, EventCharacter,
+    Character, CharacterDrive, CharacterSkill, Event, EventCharacter,
     EventObject, Location, Object, Skill,
 )
 from DEM.db.schema_pydantic import to_dict
@@ -80,7 +80,7 @@ class CommitEvent(CommitDraft):
 
         for drive in drives:
             drive.pop("id", None)
-            _check_columns(CharacterEmotion, drive)
+            _check_columns(CharacterDrive, drive)
             self.check_exists(session, Character, drive.get("character_id"), "character_drives.character_id")
             if not drive.get("text"):
                 raise ValueError("character_drives.text は必須")
@@ -100,7 +100,7 @@ class CommitEvent(CommitDraft):
             EventObject(object_id=object_id) for object_id in object_ids]
         session.add(record)
         for drive in drives:
-            session.add(CharacterEmotion(**drive))
+            session.add(CharacterDrive(**drive))
         for skill in skills:
             session.add(CharacterSkill(**skill))
         session.commit()

@@ -22,7 +22,7 @@ from typing import Sequence, Union
 from alembic import op
 
 from DEM.db.schema import (
-    Character, CharacterEmotion, Episode, Event, Location, Object,
+    Character, CharacterDrive, Episode, Event, Location, Object,
     Skill, Story, Term,
 )
 
@@ -36,7 +36,7 @@ depends_on: Union[str, Sequence[str], None] = None
 # (`DEM/db/schema.py` の宣言順と一致している表は触らない)。
 # `kind` 表はこの後のマイグレーションで削除されるため、ここでは対象から外す。
 _REORDERED_MODELS = (
-    Skill, Character, CharacterEmotion, Episode, Location, Object,
+    Skill, Character, CharacterDrive, Episode, Location, Object,
     Story, Term, Event,
 )
 
