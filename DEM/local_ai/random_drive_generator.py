@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import random
 
+from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.local_ai import ai_client
 
 _SYSTEM_PROMPT = (
@@ -22,7 +23,7 @@ _SYSTEM_PROMPT = (
     "渡されたお題に沿う、人物が抱きうる情動(欲・恐れ・嘘・必要)を1件だけ"
     "考え、JSON で答えてください。キーは text(情動の中身。一言〜二言の"
     "自然な日本語)、level(その情動の強さ。1〜5の整数)の二つだけ。"
-    "なろう系の安易な動機付けは避け、具体的で自然な情動にしてください。"
+    + AVOID_NARO_TEMPLATE_INSTRUCTION
 )
 
 _LEVEL_RANGE = (1, 5)

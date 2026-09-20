@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from decimal import Decimal
 
 from DEM.db.schema import Base, MarkdownBase, get_session
 from DEM.db.stamp import Stamp
@@ -50,6 +51,8 @@ def _markdown_models() -> list[type]:
 def _serialize(value):
     if isinstance(value, Stamp):
         return str(value)
+    if isinstance(value, Decimal):
+        return float(value)
     return value
 
 

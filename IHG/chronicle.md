@@ -184,8 +184,8 @@ novels/
 **`人物感情` は、その人物の信念・思考の核になる情報として扱う。** 作成時
 (初期状態としての付与)か、その人物にとって大きな出来事があったときにだけ
 設定する。日常の細かな出来事のたびに積み増さない。`commit_event` の
-`character_drives` に乗せるときも、`DEM/local_ai/time_keepr/
-event_progression_generator.py` が月次で回す出来事のときも同じで、
+`character_drives` に乗せるときも、`DEM/local_ai/time_keeper/
+event_progression_generator.py` が数日おきに回す出来事のときも同じで、
 出来事が信念を揺らすほどのものでなければ `drive_text`(`character_drives`)は
 空のままにする。**能力・代償も欄ではない。**
 `技能`(`novels/skills/`)を立てて `所持技能` として結ぶ(下の「付随データは親の中に畳む」)。
@@ -235,10 +235,28 @@ event_progression_generator.py` が月次で回す出来事のときも同じで
 
 **この基準は、Claude が `commit_event` を呼ぶときだけでなく、
 `DEM/local_ai/`(`ai_client` を介してローカル AI が db への確定まで
-一気に行う `time_keepr` の常駐ループ)が出来事を生成するときにも同じく
-適用する。** `DEM/local_ai/time_keepr/event_progression_generator.py` の
-システムプロンプト(`_EVENT_TEXT_INSTRUCTION`)がこの基準をローカル AI に
-渡している。
+一気に行う `time_keeper` の常駐ループ)が出来事を生成するときにも同じく
+適用する。** Claude は対話の中でこの節を直接読んで踏まえるが、常駐ループは
+対話越しに読めないので、要旨だけを `DEM/ai_instructions/event_writing.py`
+の `EVENT_SCENE_INSTRUCTION` に切り出し、`event_progression_generator.py`
+(出来事の生成)と `character_lifespan.py`(死亡時の出来事)の両方の
+システムプロンプトに埋め込んでいる。**この節を変えたら、そちらも合わせて直す。**
+
+### 同じ出来事を名前だけ変えて繰り返さない
+
+出来事は「積む」ものであって、「同じ結末をなぞる」ものではない。
+同じ関係者・同じ場所で、`交渉` `確認` のような似た種別の出来事が、
+毎回「合意した」「確かめ合った」で終わるだけなら、それは進展ではなく
+足踏みの繰り返しである。積み上がった対立・決定を土台に、次はそれを
+**具体的に一歩動かす**(決着する・破られる・第三者が絡む・決定的な行動に
+出る、など)か、関わる相手・題材を変える。何も動かないなら、無理に
+出来事を作らず見送ってよい(「イベントは作者の意思で起こす」——停滞その
+ものは問題ではない。問題は、停滞を「同じ要約の量産」で埋めてしまうこと)。
+
+**この基準も、常駐ループ向けに `DEM/ai_instructions/event_writing.py` の
+`EVENT_PROGRESSION_INSTRUCTION` として切り出してある。**
+`event_progression_generator.py` はこれをシステムプロンプトに埋め込み、
+かつ判断材料として直近の出来事を**名前だけでなく種別つきで**渡す。
 
 ### `/` で付ける注記
 

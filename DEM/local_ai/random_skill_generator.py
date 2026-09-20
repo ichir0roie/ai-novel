@@ -15,17 +15,18 @@ from __future__ import annotations
 
 import random
 
+from DEM.ai_instructions.naming import TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.local_ai import ai_client
 
 _SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
     "渡されたお題に沿う技(能力)を1件だけ考え、JSON で答えてください。"
-    "キーは name(技名。日本的な漢字(訓読み)・ひらがな・カタカナで自然な名前)、"
+    "キーは name(技名)、"
     "cost(発動コスト。1〜10の整数)、effect(効果。一言)、range(範囲。一言)、"
     "duration(持続時間。一言)、target(対象。一言)、"
     "constraint(制約・代償。一言)、text(technique の詳しい説明文)"
-    "の八つだけ。なろう系の安易な必殺技名や、意味の無い音読み二字熟語の"
-    "造語は避けてください。"
+    "の八つだけ。" + TERM_NAMING_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION
 )
 
 _RANGE_CHOICES = ("自分のみ", "至近距離", "視界内", "触れた相手", "一帯")
