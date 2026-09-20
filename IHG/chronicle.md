@@ -272,6 +272,13 @@ event_progression_generator.py` が数日おきに回す出来事のときも同
 - **Ollama への呼び出しに `temperature` / `repeat_penalty` を明示している**
   (`ai_client._DEFAULT_OPTIONS`)。既定値のままだと、小型モデルほど
   高確率トークン(=使い回しの効く抽象語)へ収束しやすい
+- **出来事には `start`〜`end`(進行中と見なす幅)を持たせ、ローカルAI自身に
+  `event_duration_days` で日数を決めさせる**(`EVENT_DURATION_INSTRUCTION`)。
+  無いと、同じ人物が3日おきのロール(`EVENT_ROLL_INTERVAL_DAYS`)のたび
+  毎回新しい出来事に巻き込まれ、前の出来事がまだ続いているはずの間にも
+  次々と話が進んでしまう。`end` を過ぎるまではその人物を次の出来事の対象
+  から外す(`event_progression_generator._group_by_place` が
+  `world_createion_query.busy_character_ids_select` で除く)
 
 ### 同じ出来事を名前だけ変えて繰り返さない
 
