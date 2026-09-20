@@ -9,6 +9,7 @@ from DEM.data_access_logic.query import (
     world_createion_query
 )
 from DEM.local_ai.time_keepr import (
+    event_progression_generator,
     random_character_generator,
     random_location_generator,
     random_location_resource_generator,
@@ -40,6 +41,7 @@ def time_process(
     random_location_generator.generate_random(s, time)
     random_location_resource_generator.generate_random(s, time)
     random_character_generator.generate_random(s, time)
+    event_progression_generator.generate_random(s, time)
     # random_object_generator.generate_random(s, time)
 
 
