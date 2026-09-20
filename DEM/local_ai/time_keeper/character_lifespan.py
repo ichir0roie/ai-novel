@@ -102,7 +102,7 @@ def _kill(
         kind="死",
         text=decided.get("event_text") or "",
         time=time,
-        place_id=place_id,
+        location_id=place_id,
     )
     record.event_characters = [EventCharacter(character_id=character.id)]
     session.add(record)
@@ -133,8 +133,8 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
         age = time.year - character.start.year
 
         if _NATURAL_DEATH_MAX_AGE < age:
-            dead_age = random.randint(age, _NATURAL_DEATH_MAX_AGE)
-            dead_time = Stamp(character.start+dead_age)
+            dead_age = random.randint(_NATURAL_DEATH_MAX_AGE, age)
+            dead_time = Stamp(character.start.year + dead_age)
             created.append(_kill(session, character, dead_time, "老衰"))
 
         if _AGELESS_SKILL not in skills:

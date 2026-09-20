@@ -8,8 +8,9 @@ from typing import Mapping
 
 from sqlalchemy import select
 
+from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import (
-    common_query, world_createion_query,
+    common_query, story_createion_query, world_createion_query,
 )
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterSkill, Event, EventCharacter,
@@ -23,14 +24,19 @@ from DEM.randomizer.random_location_resource_generator import (
     build_location_resource,
 )
 
-PLACE_PROBABILITY = 0.15  # 月に一度、人物・個体が居る場所1件につき15%の確率で
+EVENT_ROLL_INTERVAL_DAYS = 3  # 3日毎に、人物・個体が居る場所それぞれでロールする
+PLACE_PROBABILITY = 0.10  # ロールのたび、場所1件につき10%の確率で出来事を起こす
 
 _EVENT_TEXT_INSTRUCTION = """
 
-軽い小説として1000文字程度で、引数として受け取った場所、キャラクター、オブジェクトの内容を下に、
-それぞれのキャラクターごとの行動を決定する。
 直近のeventのリストから、状況を把握する。
-キャラクターのパラメーター、drive,skillを下に、状況に対して行動を決定する。
+年齢、性別、性格、emotion,skillをベースに人物像を推測する。
+状況と人物像に基づいて、行動を決定する。
+
+キャラクターはそれぞれ、自分や他のキャラクター、場所、オブジェクトに影響を与える。
+
+キャラクターの行動の結果、起こった出来事を、整理して文章にまとめて出力する。
+
 
 """
 
@@ -62,8 +68,8 @@ _LOCATION_CHANGE_INSTRUCTION = (
     "location_abolished / location_founded / resource_depleted / "
     "resource_created を埋める。何も変わっていなければ location_abolished と "
     "resource_depleted は false、location_founded と resource_created は null "
-    "のままにする。location_founded の固有名詞は日本的な漢字(訓読み)・"
-    "ひらがな・カタカナで自然に名づける。"
+    "のままにする。location_founded の固有名詞は次の基準で名づける。"
+    + PLACE_NAMING_INSTRUCTION
 )
 
 _PLACE_SYSTEM_PROMPT = (
@@ -95,8 +101,8 @@ _PLACE_SYSTEM_PROMPT = (
 
 
 def _should_roll(time: Stamp) -> bool:
-    """月に一度、月初(1日)にだけロールする。"""
-    return time.day == 1
+    """3日毎にロールする(1日を起点に、その日から3日刻み)。"""
+    return (time.day - 1) % EVENT_ROLL_INTERVAL_DAYS == 0
 
 
 def _end_after_years(start: Stamp, years: int) -> Stamp:
@@ -156,6 +162,7 @@ def _progress_place(
     ).all()
     catalog = session.scalars(select(Skill)).all()
     place = session.get(Location, place_id)
+    plots = story_createion_query.load_location_plot(session, place_id, time)
 
     prompt = (
         f"場所id: {place_id}\n"
@@ -164,8 +171,11 @@ def _progress_place(
         f"居合わせる個体: {[(o.id, o.name, o.text) for o in objects[:20]]}\n"
         f"直近の出来事: {[e.name for e in recent_events]}\n"
         f"選べる技の候補: {sorted(s.name for s in catalog)}\n"
+        f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
+        + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"
+           if plots else "")
     )
     decided = ai_client.try_generate_json(prompt, system=_PLACE_SYSTEM_PROMPT)
 
@@ -194,7 +204,7 @@ def _progress_place(
         kind=decided.get("event_kind") or "",
         text=decided.get("event_text") or "",
         time=time,
-        place_id=place_id,
+        location_id=place_id,
     )
     record.event_characters = [
         EventCharacter(character_id=cid) for cid in involved_character_ids
@@ -357,7 +367,7 @@ def _progress_place(
 
 
 def generate_random(session: Session, time: Stamp) -> list[Event]:
-    """月初に、人物・個体が居る場所それぞれについて出来事を進行させる。"""
+    """3日毎に、人物・個体が居る場所それぞれについて出来事を進行させる。"""
     if not _should_roll(time):
         return []
 

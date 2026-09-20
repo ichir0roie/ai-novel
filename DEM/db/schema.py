@@ -11,7 +11,8 @@ from sqlalchemy import (
     Select,
     update,
     or_,
-    and_
+    and_,
+    delete
 )
 from sqlalchemy.orm import (
     Session,
@@ -235,6 +236,26 @@ class EventObject(Base):
 
     event: Mapped["Event"] = relationship(back_populates="event_objects", lazy="noload")
     object: Mapped["Object"] = relationship(lazy="noload")
+
+
+class Plot(MarkdownBase):
+    """**その場所の出来事生成に指示したい筋書き。**
+
+    `event_progression_generator` が場所ごとに出来事を1件決めるとき、
+    プロットを渡さないまま生成を続けると間延びした展開ばかりになる。
+    ここに置いた筋書きを、その場所向けのプロンプトに渡して方向づけに使う。
+    `location_id` が無ければ場所を問わず渡る筋書き(世界全体に関わるもの)。
+    """
+
+    __tablename__ = "plot"
+
+    location_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("location.id"), index=True,
+        comment="この筋書きが掛かる場所。空なら場所を問わない", sort_order=100)
+    location: Mapped["Location | None"] = relationship(lazy="noload")
+
+    start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
+    end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
 
 
 class ObjectBase:

@@ -28,3 +28,11 @@ def object_time_condition(time: Stamp):
             ObjectPlace.end == None
         )
     )
+
+
+def plot_time_condition(time: Stamp):
+    """`time` の時点でまだ有効な筋書き(`start`〜`end` が空なら期間を問わない)。"""
+    return and_(
+        or_(Plot.start.is_(None), Plot.start <= time),
+        or_(Plot.end.is_(None), Plot.end > time),
+    )

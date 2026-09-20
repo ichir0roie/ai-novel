@@ -5,7 +5,7 @@
 ものを受け取る想定。db に触れるのはこのモジュールだけ——
 `create_random_event` 側は一切 db を見ない。
 
-実在レコードを指す欄(`place_id` `character_ids` `object_ids`
+実在レコードを指す欄(`location_id` `character_ids` `object_ids`
 `parent_event_id`)は、渡された id が db に実在するかをここで確かめてから
 書き込む。`character_ids` `object_ids` は id のリスト(多対多。何人・
 何個体でも渡せる。省けば空の一覧のまま)で、`event_character` `event_object`
@@ -72,7 +72,7 @@ class CommitEvent(CommitDraft):
             raise ValueError("time は必須")
 
         self.check_exists(session, Event, data.get("parent_event_id"), "parent_event_id")
-        self.check_exists(session, Location, data.get("place_id"), "place_id")
+        self.check_exists(session, Location, data.get("location_id"), "location_id")
         for character_id in character_ids:
             self.check_exists(session, Character, character_id, "character_ids")
         for object_id in object_ids:
