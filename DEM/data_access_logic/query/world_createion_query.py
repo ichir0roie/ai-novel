@@ -62,6 +62,27 @@ def locations_without_current_resource_select(time) -> Select:
     return alive_locations_select(time).where(Location.id.not_in(covered))
 
 
+def alive_characters_select(time) -> Select:
+    """**時刻 `time` にまだ生きている人物だけ。**(`start` 以後・`end` より前)
+
+    `alive_locations_select` と同じ理由・同じ形。人物の一生(`start`〜`end`)
+    を見るのであって、居場所(`character_place`)は見ない。
+    """
+    return (select(Character)
+            .where(or_(Character.start.is_(None), Character.start <= time))
+            .where(or_(Character.end.is_(None), Character.end > time)))
+
+
+def alive_objects_select(time) -> Select:
+    """**時刻 `time` にまだ存在している個体(群)だけ。**(`start` 以後・`end` より前)
+
+    `alive_locations_select` と同じ理由・同じ形。
+    """
+    return (select(Object)
+            .where(or_(Object.start.is_(None), Object.start <= time))
+            .where(or_(Object.end.is_(None), Object.end > time)))
+
+
 def check_within_parent_span(parent: Location, child_start, child_end, label: str) -> None:
     """子(人物・個体・場所)の `start`〜`end` が、親の場所の `start`〜`end` に収まっているか確かめる。
 
