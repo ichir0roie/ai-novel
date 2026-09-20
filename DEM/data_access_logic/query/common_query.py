@@ -298,6 +298,14 @@ def character_select(character_id: int) -> Select:
             .where(Character.id == character_id))
 
 
+def characters_select() -> Select:
+    """人物の一覧。既存キャラクターを一括で見渡すのに使う。"""
+    return (select(Character)
+            .options(selectinload(Character.kind), selectinload(Character.skills),
+                     selectinload(Character.emotions))
+            .order_by(Character.id.asc()))
+
+
 def object_select(object_id: int) -> Select:
     """個体(群)一件。種別の関連を積んでおく。"""
     return (select(Object)
