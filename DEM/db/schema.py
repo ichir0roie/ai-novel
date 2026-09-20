@@ -94,7 +94,9 @@ class MarkdownBase(Base):
 
     text: Mapped[str] = mapped_column(String,  nullable=False, sort_order=10000)
 
-    filepath: Mapped[str | None] = mapped_column(String, nullable=True, default=None, sort_order=20000)
+    # filepath: Mapped[str | None] = mapped_column(String, nullable=True, default=None, sort_order=20000)
+
+    tag: Mapped[str | None] = mapped_column(String, nullable=True, default=None, sort_order=20000, comment="import,export時のファイル名用")
 
 
 class Location(MarkdownBase):

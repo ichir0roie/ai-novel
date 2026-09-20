@@ -1,7 +1,7 @@
 
 from DEM.db.schema import *
 from DEM.local_ai.time_keeper.main import loop_time
-from DEM.tool import reset_world
+from DEM.tool.danger import reset_world
 
 
 def redrive_world():
