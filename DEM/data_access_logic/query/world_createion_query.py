@@ -15,17 +15,10 @@ from __future__ import annotations
 
 from sqlalchemy import Select, func, or_, select
 
-from DEM.db.schema import Character, Location, LocationResource, Object, Skill
+from DEM.db.schema import Character, Location, LocationResource, Object
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
 MAX_PER_LOCATION = 10
-
-
-def skills_select() -> Select:
-    """技(`Skill`)の一覧全件。人物に技を持たせるとき、新しく作る前に
-    既存の技から選べるよう、候補として渡すのに使う。
-    """
-    return select(Skill).order_by(Skill.id)
 
 
 def character_count_at_place_select(place_id: int) -> Select:

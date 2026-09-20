@@ -2,9 +2,9 @@
 """**人物の一覧**を出す、claude が呼ぶ入口。
 
 既存の人物を db 横断で見渡すのに使う(id 一件を時刻付きで読むのは
-`story.read_character.ReadCharacter` の仕事)。技・情動を持つかどうかも
+`story.read_character.ReadCharacter` の仕事)。情動を持つかどうかも
 一緒に返すので、まだ付与していない人物を拾い出すのに使える。db には
-書き込まない。
+書き込まない。能力・特徴は `text` に文章で書かれている。
 """
 from __future__ import annotations
 
@@ -23,6 +23,5 @@ class ListCharacters(WorldQuery):
             "id": row.id, "name": row.name, "text": row.text,
             "sex": row.sex, "tone": row.tone,
             "born_place_id": row.born_place_id, "belong_id": row.belong_id,
-            "skill_ids": [skill.skill_id for skill in row.skills],
             "emotion_count": len(row.emotions),
         }

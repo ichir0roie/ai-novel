@@ -11,7 +11,6 @@ delete_tables = [
     Character,
     CharacterPlace,
     CharacterDrive,
-    CharacterSkill
 ]
 
 

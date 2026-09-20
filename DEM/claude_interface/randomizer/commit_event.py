@@ -13,26 +13,25 @@
 スキーマに無い欄が混じっていたら(`DEM/db/schema.py` の `Event` の列と
 照らして)そこで止める。
 
-出来事が人物の情動・技を動かしたときは、`character_drives` `character_skills`
-にその変化も乗せて渡す。**出来事の確定と同じ書き込みでまとめて確定する**
-(情動・技だけを後から別の入口で直すのではなく、その出来事が起きた結果として
-一緒に記録する)。
+出来事が人物の情動を動かしたときは、`character_drives` にその変化も乗せて
+渡す。**出来事の確定と同じ書き込みでまとめて確定する**(情動だけを後から
+別の入口で直すのではなく、その出来事が起きた結果として一緒に記録する)。
 
 - `character_drives`: `[{character_id, text, level, start?, end?}, ...]`。
   一件ごとに `CharacterDrive`(テーブル名は `character_drive`)を一件足す
-- `character_skills`: `[{character_id, skill_id, level, object_id?}, ...]`。
-  一件ごとに `CharacterSkill` を一件足す(既にある技の熟練度を「直す」の
-  ではなく、その時点の水準を新しい一件として積む)
 
-どちらも `character_id`(と `character_skills` の `skill_id`)の実在確認を
-してから書き込む。スキーマに無い欄が混ざっていたら、そこでも止める。
+`character_id` の実在確認をしてから書き込む。スキーマに無い欄が混ざっていたら、
+そこでも止める。
+
+人物の能力・特徴は表で持たず、`Character.text` に文章として書き込む
+(`update_character` を使う)。
 """
 from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
 from DEM.db.schema import (
-    Character, CharacterDrive, CharacterSkill, Event, EventCharacter,
-    EventObject, Location, Object, Skill,
+    Character, CharacterDrive, Event, EventCharacter,
+    EventObject, Location, Object,
 )
 from DEM.db.schema_pydantic import to_dict
 
@@ -63,7 +62,6 @@ class CommitEvent(CommitDraft):
         character_ids = [int(id_) for id_ in data.pop("character_ids", None) or []]
         object_ids = [int(id_) for id_ in data.pop("object_ids", None) or []]
         drives = [dict(d) for d in data.pop("character_drives", None) or []]
-        skills = [dict(s) for s in data.pop("character_skills", None) or []]
 
         self.check_columns(data)
         if not data.get("name"):
@@ -84,14 +82,6 @@ class CommitEvent(CommitDraft):
             self.check_exists(session, Character, drive.get("character_id"), "character_drives.character_id")
             if not drive.get("text"):
                 raise ValueError("character_drives.text は必須")
-        for skill in skills:
-            skill.pop("id", None)
-            _check_columns(CharacterSkill, skill)
-            self.check_exists(session, Character, skill.get("character_id"), "character_skills.character_id")
-            self.check_exists(session, Object, skill.get("object_id"), "character_skills.object_id")
-            self.check_exists(session, Skill, skill.get("skill_id"), "character_skills.skill_id")
-            if skill.get("skill_id") is None:
-                raise ValueError("character_skills.skill_id は必須")
 
         record = Event(**data)
         record.event_characters = [
@@ -101,13 +91,10 @@ class CommitEvent(CommitDraft):
         session.add(record)
         for drive in drives:
             session.add(CharacterDrive(**drive))
-        for skill in skills:
-            session.add(CharacterSkill(**skill))
         session.commit()
         return {
             **to_dict(record),
             "character_ids": character_ids,
             "object_ids": object_ids,
             "character_drives": drives,
-            "character_skills": skills,
         }

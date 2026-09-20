@@ -19,11 +19,12 @@ Create Date: 2026-09-20 12:20:39.841402
 """
 from typing import Sequence, Union
 
+import sqlalchemy as sa
 from alembic import op
 
 from DEM.db.schema import (
     Character, CharacterDrive, Episode, Event, Location, Object,
-    Skill, Story, Term,
+    Story, Term,
 )
 
 # revision identifiers, used by Alembic.
@@ -32,20 +33,37 @@ down_revision: Union[str, Sequence[str], None] = '4d305c506a4c'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+# `Skill` はこの後のマイグレーション(技システムの廃止)で表ごと落ちたため、
+# 当時の列順を静的な Table として書き残す(モデルクラスは既に無い)。
+_skill_table_at_this_point = sa.Table(
+    "skill", sa.MetaData(),
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("name", sa.String),
+    sa.Column("cost", sa.Integer, default=1),
+    sa.Column("effect", sa.String, nullable=False),
+    sa.Column("range", sa.String),
+    sa.Column("duration", sa.String),
+    sa.Column("target", sa.String),
+    sa.Column("constraint", sa.String),
+    sa.Column("text", sa.String, nullable=False),
+    sa.Column("tag", sa.String, nullable=True),
+)
+
 # 実際に物理列順がずれていた表だけを対象にする
 # (`DEM/db/schema.py` の宣言順と一致している表は触らない)。
 # `kind` 表はこの後のマイグレーションで削除されるため、ここでは対象から外す。
-_REORDERED_MODELS = (
-    Skill, Character, CharacterDrive, Episode, Location, Object,
-    Story, Term, Event,
+_REORDERED_TABLES = (
+    _skill_table_at_this_point, Character.__table__, CharacterDrive.__table__,
+    Episode.__table__, Location.__table__, Object.__table__,
+    Story.__table__, Term.__table__, Event.__table__,
 )
 
 
 def upgrade() -> None:
     """`schema.py` の宣言順に、対象の表を作り直す(データはそのまま引き継ぐ)。"""
-    for model in _REORDERED_MODELS:
+    for table in _REORDERED_TABLES:
         with op.batch_alter_table(
-            model.__tablename__, copy_from=model.__table__, recreate="always",
+            table.name, copy_from=table, recreate="always",
         ):
             pass
 

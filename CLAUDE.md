@@ -59,7 +59,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 
 | したいこと                           | 使う入口                                                                                                                                                                                                                                                         |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ランダムな人物の下書きを作る         | `DEM.claude_interface.randomizer.create_random_character.CreateRandomCharacter(...).run()`(db には触れない。`name` は `仮名0` のような仮の値のまま返る。**`IHG/naming.md` の「人名」の手順で名を決めてから `CommitCharacter` に渡す。仮名のまま確定しない**)         |
+| ランダムな人物の下書きを作る         | `DEM.claude_interface.randomizer.create_random_character.CreateRandomCharacter(...).run()`(db には触れない。`name` は `仮名0` のような仮の値のまま返る。**`IHG/naming.md` の「人名」の手順で名を決めてから `CommitCharacter` に渡す。仮名のまま確定しない**。**先に `DEM.claude_interface.world.list_plots.ListPlots().run()` で今の筋書きを読み、その人物が立つ場所に掛かるもの・場所を問わないものを踏まえて `text`・性格の方向づけを決める。能力・特徴も表に分けず `text` に書き込む**)         |
 | 作った下書きを db へ確定する         | `DEM.claude_interface.randomizer.commit_character.CommitCharacter(<辞書かJSON>).run()`(id の実在確認をしてから書き込む。`name` が `仮名` を含む・空のままなど未確定の値なら、先に名を決めてから呼び直す)                                                        |
 | 作品の一覧と未同期の有無を見る       | `DEM.claude_interface.story.list_stories.ListStories().run()`                                                                                                                                                                                                    |
 | モード 2 の材料を一度に出す          | `DEM.claude_interface.story.start_story.StartStory(<作品id>, time=None).run()`(同期の確認・直前の話・断面・顔ぶれ。未同期の話があれば止まる)                                                                                                                     |
@@ -67,7 +67,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 直前の N 話を読む(2-1)               | `DEM.claude_interface.story.read_episodes.ReadEpisodes(<作品id>, count=10, before=None).run()`                                                                                                                                                                   |
 | 顔ぶれを取る(2-3)                    | `DEM.claude_interface.story.read_cast.ReadCast(<作品id>, time=None).run()`(立つ場所の一つ上の配下に居る人物・個体と直近の出来事)                                                                                                                                 |
 | 断面を取る(2-3)                      | `DEM.claude_interface.story.read_brief.ReadBrief(<場所id>, <時刻>, reach=60).run()`(`full=True` を付けない)                                                                                                                                                      |
-| 喋る人物を一件読む(2-3)              | `DEM.claude_interface.story.read_character.ReadCharacter(<人物id>, time=None).run()`(口調・性格・技・情動・直近の行動)                                                                                                                                           |
+| 喋る人物を一件読む(2-3)              | `DEM.claude_interface.story.read_character.ReadCharacter(<人物id>, time=None).run()`(口調・性格・情動・直近の行動。能力・特徴は `text` に含まれる)                                                                                                              |
 | 人物を軸にその時刻の周辺を読む       | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`(同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う) |
 | 出来事を引く                         | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()`                                                                                                                                                              |
 | 出来事を一覧で見る(全件)             | `DEM.claude_interface.world.list_events.ListEvents().run()`(絞り込みなし、新しい順に全件。db には触れない)                                                                                                                                                      |
@@ -83,11 +83,9 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 個体(群)を一覧で見る                 | `DEM.claude_interface.world.list_objects.ListObjects().run()`(`belong_id` に渡す id を拾う。db には触れない)                                                                                                                                                     |
 | 語をキーワードで検索する             | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`(`term.text` にキーワードを含む語を返す。db には触れない)                                                                                                                               |
 | ランダムな出来事の下書きを作る       | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`(db には触れない。辞書を返すだけ)                                                                                                                                              |
-| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`location_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む。出来事が人物の情動・技を動かしたときは、同じ呼び出しに `character_drives`(`[{character_id, text, level, start?, end?}]`)`character_skills`(`[{character_id, skill_id, level, object_id?}]`)を乗せると、`CharacterDrive`(情動)`CharacterSkill`(技)もまとめて一件ずつ確定する) |
-| 人物を一覧で見る                     | `DEM.claude_interface.world.list_characters.ListCharacters().run()`(名前・説明・技の id・情動の件数まで一括で見渡す。db には触れない)                                                                                                                            |
+| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`location_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む。出来事が人物の情動を動かしたときは、同じ呼び出しに `character_drives`(`[{character_id, text, level, start?, end?}]`)を乗せると、`CharacterDrive`(情動)もまとめて一件ずつ確定する。能力・特徴が変わったときは `update_character` で `text` を書き直す) |
+| 人物を一覧で見る                     | `DEM.claude_interface.world.list_characters.ListCharacters().run()`(名前・説明・情動の件数まで一括で見渡す。db には触れない)                                                                                                                                     |
 | 既にある人物の欄を後から直す         | `DEM.claude_interface.randomizer.update_character.UpdateCharacter(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`text` の書き直しなどに使う)                                                                                                            |
-| 技(能力)そのものを db へ確定する      | `DEM.claude_interface.randomizer.commit_skill.CommitSkill(<辞書かJSON>).run()`(`Skill` のカタログ本体を一件作る。`name` `effect` `text` は必須。ランダム生成の対はまだ無く、内容は手で決める)                                                                   |
-| 人物に技を持たせる(出来事に紐づかない場合) | `DEM.claude_interface.randomizer.commit_character_skill.CommitCharacterSkill(<辞書かJSON>).run()`(`character_id` `skill_id`(あれば `object_id`)の実在確認をしてから `CharacterSkill` を一件足す。出来事の結果としての付与は `commit_event` の `character_skills` を使う) |
 | 人物に情動を持たせる(出来事に紐づかない場合) | `DEM.claude_interface.randomizer.commit_character_drive.CommitCharacterDrive(<辞書かJSON>).run()`(`character_id` の実在確認をしてから `CharacterDrive` を一件足す。出来事の結果としての付与は `commit_event` の `character_drives` を使う)                     |
 | 場所ごとに進めたい筋書きを db へ確定する | `DEM.claude_interface.randomizer.commit_plot.CommitPlot(<辞書かJSON>).run()`(`Plot` を一件足す。`text`(`MarkdownBase` 由来。進めたい筋書きの本文)は必須。`location_id` を省くと場所を問わず全ての出来事生成に渡る。`start`〜`end` を渡すとその期間だけに絞れる(省けば期間を問わず渡り続ける)。`event_progression_generator` がここを読んで出来事生成の方向づけに使うので、間延びした展開が続くときはここへ筋書きを足す) |
 | 筋書きを一覧で見る                   | `DEM.claude_interface.world.list_plots.ListPlots().run()`(`location_id` が空の行は場所を問わない筋書き。db には触れない)                                                                                                                                        |
@@ -145,9 +143,9 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
   `IHG/chronicle.md`「出来事の text は場面で書く」「同じ出来事を名前だけ
   変えて繰り返さない」
 - **IHG の基準を、Claude を介さないローカル AI にも同じく守らせる**:
-  `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下や
-  `random_skill_generator.py` など、Claude を介さず db への確定まで自動で
-  回す部分)は対話越しに `IHG/*.md` を読めない。そこで使う基準は
+  `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下など、Claude を
+  介さず db への確定まで自動で回す部分)は対話越しに `IHG/*.md` を読めない。
+  そこで使う基準は
   `DEM/ai_instructions/` に定数として切り出し、各生成のプロンプトに埋め込む。
   二つのパターンがある
   - `naming.py`(`IHG/naming.md` 由来)`principles.py`(`IHG/principles.md`

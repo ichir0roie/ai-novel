@@ -8,13 +8,6 @@
 当たったら寿命(老衰)で `end` を下ろす。老衰とは別に、ごく低い確率で
 年齢によらない事故死もロールする。
 
-**技「不老」「不死」による免除**(`_AGELESS_SKILL` `_IMMORTAL_SKILL`)。
-「不死」を持つ人物は老衰・事故のどちらでも死なない。「不老」は老衰では
-死なないが、事故では死にうる。どちらも `DEM/claude_interface/randomizer/
-commit_character_skill.py`(または `commit_event` の `character_skills`)で
-出来事の結果として後から付与される想定なので、生成時点でのスキル有無は
-問わず、ロールのたびに現在のスキルを見る。
-
 死んだ人物には、老衰・事故それぞれの死を場面として書いた `Event` を一件
 起こす(`_progress_place` と同じ基準。要約で済ませず場面で書く)。
 """
@@ -22,16 +15,11 @@ from __future__ import annotations
 
 import random
 
-from sqlalchemy import select
-
 from DEM.ai_instructions.event_writing import EVENT_SCENE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
-from DEM.db.schema import Character, CharacterSkill, Event, EventCharacter, Session, Skill, Stamp
+from DEM.db.schema import Character, Event, EventCharacter, Session, Stamp
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
-
-_AGELESS_SKILL = "不老"  # 老衰では死なない。事故では死にうる
-_IMMORTAL_SKILL = "不死"  # 老衰・事故のどちらでも死なない
 
 # 老衰。この歳を過ぎるまでは自然死しない。
 _NATURAL_DEATH_MIN_AGE = 50
@@ -53,15 +41,6 @@ _DEATH_SYSTEM_PROMPT = (
 def _should_roll(time: Stamp) -> bool:
     """年に一度、元日(1月1日)にだけロールする。"""
     return time.month == 1 and time.day == 1
-
-
-def _skill_names(session: Session, character_id: int) -> set[str]:
-    rows = session.execute(
-        select(Skill.name)
-        .join(CharacterSkill, CharacterSkill.skill_id == Skill.id)
-        .where(CharacterSkill.character_id == character_id)
-    ).all()
-    return {name for (name,) in rows}
 
 
 def _natural_death_probability(age: int) -> float:
@@ -126,9 +105,6 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
     for character in characters:
         if character.start is None:
             continue
-        skills = _skill_names(session, character.id)
-        if _IMMORTAL_SKILL in skills:
-            continue
 
         age = time.year - character.start.year
 
@@ -137,10 +113,9 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
             dead_time = Stamp(character.start.year + dead_age)
             created.append(_kill(session, character, dead_time, "老衰"))
 
-        if _AGELESS_SKILL not in skills:
-            if random.random() < _natural_death_probability(age):
-                created.append(_kill(session, character, time, "老衰"))
-                continue
+        if random.random() < _natural_death_probability(age):
+            created.append(_kill(session, character, time, "老衰"))
+            continue
 
         if random.random() < _ACCIDENT_PROBABILITY_PER_YEAR:
             created.append(_kill(session, character, time, "事故"))
