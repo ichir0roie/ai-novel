@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from sqlalchemy import Select, func, or_, select
 
-from DEM.db.schema import Character, Location, LocationResource, Object
+from DEM.db.schema import (
+    Character, Event, EventCharacter, Location, LocationResource, Object,
+)
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
 MAX_PER_LOCATION = 10
@@ -35,6 +37,34 @@ def siblings_area_sum_select(parent_id: int) -> Select:
     """同じ親(`parent_id`)を持つ場所の、広さ(`area`)の合計。"""
     return (select(func.coalesce(func.sum(Location.area), 0))
             .where(Location.parent_id == parent_id))
+
+
+def flagged_character_source_locations_select(time) -> Select:
+    """**`random_character_source` がオンで、時刻 `time` に生きている場所。**
+
+    まとめて人物を生む対象の候補。まだ誰も人物が居ないかどうかは、返った
+    場所それぞれに `character_count_at_place_select` を当てて呼び出し側が
+    確かめる(`random_character_generator.seed_initial_characters`)。
+    """
+    return alive_locations_select(time).where(
+        Location.random_character_source.is_(True))
+
+
+def busy_character_ids_select(time) -> Select:
+    """**時刻 `time` に、進行中の出来事(`start`〜`end` がその時を含む)へ
+    関わっている人物の id。**
+
+    進行中の出来事がある人物は、次の出来事の対象から外す
+    (`event_progression_generator._group_by_place`)。`start` を持たない
+    出来事(この仕組みを入れる前の、旧来の出来事)は対象にしない。
+    """
+    return (
+        select(EventCharacter.character_id).distinct()
+        .join(Event, Event.id == EventCharacter.event_id)
+        .where(Event.start.is_not(None))
+        .where(Event.start <= time)
+        .where(or_(Event.end.is_(None), Event.end > time))
+    )
 
 
 def alive_locations_select(time) -> Select:

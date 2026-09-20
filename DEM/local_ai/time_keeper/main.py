@@ -1,22 +1,23 @@
+#!/usr/bin/env python3
+"""**世界の側を、時の流れの中で自動的に進める常駐ループ。** claude を介さない。
 
-import random
+`loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続ける。各生成器
+(`random_location_generator` 等)は「月初だけ」「年初だけ」のように自分の
+中で頻度を絞っているので、ここでは**全部を毎日呼ぶだけ**でよい。
+"""
+from __future__ import annotations
 
-from DEM.db.schema import *
-from DEM.local_ai import ai_client
-from DEM.data_access_logic.query import (
-    character_simulation_query,
-    common_query,
-    dictionary_query,
-    story_createion_query,
-    world_createion_query
-)
+import traceback
+
+from DEM.db.schema import Session, Stamp, get_session
+from DEM.data_access_logic.query import common_query
 from DEM.local_ai.time_keeper import (
     character_lifespan,
     event_progression_generator,
     random_character_generator,
     random_location_generator,
     random_location_resource_generator,
-    # random_object_generator
+    # random_object_generator,  # DEM/local_ai/time_keeper/random_object_generator.py は未実装(空ファイル)
 )
 from DEM.local_ai.time_keeper._format import format_time, next_day
 
@@ -31,8 +32,16 @@ def loop_time(start_time: Stamp | None = None):
 
     while True:
         print(f"[time_keepr] {format_time(current_time)}")
-        with get_session() as s:
-            time_process(s, current_time)
+        try:
+            with get_session() as s:
+                time_process(s, current_time)
+        except Exception:
+            # 常駐ループなので、一日ぶんの生成が失敗しても(DB の一時的な
+            # 制約違反・ローカルAIの壊れた応答など)ループ全体を止めず、
+            # 記録を残して次の日へ進む。
+            print(f"[time_keepr] {format_time(current_time)} の処理が失敗、"
+                  "この日はスキップして続行する")
+            traceback.print_exc()
 
         current_time = next_day(current_time)
 
@@ -40,11 +49,15 @@ def loop_time(start_time: Stamp | None = None):
 def time_process(
     s: Session, time: Stamp
 ):
-
     random_location_generator.generate_random(s, time)
-    # random_location_resource_generator.generate_random(s, time)
+    random_location_resource_generator.generate_random(s, time)
 
+    # フラグを立てた場所へ、まだ誰も居なければまとめて人物を生む(月初)。
+    # 月一件だけの generate_random より先に呼び、同じ月内に両方当たっても
+    # 二重に生まれない(seed 側は「まだ誰も居ない」場所だけを対象にする)。
+    random_character_generator.seed_initial_characters(s, time)
     random_character_generator.generate_random(s, time)
+
     character_lifespan.generate_random(s, time)
     event_progression_generator.generate_random(s, time)
     # random_object_generator.generate_random(s, time)
