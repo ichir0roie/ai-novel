@@ -137,11 +137,22 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - **設定の一元管理**: 本文で新しい設定(地名・組織・技名・過去の出来事)を作ったら、
   モード 3 で必ず世界の側へ書き戻す。**本文にしか存在しない設定を残さない**
 - **用語は日本語として自然に**: 読者は日本人。日本的な漢字(訓読み)・ひらがな・
-  カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)。
-  `DEM/local_ai/` の常駐ループのようにローカル AI が名づけまで自動で行う
-  場面では、`IHG/naming.md` の要旨を切り出した `DEM/ai_instructions/naming.py`
-  の定数をプロンプトに埋め込み、同じ基準を守らせる
+  カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
+- **出来事の text は場面で書く。同じ出来事を名前だけ変えて繰り返さない**:
+  `IHG/chronicle.md`「出来事の text は場面で書く」「同じ出来事を名前だけ
+  変えて繰り返さない」
+- **IHG の基準を、Claude を介さないローカル AI にも同じく守らせる**:
+  `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下や
+  `random_skill_generator.py` など、Claude を介さず db への確定まで自動で
+  回す部分)は対話越しに `IHG/*.md` を読めない。そこで使う基準は要旨だけ
+  `DEM/ai_instructions/` に定数として切り出し、各生成のプロンプトに埋め込む
+  (`naming.py` は `IHG/naming.md` 由来、`event_writing.py` は
+  `IHG/chronicle.md`「出来事の text は場面で書く」「同じ出来事を名前だけ
+  変えて繰り返さない」由来、`principles.py` は `IHG/principles.md`
+  「避けるもの」由来)。**Claude 自身はこの定数ではなく `IHG/*.md` を直接
+  読む。IHG の該当節を直したら、対応する `DEM/ai_instructions/` の定数も
+  揃えて直す**
 - **アバウトな要素は乱数で決める**: `DEM/randomizer/roll.py` を使い、引いた目を記録に残す。
   AI の第一想起で埋めない。**現状 `DEM/randomizer/tables.json` が無く、`roll.py`
   は動かない。** 直すか作者に確認するまでは、`random` で代用しつつシードを

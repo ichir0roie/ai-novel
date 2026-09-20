@@ -8,7 +8,11 @@ from typing import Mapping
 
 from sqlalchemy import select
 
+from DEM.ai_instructions.event_writing import (
+    EVENT_PROGRESSION_INSTRUCTION, EVENT_SCENE_INSTRUCTION,
+)
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
+from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
@@ -27,18 +31,12 @@ from DEM.randomizer.random_location_resource_generator import (
 EVENT_ROLL_INTERVAL_DAYS = 3  # 3日毎に、人物・個体が居る場所それぞれでロールする
 PLACE_PROBABILITY = 0.10  # ロールのたび、場所1件につき10%の確率で出来事を起こす
 
-_EVENT_TEXT_INSTRUCTION = """
-
-直近のeventのリストから、状況を把握する。
-年齢、性別、性格、emotion,skillをベースに人物像を推測する。
-状況と人物像に基づいて、行動を決定する。
-
-キャラクターはそれぞれ、自分や他のキャラクター、場所、オブジェクトに影響を与える。
-
-キャラクターの行動の結果、起こった出来事を、整理して文章にまとめて出力する。
-
-
-"""
+_EVENT_TEXT_INSTRUCTION = (
+    "直近のeventのリストから、状況を把握する。年齢、性別、性格、emotion、"
+    "skillをベースに人物像を推測する。状況と人物像に基づいて、行動を決定"
+    "する。キャラクターはそれぞれ、自分や他のキャラクター、場所、オブジェ"
+    "クトに影響を与える。" + EVENT_PROGRESSION_INSTRUCTION + EVENT_SCENE_INSTRUCTION
+)
 
 
 _DRIVE_TEXT_INSTRUCTION = (
@@ -77,7 +75,7 @@ _PLACE_SYSTEM_PROMPT = (
     "その場所自身の情報、そこに居合わせる人物・個体の一覧、その場所の"
     "直近の出来事を渡すので、この時点でこの場所に起きる出来事を1件だけ"
     "考えてください。"
-    + _INVOLVEMENT_INSTRUCTION +
+    + _INVOLVEMENT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
     "JSON で答えてください。キーは "
     "event_name(出来事の名前), event_kind(出来事の種別。一言。"
     "無ければ空文字), event_text(出来事の内容。" + _EVENT_TEXT_INSTRUCTION + "), "
@@ -169,7 +167,7 @@ def _progress_place(
         f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
         f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
         f"居合わせる個体: {[(o.id, o.name, o.text) for o in objects[:20]]}\n"
-        f"直近の出来事: {[e.name for e in recent_events]}\n"
+        f"直近の出来事(名前, 種別): {[(e.name, e.kind) for e in recent_events]}\n"
         f"選べる技の候補: {sorted(s.name for s in catalog)}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"

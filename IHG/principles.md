@@ -28,6 +28,14 @@
 
 構造として禁じる。「うまくやればいい」ではなく、使わない。
 
+**この節は Claude が対話の中で踏まえる基準。** `DEM/local_ai/` の常駐ループ・
+量産系(`random_skill_generator.py` `random_drive_generator.py`
+`event_progression_generator.py` など、Claude を介さず db への確定まで
+自動で回す部分)は対話越しにこの節を読めないので、要旨だけを
+`DEM/ai_instructions/principles.py` の `AVOID_NARO_TEMPLATE_INSTRUCTION` に
+切り出し、各生成のシステムプロンプトに埋め込んでいる。
+**この節を変えたら、そちらも合わせて直す。**
+
 - **主人公が最初から強い / すぐ強くなる。** 勝利には必ず失うものを伴わせる
 - **ステータス画面・レベル・スキル一覧・鑑定。** 数値で強さを説明しない
 - **世界が主人公に親切。** 世界は主人公に無関心であるべき。都合よく人が集まらない

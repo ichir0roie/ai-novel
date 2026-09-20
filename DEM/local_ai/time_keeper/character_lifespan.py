@@ -24,6 +24,7 @@ import random
 
 from sqlalchemy import select
 
+from DEM.ai_instructions.event_writing import EVENT_SCENE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import Character, CharacterSkill, Event, EventCharacter, Session, Skill, Stamp
 from DEM.local_ai import ai_client
@@ -43,8 +44,7 @@ _ACCIDENT_PROBABILITY_PER_YEAR = 0.003
 _DEATH_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある人物の死を描く設定作家です。"
     "渡す人物の情報と死因をもとに、その最期を1件だけ場面として考えてください。"
-    "要約(「〜という出来事があった」)で済ませない。軽い小説として1000文字"
-    "程度で、その時その場の思考・行動・周囲への影響を場面として書く。"
+    + EVENT_SCENE_INSTRUCTION +
     "JSON で答えてください。キーは event_name(出来事の名前), "
     "event_text(死の場面)の二つだけ。"
 )
