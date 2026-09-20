@@ -90,6 +90,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 人物に情動を持たせる(出来事に紐づかない場合) | `DEM.claude_interface.randomizer.commit_character_drive.CommitCharacterDrive(<辞書かJSON>).run()`(`character_id` の実在確認をしてから `CharacterEmotion` を一件足す。出来事の結果としての付与は `commit_event` の `character_drives` を使う)                     |
 | 場所ごとに進めたい筋書きを db へ確定する | `DEM.claude_interface.randomizer.commit_plot.CommitPlot(<辞書かJSON>).run()`(`Plot` を一件足す。`text`(`MarkdownBase` 由来。進めたい筋書きの本文)は必須。`location_id` を省くと場所を問わず全ての出来事生成に渡る。`start`〜`end` を渡すとその期間だけに絞れる(省けば期間を問わず渡り続ける)。`event_progression_generator` がここを読んで出来事生成の方向づけに使うので、間延びした展開が続くときはここへ筋書きを足す) |
 | 筋書きを一覧で見る                   | `DEM.claude_interface.world.list_plots.ListPlots().run()`(`location_id` が空の行は場所を問わない筋書き。db には触れない)                                                                                                                                        |
+| 既にある筋書きの欄を後から直す       | `DEM.claude_interface.randomizer.update_plot.UpdatePlot(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`text` の書き直しなどに使う)                                                                                                                      |
 
 上の表にない操作(旧 `tools/novel.py` が持っていた `check` `index` `template`
 など)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
