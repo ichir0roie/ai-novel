@@ -67,7 +67,7 @@ def character_around_event(
         select(Event)
         .options(*common_query.EVENT_LOAD_OPTIONS)
         .where(
-            Event.place_id.in_(location_ids),
+            Event.location_id.in_(location_ids),
             Event.time <= time,
             Event.time >= since,
         )

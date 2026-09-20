@@ -188,9 +188,9 @@ class Event(MarkdownBase):
 
     parent_event_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("event.id"), sort_order=230)
 
-    place_id: Mapped[int | None] = mapped_column(
+    location_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("location.id"), index=True, sort_order=240)
-    place: Mapped[Location | None] = relationship(lazy="noload")
+    location: Mapped[Location | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
     # 誰の行動かは `event_character` `event_object`(中間テーブル)が持つ。

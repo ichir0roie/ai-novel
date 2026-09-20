@@ -51,7 +51,7 @@ def time_process(
 
 
 if __name__ == "__main__":
-    year = random.randint(0, 99999)
+    year = int(input("year>>"))
     stamp = Stamp(
         year
     )

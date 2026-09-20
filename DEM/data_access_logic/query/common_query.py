@@ -47,7 +47,7 @@ EVENT_RELATIONS = {"place": "place_name"}
 
 # 出来事の select に積んでおく関連。人物・個体は中間テーブル越しに二段でロードする。
 EVENT_LOAD_OPTIONS = (
-    selectinload(Event.place),
+    selectinload(Event.location),
     selectinload(Event.event_characters).selectinload(EventCharacter.character),
     selectinload(Event.event_objects).selectinload(EventObject.object),
 )
@@ -188,7 +188,7 @@ def events_at_select(when, *, place_ids=None, limit=None) -> Select:
              .options(*EVENT_LOAD_OPTIONS)
              .where(_in_span(Event.time, since, until)))
     if place_ids is not None:
-        query = query.where(Event.place_id.in_(list(place_ids)))
+        query = query.where(Event.location_id.in_(list(place_ids)))
     query = query.order_by(Event.time.desc(), Event.id.desc())
     if limit:
         query = query.limit(limit)
@@ -204,7 +204,7 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     query = (select(Event)
              .options(*EVENT_LOAD_OPTIONS)
              .where(or_(
-                 Event.place_id == record_id,
+                 Event.location_id == record_id,
                  Event.parent_event_id == record_id,
                  Event.event_characters.any(EventCharacter.character_id == record_id),
                  Event.event_objects.any(EventObject.object_id == record_id),
@@ -225,7 +225,7 @@ def open_events_select(place_ids, until: Stamp) -> Select:
     """
     return (select(Event)
             .options(*EVENT_LOAD_OPTIONS)
-            .where(Event.place_id.in_(list(place_ids)))
+            .where(Event.location_id.in_(list(place_ids)))
             .where(Event.time <= until)
             .where(or_(Event.end.is_(None), Event.end > until))
             .where(~Event.event_characters.any(), ~Event.event_objects.any())
