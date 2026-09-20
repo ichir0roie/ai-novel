@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterPlace, CharacterSkill, Episode,
-    Event, EventCharacter, EventObject, Kind, Location, Object, ObjectPlace,
+    Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
     Story, Term,
 )
 from DEM.db.stamp import Stamp, StampError
@@ -164,19 +164,11 @@ def place_up(session: Session, place_id: int, levels: int) -> int:
     return current.id
 
 
-# ---------------------------------------------------------------- 個体・種別・場所
+# ---------------------------------------------------------------- 個体・場所
 
-def objects_select(kind: str | None = None) -> Select:
-    """個体(群)の一覧。`kind` を渡すとその種別の名前だけに絞る。"""
-    query = select(Object).options(selectinload(Object.kind))
-    if kind is not None:
-        query = query.join(Kind, Object.kind_id == Kind.id).where(Kind.name == kind)
-    return query.order_by(Object.id.asc())
-
-
-def kinds_select() -> Select:
-    """種別の一覧。"""
-    return select(Kind).order_by(Kind.id.asc())
+def objects_select() -> Select:
+    """個体(群)の一覧。"""
+    return select(Object).order_by(Object.id.asc())
 
 
 def places_select(kind: str | None = None) -> Select:
@@ -291,9 +283,9 @@ def resident_object_ids_select(place_ids, until: Stamp) -> Select:
 
 
 def character_select(character_id: int) -> Select:
-    """人物一件。口調・性格の列に加え、種別・所属・出自の関連を積んでおく。"""
+    """人物一件。口調・性格の列に加え、所属・出自の関連を積んでおく。"""
     return (select(Character)
-            .options(selectinload(Character.kind), selectinload(Character.belong),
+            .options(selectinload(Character.belong),
                      selectinload(Character.born_place))
             .where(Character.id == character_id))
 
@@ -301,16 +293,14 @@ def character_select(character_id: int) -> Select:
 def characters_select() -> Select:
     """人物の一覧。既存キャラクターを一括で見渡すのに使う。"""
     return (select(Character)
-            .options(selectinload(Character.kind), selectinload(Character.skills),
+            .options(selectinload(Character.skills),
                      selectinload(Character.emotions))
             .order_by(Character.id.asc()))
 
 
 def object_select(object_id: int) -> Select:
-    """個体(群)一件。種別の関連を積んでおく。"""
-    return (select(Object)
-            .options(selectinload(Object.kind))
-            .where(Object.id == object_id))
+    """個体(群)一件。"""
+    return select(Object).where(Object.id == object_id)
 
 
 # ---------------------------------------------------------------- 作品

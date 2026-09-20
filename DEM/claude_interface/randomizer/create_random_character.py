@@ -2,7 +2,7 @@
 """ランダムな人物の下書きを一件、辞書として作る、claude が呼ぶ入口。
 
 `DEM.randomizer.random_character_generator.build_character` の薄いラッパー。
-**db には一切触れない。** 実在レコードを指す欄(`kind_id` `root_place_name`
+**db には一切触れない。** 実在レコードを指す欄(`root_place_name`
 `born_place_id` `belong_id`)の存在確認や、実際の書き込みはしない——それは
 `DEM.claude_interface.randomizer.commit_character.CommitCharacter` の仕事。
 

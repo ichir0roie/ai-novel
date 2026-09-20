@@ -1,33 +1,4 @@
-from typing import Sequence
-from DEM.db.schema import *
-from DEM.data_access_logic.query import common_query
-
-
-def __character_time_condition(time: Stamp):
-    return or_(
-        and_(
-            CharacterPlace.start <= time,
-            CharacterPlace.end > time,
-        ),
-        and_(
-            CharacterPlace.start <= time,
-            CharacterPlace.end == None
-        )
-
-    )
-
-
-def __object_time_condition(time: Stamp):
-    return or_(
-        and_(
-            ObjectPlace.start <= time,
-            ObjectPlace.end > time
-        ),
-        and_(
-            ObjectPlace.start <= time,
-            ObjectPlace.end == None
-        )
-    )
+from DEM.data_access_logic.query.base import *
 
 
 def character_around_event(
@@ -43,7 +14,7 @@ def character_around_event(
         )
         .where(
             CharacterPlace.character_id == character_id,
-            __character_time_condition(time)
+            character_time_condition(time)
         )
     )
 
@@ -75,7 +46,7 @@ def character_around_event(
         .join(CharacterPlace, and_(
             CharacterPlace.character_id == Character.id,
             CharacterPlace.location_id.in_(location_ids),
-            __character_time_condition(time),
+            character_time_condition(time),
         ))
     ).all()
     objects = s.scalars(
@@ -86,7 +57,7 @@ def character_around_event(
             ObjectPlace, and_(
                 ObjectPlace.object_id == Object.id,
                 ObjectPlace.location_id.in_(location_ids),
-                __object_time_condition(time),
+                object_time_condition(time),
             )
         )
     ).all()

@@ -5,10 +5,9 @@
 ものを受け取る想定。db に触れるのはこのモジュールだけ——
 `create_random_character` 側は一切 db を見ない。
 
-実在レコードを指す欄(`kind_id` `root_place_name` `born_place_id`
-`belong_id`)は、渡された id が db に実在するかをここで確かめてから書き込む。
-`kind_id` は必須(種別なしの人物は作らない)。スキーマに無い欄が混じっていたら
-(`DEM/db/schema.py` の `Character` の列と照らして)そこで止める。
+実在レコードを指す欄(`root_place_name` `born_place_id` `belong_id`)は、
+渡された id が db に実在するかをここで確かめてから書き込む。スキーマに無い欄が
+混じっていたら(`DEM/db/schema.py` の `Character` の列と照らして)そこで止める。
 
 `born_place_id` を持つ場合は、その場所に出自を持つ人物が既に
 `world_createion_query.MAX_PER_LOCATION`(10)件あれば止める。
@@ -19,7 +18,7 @@ from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
 from DEM.data_access_logic.query import world_createion_query
-from DEM.db.schema import Character, Kind, Location, Object
+from DEM.db.schema import Character, Location, Object
 from DEM.db.schema_pydantic import to_dict
 
 
@@ -39,10 +38,7 @@ class CommitCharacter(CommitDraft):
         data = self.parse(self.character)
         data.pop("id", None)
         self.check_columns(data)
-        if data.get("kind_id") is None:
-            raise ValueError("kind_id は必須")
 
-        self.check_exists(session, Kind, data.get("kind_id"), "kind_id")
         self.check_exists(session, Location, data.get("root_place_name"), "root_place_name")
         self.check_exists(session, Location, data.get("born_place_id"), "born_place_id")
         self.check_exists(session, Object, data.get("belong_id"), "belong_id")

@@ -1,54 +1,5 @@
 #!/usr/bin/env python3
-"""**場所・時刻ごとに、その場に居合わせる人物・個体を巻き込んだ出来事を起こす。**
-
-`DEM.local_ai.time_keeper.main` の常駐ループから毎日呼ばれる。
-`random_character_generator` `random_location_generator` と同じ理由で、
-claude を介さず db への確定まで一度に行う(内容の判断だけをローカル
-AI(`ai_client`)に委ねる)。
-
-**人物・個体を一件ずつ順に回すのではなく、場所を軸に回す。** 「1月に一度、
-月初に、その時点で人物・個体が居る場所それぞれについて一定の確率で」
-出来事を一件起こす。その場所に居合わせる人物・個体の一覧と、その場所の
-直近の出来事をまとめて渡し、その中の誰が(何が)関わったかをまとめて
-1回の呼び出しで決めさせる。**一人(一個体)だけで完結する出来事に閉じず、
-同じ場に複数の人物・個体がいれば、その間の絡み(対話・衝突・協力)を
-積極的に拾わせる**のが、人物ごとに独立して回していた前の実装との違い
-(絡みが起きにくかった問題への対応)。
-
-出来事に関わった人物ぶんだけ、`DEM/claude_interface/randomizer/commit_event.py`
-の `character_drives` `character_skills` と同じ形で、情動
-(`CharacterEmotion`。テーブル名は `character_drive`)の変化と技
-(`CharacterSkill`)の熟練度もその場でまとめて記録できる(個体には情動・技の
-欄が無いので、個体側はそこまでで止める)。中間レコード
-(`EventCharacter` `EventObject`)は、AI が渡した一覧の中から選べた id の
-ぶんだけ作る(一覧に無い id は無視する)。
-
-**情動(`character_drives`)は、その人物の信念・思考の核になる情報として
-扱う(`IHG/chronicle.md`「人物感情は…」)。** 毎月ロールする日常の出来事の
-たびに積み増すものではなく、その人物にとって信念を揺らすほど大きな出来事の
-ときだけ動かす。それ以外はローカル AI に空リストのまま返させる
-(`_DRIVE_TEXT_INSTRUCTION`)。**同じ人物に既に動いている情動(`end` が
-まだ無いもの)があれば、新しい行を積み増さずにその一件の `text` `level`
-を更新する。**
-
-技は**新しく作らない**。名づけ(`IHG/naming.md`)が要る判断なので、
-既にある技(`Skill`)の中から AI に選ばせるだけにとどめる。当てはまる
-ものが無ければ、その出来事の技の伸びは見送る。**同じ人物が同じ技を
-既に持っていれば(`CharacterSkill` が既にあれば)、行を増やさずに
-`level`(熟練度)だけを更新する。**
-
-場所自身の情報(名前・種別・text)も人物・個体の一覧と一緒に渡す。
-出来事の内容によって人物レコード自体(`Character.text` 一言の現状、
-`Character.belong_id` 所属)が変わったときは、`character_updates`
-(`[{character_id, text?, belong_id?}]`)としてまとめて返させ、
-その場で db に反映する(変わっていない人物は含めない。技名の新規作成と
-同様、ここも既にある `Object` の id から選ぶだけで新規は作らない)。
-
-`event_text` は `commit_event`(`DEM/claude_interface/randomizer/commit_event.py`)
-と同じ基準に揃える。要約で済ませず、**軽い小説として1000文字程度**で
-思考・行動・影響を場面として書かせる(`IHG/chronicle.md`「出来事の text は
-場面で書く」)。プロンプト側の指示は `_EVENT_TEXT_INSTRUCTION` に持つ。
-"""
+"""**場所・時刻ごとに、その場に居合わせる人物・個体を巻き込んだ出来事を起こす。**"""
 from __future__ import annotations
 
 import random
@@ -61,10 +12,15 @@ from DEM.data_access_logic.query import (
 )
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterSkill, Event, EventCharacter,
-    EventObject, Location, Object, Session, Skill, Stamp,
+    EventObject, Location, LocationResource, Object, Session, Skill, Stamp,
 )
 from DEM.local_ai import ai_client
+from DEM.local_ai.time_keeper import random_location_resource_generator
 from DEM.local_ai.time_keeper._format import format_time
+from DEM.randomizer.random_location_generator import build_location
+from DEM.randomizer.random_location_resource_generator import (
+    build_location_resource,
+)
 
 PLACE_PROBABILITY = 0.15  # 月に一度、人物・個体が居る場所1件につき15%の確率で
 
@@ -96,6 +52,15 @@ _CHARACTER_UPDATE_INSTRUCTION = (
     "(変わっていなければキー自体を省く)。"
 )
 
+_LOCATION_CHANGE_INSTRUCTION = (
+    "この出来事が場所自身や資源の改廃(消滅・新設・枯渇・発見)に及ぶときだけ、"
+    "location_abolished / location_founded / resource_depleted / "
+    "resource_created を埋める。何も変わっていなければ location_abolished と "
+    "resource_depleted は false、location_founded と resource_created は null "
+    "のままにする。location_founded の固有名詞は日本的な漢字(訓読み)・"
+    "ひらがな・カタカナで自然に名づける。"
+)
+
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所の日々を描写する設定作家です。"
     "その場所自身の情報、そこに居合わせる人物・個体の一覧、その場所の"
@@ -116,14 +81,26 @@ _PLACE_SYSTEM_PROMPT = (
     "候補の中からだけ選ぶ), level(その技の熟練度。1〜10の整数)の三つ), "
     "character_updates(関わった人物のうち、この出来事で人物レコード自体が"
     "変わった者だけのリスト。各要素は character_id(対象の人物 id)と、"
-    + _CHARACTER_UPDATE_INSTRUCTION + ")"
-    "の七つだけ。"
+    + _CHARACTER_UPDATE_INSTRUCTION + "), "
+    "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
+    "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
+    "{name, kind, text, environment}。無ければ null), "
+    "resource_depleted(bool。この出来事でこの場所の資源が尽きた・失われたか), "
+    "resource_created(この出来事で新しい資源が見つかったなら "
+    "{kind, quantity(総量。100〜100000の整数), unit, "
+    "years(尽きるまでの年数。1〜500の整数), text}。無ければ null)"
+    "の十一個だけ。" + _LOCATION_CHANGE_INSTRUCTION
 )
 
 
 def _should_roll(time: Stamp) -> bool:
     """月に一度、月初(1日)にだけロールする。"""
     return time.day == 1
+
+
+def _end_after_years(start: Stamp, years: int) -> Stamp:
+    return Stamp(start.year + max(years, 1), start.month, start.day,
+                 start.hour, start.minute, start.second)
 
 
 def _current_place_id(session: Session, character: Character, time: Stamp) -> int | None:
@@ -313,6 +290,52 @@ def _progress_place(
         if applied:
             update_notes.append(f"{character.name}: {', '.join(applied)}")
 
+    location_notes = []
+    if decided.get("location_abolished") and place is not None and place.end is None:
+        place.end = time
+        location_notes.append(f"{place.name}(id={place_id}): 消滅")
+
+    founded = decided.get("location_founded")
+    if isinstance(founded, dict) and founded.get("name"):
+        draft = build_location(
+            parent_id=place_id,
+            name=founded.get("name"),
+            kind=founded.get("kind") or "集落",
+            text=founded.get("text") or "",
+            environment=founded.get("environment") or (place.environment if place else None),
+            start=time,
+        )
+        new_location = Location(**draft)
+        session.add(new_location)
+        session.flush()
+        random_location_resource_generator.generate_for_new_location(session, new_location, time)
+        location_notes.append(f"{new_location.name}(id={new_location.id}): 新設")
+
+    resource_notes = []
+    if decided.get("resource_depleted"):
+        depleted = session.scalars(
+            world_createion_query.active_resources_select(place_id, time)
+        ).all()
+        for resource in depleted:
+            resource.end = time
+        if depleted:
+            resource_notes.append(f"既存資源{len(depleted)}件が枯渇")
+
+    created_resource = decided.get("resource_created")
+    if isinstance(created_resource, dict) and created_resource.get("kind"):
+        years = int(created_resource.get("years") or 50)
+        draft = build_location_resource(
+            location_id=place_id,
+            kind=created_resource.get("kind"),
+            quantity=int(created_resource.get("quantity") or 1000),
+            unit=created_resource.get("unit") or "単位",
+            text=created_resource.get("text") or "",
+            start=time,
+            end=_end_after_years(time, years),
+        )
+        session.add(LocationResource(**draft))
+        resource_notes.append(f"{draft['kind']} {draft['quantity']}{draft['unit']} 発見")
+
     session.commit()
     when = format_time(time)
     involved_names = (
@@ -324,7 +347,9 @@ def _progress_place(
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
           + (f" / 技: {'; '.join(skill_notes)}" if skill_notes else "")
-          + (f" / 人物更新: {'; '.join(update_notes)}" if update_notes else ""))
+          + (f" / 人物更新: {'; '.join(update_notes)}" if update_notes else "")
+          + (f" / 場所: {'; '.join(location_notes)}" if location_notes else "")
+          + (f" / 資源: {'; '.join(resource_notes)}" if resource_notes else ""))
     return record
 
 

@@ -125,7 +125,7 @@ class MarkdownExporter:
     def load_query(self, parent_id: int | None = None) -> Select:
         """`parent_id` の配下にあるレコードを引く。
 
-        親の欄を持たないテーブル(`kind` `skill`)は全件。持つテーブルは、
+        親の欄を持たないテーブル(`skill`)は全件。持つテーブルは、
         `parent_id` が `None` なら親のいないもの(＝最上段)だけを引く。
         """
         query = select(self.model)
@@ -279,11 +279,6 @@ class TermExporter(MarkdownExporter):
     self_parent_column = "parent_term_id"
 
 
-class KindExporter(MarkdownExporter):
-    model = Kind
-    folder = Kind.__tablename__
-
-
 class ObjectExporter(MarkdownExporter):
     model = Object
     folder = Object.__tablename__
@@ -325,7 +320,6 @@ class LooseEventExporter(MarkdownExporter):
 root_exporters: tuple[type[MarkdownExporter], ...] = (
     LocationExporter,
     TermExporter,
-    KindExporter,
     ObjectExporter,
     SkillExporter,
     CharacterExporter,

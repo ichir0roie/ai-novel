@@ -6,7 +6,7 @@ https://factoryboy.readthedocs.io/en/stable/reference.html#factory.DictFactory
 db には一切触れない。`DEM.db.schema.Character` にも依存しない
 (列名を合わせているだけで、import はしていない)。固有名詞(名前・読み)や
 本文(text)は仮の値で埋めるだけにとどめる。実在レコードを指す欄
-(`root_place_name` `kind_id` `born_place_id` `belong_id`)もここでは
+(`root_place_name` `born_place_id` `belong_id`)もここでは
 埋めない——存在確認や db への書き込みは呼び出し側
 (`DEM.claude_interface.randomizer.commit_character`)の仕事。
 """
@@ -63,7 +63,6 @@ class CharacterFactory(factory.DictFactory):
 
     # 実在レコードを指す欄。呼び出し側が上書きする前提で None のまま。
     root_place_name = None
-    kind_id = None
     born_place_id = None
     belong_id = None
     start = None
