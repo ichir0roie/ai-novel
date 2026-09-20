@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import random
 
+from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Character, Session, Stamp
 from DEM.local_ai import ai_client
@@ -23,8 +24,7 @@ PROBABILITY = 0.1  # 1月に1度、10%の確率で
 _SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
     "新しく生まれる人物1件について、名前・読み・簡単な人物説明を、"
-    "日本的な漢字(訓読み)・ひらがな・カタカナで名づけた、"
-    "自然な固有名詞で JSON で答えてください。"
+    "自然な固有名詞で JSON で答えてください。" + CHARACTER_NAMING_INSTRUCTION +
     "キーは name(名前), read(読み), text(一言で分かる人物説明)の三つだけ。"
 )
 

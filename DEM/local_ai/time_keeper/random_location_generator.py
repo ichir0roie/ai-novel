@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import random
 
+from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Location, Session, Stamp
 from DEM.local_ai import ai_client
@@ -26,11 +27,10 @@ PROBABILITY = 0.01  # 1年に1度、1%の確率で
 _SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
     "既存の場所の一覧と、新しく生まれる場所がどこの配下になりそうかを渡します。"
-    "その配下に新しく生まれる場所を1件だけ考え、日本的な漢字(訓読み)・"
-    "ひらがな・カタカナで名づけた、自然な固有名詞を JSON で答えてください。"
-    "キーは name(固有名詞), kind(大陸/国/町/村などの種別),"
-    " text(一言で分かる地理・文化の説明), environment(環境。気候・地形など"
-    "一言)の四つだけ。"
+    "その配下に新しく生まれる場所を1件だけ考え、自然な固有名詞を JSON で"
+    "答えてください。" + PLACE_NAMING_INSTRUCTION + "キーは name(固有名詞), "
+    "kind(大陸/国/町/村などの種別), text(一言で分かる地理・文化の説明),"
+    " environment(環境。気候・地形など一言)の四つだけ。"
 )
 
 

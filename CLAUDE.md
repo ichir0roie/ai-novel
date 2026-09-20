@@ -82,12 +82,14 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 個体(群)を一覧で見る                 | `DEM.claude_interface.world.list_objects.ListObjects().run()`(`belong_id` に渡す id を拾う。db には触れない)                                                                                                                                                     |
 | 語をキーワードで検索する             | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`(`term.text` にキーワードを含む語を返す。db には触れない)                                                                                                                               |
 | ランダムな出来事の下書きを作る       | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`(db には触れない。辞書を返すだけ)                                                                                                                                              |
-| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`place_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む。出来事が人物の情動・技を動かしたときは、同じ呼び出しに `character_drives`(`[{character_id, text, level, start?, end?}]`)`character_skills`(`[{character_id, skill_id, level, object_id?}]`)を乗せると、`CharacterEmotion`(情動)`CharacterSkill`(技)もまとめて一件ずつ確定する) |
+| 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`location_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む。出来事が人物の情動・技を動かしたときは、同じ呼び出しに `character_drives`(`[{character_id, text, level, start?, end?}]`)`character_skills`(`[{character_id, skill_id, level, object_id?}]`)を乗せると、`CharacterEmotion`(情動)`CharacterSkill`(技)もまとめて一件ずつ確定する) |
 | 人物を一覧で見る                     | `DEM.claude_interface.world.list_characters.ListCharacters().run()`(名前・説明・技の id・情動の件数まで一括で見渡す。db には触れない)                                                                                                                            |
 | 既にある人物の欄を後から直す         | `DEM.claude_interface.randomizer.update_character.UpdateCharacter(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`text` の書き直しなどに使う)                                                                                                            |
 | 技(能力)そのものを db へ確定する      | `DEM.claude_interface.randomizer.commit_skill.CommitSkill(<辞書かJSON>).run()`(`Skill` のカタログ本体を一件作る。`name` `effect` `text` は必須。ランダム生成の対はまだ無く、内容は手で決める)                                                                   |
 | 人物に技を持たせる(出来事に紐づかない場合) | `DEM.claude_interface.randomizer.commit_character_skill.CommitCharacterSkill(<辞書かJSON>).run()`(`character_id` `skill_id`(あれば `object_id`)の実在確認をしてから `CharacterSkill` を一件足す。出来事の結果としての付与は `commit_event` の `character_skills` を使う) |
 | 人物に情動を持たせる(出来事に紐づかない場合) | `DEM.claude_interface.randomizer.commit_character_drive.CommitCharacterDrive(<辞書かJSON>).run()`(`character_id` の実在確認をしてから `CharacterEmotion` を一件足す。出来事の結果としての付与は `commit_event` の `character_drives` を使う)                     |
+| 場所ごとに進めたい筋書きを db へ確定する | `DEM.claude_interface.randomizer.commit_plot.CommitPlot(<辞書かJSON>).run()`(`Plot` を一件足す。`text`(`MarkdownBase` 由来。進めたい筋書きの本文)は必須。`location_id` を省くと場所を問わず全ての出来事生成に渡る。`start`〜`end` を渡すとその期間だけに絞れる(省けば期間を問わず渡り続ける)。`event_progression_generator` がここを読んで出来事生成の方向づけに使うので、間延びした展開が続くときはここへ筋書きを足す) |
+| 筋書きを一覧で見る                   | `DEM.claude_interface.world.list_plots.ListPlots().run()`(`location_id` が空の行は場所を問わない筋書き。db には触れない)                                                                                                                                        |
 
 上の表にない操作(旧 `tools/novel.py` が持っていた `check` `index` `template`
 など)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
@@ -135,7 +137,10 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - **設定の一元管理**: 本文で新しい設定(地名・組織・技名・過去の出来事)を作ったら、
   モード 3 で必ず世界の側へ書き戻す。**本文にしか存在しない設定を残さない**
 - **用語は日本語として自然に**: 読者は日本人。日本的な漢字(訓読み)・ひらがな・
-  カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)
+  カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)。
+  `DEM/local_ai/` の常駐ループのようにローカル AI が名づけまで自動で行う
+  場面では、`IHG/naming.md` の要旨を切り出した `DEM/ai_instructions/naming.py`
+  の定数をプロンプトに埋め込み、同じ基準を守らせる
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
 - **アバウトな要素は乱数で決める**: `DEM/randomizer/roll.py` を使い、引いた目を記録に残す。
   AI の第一想起で埋めない。**現状 `DEM/randomizer/tables.json` が無く、`roll.py`

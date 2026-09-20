@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session, selectinload
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterPlace, CharacterSkill, Episode,
     Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
-    Story, Term,
+    Plot, Story, Term,
 )
 from DEM.db.stamp import Stamp, StampError
 
@@ -215,6 +215,15 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     if limit:
         query = query.limit(limit)
     return query
+
+
+def plots_select() -> Select:
+    """筋書きの一覧。新しい順。
+
+    場所に紐づけて絞る読み方(親の場所までたどって拾う)は
+    `story_createion_query.load_location_plot` を使う。
+    """
+    return select(Plot).order_by(Plot.id.desc())
 
 
 def open_events_select(place_ids, until: Stamp) -> Select:
