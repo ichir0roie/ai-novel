@@ -81,13 +81,15 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
             os.makedirs(table_dir, exist_ok=True)
 
             for row in rows:
+                id = row.id
+                tag = row.tag
                 data = {
                     column.key: _serialize(getattr(row, column.key))
                     for column in model.__table__.columns
                     if column.key not in ignore_columns
                 }
                 text = row.text or ""
-                filename = f"{data.get('id') or ''}_{data.get('tag') or ''}.md"
+                filename = f"{id or ''}_{tag or ''}.md"
                 path = os.path.join(table_dir, filename)
                 if os.path.exists(path):
                     raise ExportError(f"ファイル名が重複した: {path}")
