@@ -9,6 +9,7 @@ from typing import Mapping
 from sqlalchemy import select
 
 from DEM.ai_instructions.event_writing import (
+    CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_PROGRESSION_INSTRUCTION,
     EVENT_SCENE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
@@ -101,6 +102,23 @@ def _should_roll(time: Stamp) -> bool:
 def _end_after_years(start: Stamp, years: int) -> Stamp:
     return Stamp(start.year + max(years, 1), start.month, start.day,
                  start.hour, start.minute, start.second)
+
+
+def _append_character_note(character: Character, note: str) -> None:
+    """人物の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す。
+
+    上限が無いと、一度紛れ込んだ比喩・語彙が消えずにこの人物が関わる全ての
+    将来の生成へ永久に持ち込まれ続ける(`CHARACTER_NOTE_LIMIT` のコメント
+    参照)。先頭の一段(基礎説明)は常に残し、追記は直近
+    `CHARACTER_NOTE_LIMIT - 1` 件までに切り詰める。
+    """
+    if not character.text:
+        character.text = note
+        return
+    base, *notes = character.text.split(CHARACTER_NOTE_SEPARATOR)
+    notes.append(note)
+    notes = notes[-(CHARACTER_NOTE_LIMIT - 1):] if CHARACTER_NOTE_LIMIT > 1 else []
+    character.text = CHARACTER_NOTE_SEPARATOR.join([base, *notes])
 
 
 def _current_place_id(session: Session, character: Character, time: Stamp) -> int | None:
@@ -248,10 +266,7 @@ def _progress_place(
             continue
         applied = []
         if update.get("text"):
-            character.text = (
-                f"{character.text}\n{update['text']}"
-                if character.text else update["text"]
-            )
+            _append_character_note(character, update["text"])
             applied.append(f"text+={update['text']}")
         if update.get("belong_id") is not None:
             try:
