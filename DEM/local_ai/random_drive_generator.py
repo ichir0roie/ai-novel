@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""**人物の情動(`CharacterEmotion`)の下書きを、ローカルAI(`ai_client`)にまとめて量産させる。**
+"""**人物の情動(`CharacterDrive`)の下書きを、ローカルAI(`ai_client`)にまとめて量産させる。**
 
 `DEM/local_ai/time_keepr/` の常駐系とは違い、呼び出し側が渡す `prompt`
 (どんな情動を量産したいか)と `count`(何件欲しいか)だけを受け取り、
 db には一切触れず辞書のリストを返すだけの量産系。
 
 ここで量産するのは、特定の人物に紐づかない汎用の情動テンプレ
-(`text` `level` だけの辞書)。`CharacterEmotion.character_id` は必須列だが、
+(`text` `level` だけの辞書)。`CharacterDrive.character_id` は必須列だが、
 どの人物に割り当てるかは呼び出し側(`DEM/claude_interface/randomizer/
 commit_character_drive.CommitCharacterDrive`)が確定する直前に決める
 ——ここでは埋めない。

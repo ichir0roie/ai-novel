@@ -30,7 +30,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
-    Character, CharacterEmotion, CharacterPlace, CharacterSkill, Episode,
+    Character, CharacterDrive, CharacterPlace, CharacterSkill, Episode,
     Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
     Plot, Story, Term,
 )
@@ -245,10 +245,10 @@ def open_events_select(place_ids, until: Stamp) -> Select:
 
 def emotions_select(character_id: int, until: Stamp) -> Select:
     """その時点で生きている情動(欲・恐れ・嘘・必要)。"""
-    return (select(CharacterEmotion)
-            .where(CharacterEmotion.character_id == character_id)
-            .where(*_alive(CharacterEmotion, until))
-            .order_by(CharacterEmotion.start.desc(), CharacterEmotion.id.desc()))
+    return (select(CharacterDrive)
+            .where(CharacterDrive.character_id == character_id)
+            .where(*_alive(CharacterDrive, until))
+            .order_by(CharacterDrive.start.desc(), CharacterDrive.id.desc()))
 
 
 def skills_select(character_id: int) -> Select:

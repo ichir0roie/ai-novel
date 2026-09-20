@@ -17,7 +17,7 @@ from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
 from DEM.db.schema import (
-    Character, CharacterEmotion, CharacterSkill, Event, EventCharacter,
+    Character, CharacterDrive, CharacterSkill, Event, EventCharacter,
     EventObject, Location, LocationResource, Object, Session, Skill, Stamp,
 )
 from DEM.local_ai import ai_client
@@ -227,16 +227,16 @@ def _progress_place(
         # 同じ人物に既に動いている情動(end が無いもの)があれば、
         # 積み増さずにその一件を更新する。
         existing_drive = session.scalar(
-            select(CharacterEmotion).where(
-                CharacterEmotion.character_id == character_id,
-                CharacterEmotion.end.is_(None),
+            select(CharacterDrive).where(
+                CharacterDrive.character_id == character_id,
+                CharacterDrive.end.is_(None),
             )
         )
         if existing_drive is not None:
             existing_drive.text = text
             existing_drive.level = level
         else:
-            session.add(CharacterEmotion(
+            session.add(CharacterDrive(
                 character_id=character_id, text=text,
                 level=level, start=time, end=None,
             ))

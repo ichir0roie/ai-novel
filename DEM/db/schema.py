@@ -332,8 +332,8 @@ class Character(MarkdownBase, ObjectBase):
     )
     skills: Mapped[list[CharacterSkill]] = relationship(
         lazy="noload",  order_by="CharacterSkill.id.asc()")
-    emotions: Mapped[list[CharacterEmotion]] = relationship(
-        lazy="noload",  order_by="CharacterEmotion.start.desc()")
+    emotions: Mapped[list[CharacterDrive]] = relationship(
+        lazy="noload",  order_by="CharacterDrive.start.desc()")
 
     events: Mapped[list[Event]] = relationship(
         secondary="event_character", viewonly=True, lazy="noload",
@@ -383,7 +383,7 @@ class CharacterSkill(Base):
     level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度", sort_order=130)
 
 
-class CharacterEmotion(MarkdownBase):
+class CharacterDrive(MarkdownBase):
 
     __tablename__ = "character_drive"
 

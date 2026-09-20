@@ -12,7 +12,7 @@ claude が呼ぶ入口。
 from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
-from DEM.db.schema import Character, CharacterEmotion
+from DEM.db.schema import Character, CharacterDrive
 from DEM.db.schema_pydantic import to_dict
 
 
@@ -22,7 +22,7 @@ class CommitCharacterDrive(CommitDraft):
     `drive` は JSON 文字列でも辞書でもよい。`id` キーは無視する。
     """
 
-    model = CharacterEmotion
+    model = CharacterDrive
 
     def __init__(self, drive: str | dict):
         self.drive = drive
@@ -38,7 +38,7 @@ class CommitCharacterDrive(CommitDraft):
 
         self.check_exists(session, Character, data.get("character_id"), "character_id")
 
-        record = CharacterEmotion(**data)
+        record = CharacterDrive(**data)
         session.add(record)
         session.commit()
         return to_dict(record)
