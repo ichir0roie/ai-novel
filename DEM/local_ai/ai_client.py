@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
 import urllib.request
 
 
@@ -68,7 +67,11 @@ def generate(
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.loads(response.read())
-    except urllib.error.URLError as error:
+    except OSError as error:
+        # `urllib.error.URLError` は `OSError` のサブクラスだが、読み取り中の
+        # タイムアウトは(接続時と違い)素の `TimeoutError` のまま urlopen を
+        # 抜けてくることがある。まとめて `OSError` で受けて、常駐ループ
+        # (`try_generate_json`)がどちらも同じ `LocalAIError` として拾えるようにする。
         raise LocalAIError(f"ローカルAIサーバ({url})に接続できない: {error}") from error
 
     text = result.get("response")
