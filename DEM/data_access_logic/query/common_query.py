@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
@@ -108,6 +108,11 @@ def _alive(model, until: Stamp):
     """その時点で**まだ続いている**行（始まっていて、終わっていない）。"""
     return (or_(model.start.is_(None), model.start <= until),
             or_(model.end.is_(None), model.end > until))
+
+
+def latest_time_select() -> Select:
+    """世界の側で一番新しい出来事の時刻。`time_keepr` のループを再開する起点に使う。"""
+    return select(func.max(Event.time))
 
 
 # ---------------------------------------------------------------- 場所の木
