@@ -27,11 +27,22 @@ AI(`ai_client`)に委ねる)。
 扱う(`IHG/chronicle.md`「人物感情は…」)。** 毎月ロールする日常の出来事の
 たびに積み増すものではなく、その人物にとって信念を揺らすほど大きな出来事の
 ときだけ動かす。それ以外はローカル AI に空リストのまま返させる
-(`_DRIVE_TEXT_INSTRUCTION`)。
+(`_DRIVE_TEXT_INSTRUCTION`)。**同じ人物に既に動いている情動(`end` が
+まだ無いもの)があれば、新しい行を積み増さずにその一件の `text` `level`
+を更新する。**
 
 技は**新しく作らない**。名づけ(`IHG/naming.md`)が要る判断なので、
 既にある技(`Skill`)の中から AI に選ばせるだけにとどめる。当てはまる
-ものが無ければ、その出来事の技の伸びは見送る。
+ものが無ければ、その出来事の技の伸びは見送る。**同じ人物が同じ技を
+既に持っていれば(`CharacterSkill` が既にあれば)、行を増やさずに
+`level`(熟練度)だけを更新する。**
+
+場所自身の情報(名前・種別・text)も人物・個体の一覧と一緒に渡す。
+出来事の内容によって人物レコード自体(`Character.text` 一言の現状、
+`Character.belong_id` 所属)が変わったときは、`character_updates`
+(`[{character_id, text?, belong_id?}]`)としてまとめて返させ、
+その場で db に反映する(変わっていない人物は含めない。技名の新規作成と
+同様、ここも既にある `Object` の id から選ぶだけで新規は作らない)。
 
 `event_text` は `commit_event`(`DEM/claude_interface/randomizer/commit_event.py`)
 と同じ基準に揃える。要約で済ませず、**軽い小説として1000文字程度**で
@@ -46,11 +57,11 @@ from collections import defaultdict
 from sqlalchemy import select
 
 from DEM.data_access_logic.query import (
-    common_query, story_createion_query, world_createion_query,
+    common_query, world_createion_query,
 )
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterSkill, Event, EventCharacter,
-    EventObject, Object, Session, Skill, Stamp,
+    EventObject, Location, Object, Session, Skill, Stamp,
 )
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
@@ -77,10 +88,19 @@ _INVOLVEMENT_INSTRUCTION = (
     "空リストにする。"
 )
 
+_CHARACTER_UPDATE_INSTRUCTION = (
+    "text はその人物の現状を一言で言い直したもの(直近の様子・立場が"
+    "この出来事で変わったときだけ書く。変わっていなければこの人物自体を"
+    "character_updates に含めない)。belong_id はその人物の所属が"
+    "この出来事で変わったときだけ、渡した「居合わせる個体」の id から選ぶ"
+    "(変わっていなければキー自体を省く)。"
+)
+
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所の日々を描写する設定作家です。"
-    "その場所に居合わせる人物・個体の一覧と、その場所の直近の出来事を渡す"
-    "ので、この時点でこの場所に起きる出来事を1件だけ考えてください。"
+    "その場所自身の情報、そこに居合わせる人物・個体の一覧、その場所の"
+    "直近の出来事を渡すので、この時点でこの場所に起きる出来事を1件だけ"
+    "考えてください。"
     + _INVOLVEMENT_INSTRUCTION +
     "JSON で答えてください。キーは "
     "event_name(出来事の名前), event_kind(出来事の種別。一言。"
@@ -93,8 +113,11 @@ _PLACE_SYSTEM_PROMPT = (
     "), level(その情動の強さ。1〜10の整数)の三つ), "
     "character_skills(関わった人物のうち、技が伸びた者だけのリスト。各要素は"
     "character_id(対象の人物 id), skill_name(伸びた技の名前。渡した技の"
-    "候補の中からだけ選ぶ), level(その技の熟練度。1〜10の整数)の三つ)"
-    "の六つだけ。"
+    "候補の中からだけ選ぶ), level(その技の熟練度。1〜10の整数)の三つ), "
+    "character_updates(関わった人物のうち、この出来事で人物レコード自体が"
+    "変わった者だけのリスト。各要素は character_id(対象の人物 id)と、"
+    + _CHARACTER_UPDATE_INSTRUCTION + ")"
+    "の七つだけ。"
 )
 
 
@@ -151,14 +174,16 @@ def _progress_place(
     characters: list[Character], objects: list[Object], time: Stamp,
 ) -> Event | None:
     recent_events = session.scalars(
-        story_createion_query.events_of_select(place_id, until=time, limit=10)
+        common_query.events_of_select(place_id, until=time, limit=10)
     ).all()
     catalog = session.scalars(select(Skill)).all()
+    place = session.get(Location, place_id)
 
     prompt = (
         f"場所id: {place_id}\n"
-        f"居合わせる人物: {[(c.id, c.name, c.tone) for c in characters[:20]]}\n"
-        f"居合わせる個体: {[(o.id, o.name) for o in objects[:20]]}\n"
+        f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
+        f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
+        f"居合わせる個体: {[(o.id, o.name, o.text) for o in objects[:20]]}\n"
         f"直近の出来事: {[e.name for e in recent_events]}\n"
         f"選べる技の候補: {sorted(s.name for s in catalog)}\n"
         f"現在の時刻: {time}\n"
@@ -203,6 +228,8 @@ def _progress_place(
 
     drive_notes = []
     for drive in decided.get("character_drives") or []:
+        if not isinstance(drive, dict):
+            continue
         try:
             character_id = int(drive.get("character_id"))
         except (TypeError, ValueError):
@@ -210,15 +237,29 @@ def _progress_place(
         text = drive.get("text")
         if character_id not in character_ids or not text:
             continue
-        session.add(CharacterEmotion(
-            character_id=character_id, text=text,
-            level=int(drive.get("level") or 1),
-            start=time, end=None,
-        ))
+        level = int(drive.get("level") or 1)
+        # 同じ人物に既に動いている情動(end が無いもの)があれば、
+        # 積み増さずにその一件を更新する。
+        existing_drive = session.scalar(
+            select(CharacterEmotion).where(
+                CharacterEmotion.character_id == character_id,
+                CharacterEmotion.end.is_(None),
+            )
+        )
+        if existing_drive is not None:
+            existing_drive.text = text
+            existing_drive.level = level
+        else:
+            session.add(CharacterEmotion(
+                character_id=character_id, text=text,
+                level=level, start=time, end=None,
+            ))
         drive_notes.append(f"{character_ids[character_id].name}: {text}")
 
     skill_notes = []
     for growth in decided.get("character_skills") or []:
+        if not isinstance(growth, dict):
+            continue
         try:
             character_id = int(growth.get("character_id"))
         except (TypeError, ValueError):
@@ -230,11 +271,47 @@ def _progress_place(
         if skill is None:
             print(f"[time_keepr/event] 既存に無い技名 {skill_name!r} は見送り")
             continue
-        session.add(CharacterSkill(
-            character_id=character_id, skill_id=skill.id,
-            level=int(growth.get("level") or 1),
-        ))
-        skill_notes.append(f"{character_ids[character_id].name}: {skill_name}")
+        level = int(growth.get("level") or 1)
+        # 同じ人物が同じ技を既に持っていれば、行を増やさずに熟練度だけ更新する。
+        existing_skill = session.scalar(
+            select(CharacterSkill).where(
+                CharacterSkill.character_id == character_id,
+                CharacterSkill.skill_id == skill.id,
+            )
+        )
+        if existing_skill is not None:
+            existing_skill.level = level
+        else:
+            session.add(CharacterSkill(
+                character_id=character_id, skill_id=skill.id, level=level,
+            ))
+        skill_notes.append(f"{character_ids[character_id].name}: {skill_name}(lv{level})")
+
+    update_notes = []
+    for update in decided.get("character_updates") or []:
+        if not isinstance(update, dict):
+            continue
+        try:
+            character_id = int(update.get("character_id"))
+        except (TypeError, ValueError):
+            continue
+        character = character_ids.get(character_id)
+        if character is None:
+            continue
+        applied = []
+        if update.get("text"):
+            character.text = update["text"]
+            applied.append(f"text={update['text']}")
+        if update.get("belong_id") is not None:
+            try:
+                belong_id = int(update["belong_id"])
+            except (TypeError, ValueError):
+                belong_id = None
+            if belong_id in object_ids:
+                character.belong_id = belong_id
+                applied.append(f"belong_id={belong_id}")
+        if applied:
+            update_notes.append(f"{character.name}: {', '.join(applied)}")
 
     session.commit()
     when = format_time(time)
@@ -246,7 +323,8 @@ def _progress_place(
           f"{record.name}({record.kind}) {record.text}"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
-          + (f" / 技: {'; '.join(skill_notes)}" if skill_notes else ""))
+          + (f" / 技: {'; '.join(skill_notes)}" if skill_notes else "")
+          + (f" / 人物更新: {'; '.join(update_notes)}" if update_notes else ""))
     return record
 
 

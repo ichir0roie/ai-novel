@@ -1,4 +1,6 @@
 
+import random
+
 from DEM.db.schema import *
 from DEM.local_ai import ai_client
 from DEM.data_access_logic.query import (
@@ -9,6 +11,7 @@ from DEM.data_access_logic.query import (
     world_createion_query
 )
 from DEM.local_ai.time_keeper import (
+    character_lifespan,
     event_progression_generator,
     random_character_generator,
     random_location_generator,
@@ -41,12 +44,13 @@ def time_process(
     random_location_generator.generate_random(s, time)
     random_location_resource_generator.generate_random(s, time)
     random_character_generator.generate_random(s, time)
+    character_lifespan.generate_random(s, time)
     event_progression_generator.generate_random(s, time)
     # random_object_generator.generate_random(s, time)
 
 
 if __name__ == "__main__":
-    year = int(input("year>>"))
+    year = random.randint(0, 99999)
     stamp = Stamp(
         year
     )
