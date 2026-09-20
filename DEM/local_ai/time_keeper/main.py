@@ -8,14 +8,14 @@ from DEM.data_access_logic.query import (
     story_createion_query,
     world_createion_query
 )
-from DEM.local_ai.time_keepr import (
+from DEM.local_ai.time_keeper import (
     event_progression_generator,
     random_character_generator,
     random_location_generator,
     random_location_resource_generator,
     # random_object_generator
 )
-from DEM.local_ai.time_keepr._format import format_time, next_day
+from DEM.local_ai.time_keeper._format import format_time, next_day
 
 
 def loop_time(start_time: Stamp | None = None):

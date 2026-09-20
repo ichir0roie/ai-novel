@@ -21,4 +21,6 @@ class ListPlaces(WorldQuery):
 
     def row(self, row) -> dict:
         return {"id": row.id, "name": row.name, "kind": row.kind,
-                "parent_id": row.parent_id}
+                "parent_id": row.parent_id,
+                "sample_region": row.sample_region, "sample_culture": row.sample_culture,
+                "sample_era": row.sample_era}

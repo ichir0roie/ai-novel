@@ -31,6 +31,9 @@ class LocationFactory(factory.DictFactory):
     location_altitude = None
     area = None
     environment = None
+    sample_region = None
+    sample_culture = None
+    sample_era = None
     start = None
     end = None
 

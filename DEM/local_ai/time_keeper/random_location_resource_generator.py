@@ -18,7 +18,7 @@ from __future__ import annotations
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Location, LocationResource, Session, Stamp
 from DEM.local_ai import ai_client
-from DEM.local_ai.time_keepr._format import format_time
+from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_location_resource_generator import (
     build_location_resource,
 )
