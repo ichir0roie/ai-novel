@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""**場所・時刻ごとに、その場に居合わせる人物・個体を巻き込んだ出来事を起こす。**"""
+"""**場所・時刻ごとに、その場に居合わせる人物・個体を巻き込んだ出来事を起こす。**
+
+出来事には `start`〜`end`(進行中と見なす幅)を持たせる。`end` はローカル
+AI が決める `event_duration_days`(`EVENT_DURATION_INSTRUCTION`)を `start`
+に足して組む。**進行中の出来事がある人物は、`end` を過ぎるまで次の出来事の
+対象にしない**(`_group_by_place` が `world_createion_query.busy_character_ids_select`
+で除く)。これが無いと、同じ人物が3日おきのロールのたび毎回新しい出来事に
+巻き込まれ、前の出来事がまだ続いているはずの間にも次々と話が進んでしまう。
+"""
 from __future__ import annotations
 
 import random
@@ -10,8 +18,8 @@ from sqlalchemy import select
 
 from DEM.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
-    CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_PROGRESSION_INSTRUCTION,
-    EVENT_SCENE_INSTRUCTION, RECENT_EVENT_LIMIT,
+    CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
+    EVENT_PROGRESSION_INSTRUCTION, EVENT_SCENE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
@@ -24,7 +32,7 @@ from DEM.db.schema import (
 )
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import random_location_resource_generator
-from DEM.local_ai.time_keeper._format import format_time
+from DEM.local_ai.time_keeper._format import add_days, format_time
 from DEM.randomizer.random_location_generator import build_location
 from DEM.randomizer.random_location_resource_generator import (
     build_location_resource,
@@ -32,6 +40,10 @@ from DEM.randomizer.random_location_resource_generator import (
 
 EVENT_ROLL_INTERVAL_DAYS = 3  # 3日毎に、人物・個体が居る場所それぞれでロールする
 PLACE_PROBABILITY = 0.10  # ロールのたび、場所1件につき10%の確率で出来事を起こす
+
+# event_duration_days の取りうる範囲。範囲外の値は丸める。
+_EVENT_DURATION_RANGE_DAYS = (1, 90)
+_DEFAULT_EVENT_DURATION_DAYS = 1
 
 _EVENT_TEXT_INSTRUCTION = (
     "直近のeventのリストから、状況を把握する。年齢、性別、性格、emotion、"
@@ -90,7 +102,7 @@ _PLACE_SYSTEM_PROMPT = (
     "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
     "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
     "{name, kind, text, environment}。無ければ null), "
-    + _LOCATION_CHANGE_INSTRUCTION
+    + _LOCATION_CHANGE_INSTRUCTION + EVENT_DURATION_INSTRUCTION
 )
 
 
@@ -141,13 +153,21 @@ def _group_by_place(
     居場所の記録(`character_place` / `object_place`)が無いものは、
     出自の場所(`born_place_id` / `root_place_name`)に居るとみなす
     (`_current_place_id` `_current_object_place_id` と同じ扱い)。
+
+    **進行中の出来事(`start`〜`end` がこの時点を含む)に関わっている人物は
+    外す。** その人物が次の出来事に移るのは、今の出来事の `end` を過ぎてから。
     """
     grouped: dict[int, tuple[list[Character], list[Object]]] = defaultdict(
         lambda: ([], []))
 
+    busy_character_ids = set(session.scalars(
+        world_createion_query.busy_character_ids_select(time)).all())
+
     characters = session.scalars(
         world_createion_query.alive_characters_select(time)).all()
     for character in characters:
+        if character.id in busy_character_ids:
+            continue
         place_id = _current_place_id(session, character, time)
         if place_id is None:
             continue
@@ -208,12 +228,22 @@ def _progress_place(
     involved_character_ids = _valid_ids(decided.get("character_ids"), character_ids)
     involved_object_ids = _valid_ids(decided.get("object_ids"), object_ids)
 
+    try:
+        duration_days = int(decided.get("event_duration_days"))
+    except (TypeError, ValueError):
+        duration_days = _DEFAULT_EVENT_DURATION_DAYS
+    duration_days = min(max(duration_days, _EVENT_DURATION_RANGE_DAYS[0]),
+                         _EVENT_DURATION_RANGE_DAYS[1])
+    end = add_days(time, duration_days)
+
     record = Event(
         name=decided["event_name"],
         kind=decided.get("event_kind") or "",
         text=decided.get("event_text") or "",
         time=time,
         location_id=place_id,
+        start=time,
+        end=end,
     )
     record.event_characters = [
         EventCharacter(character_id=cid) for cid in involved_character_ids
@@ -335,6 +365,7 @@ def _progress_place(
     ]
     print(f"[time_keepr/event] {when} 場所id={place_id}: "
           f"{record.name}({record.kind}) {record.text}"
+          f" / 継続: {duration_days}日({when}〜{format_time(end)})"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
           + (f" / 人物更新: {'; '.join(update_notes)}" if update_notes else "")

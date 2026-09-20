@@ -139,6 +139,14 @@ class Location(MarkdownBase):
         String, comment="参考にした実在の時代(例: 「中世」「産業革命期」)。"
         "技術水準・社会制度の手がかりとして持つ", sort_order=308)
 
+    random_character_source: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="オンなら、この場所にまだ人物が一人も居ないとき、"
+        "月初の判定でまとめて1〜4人を生成する対象にする"
+        "(DEM/local_ai/time_keeper/random_character_generator.py の "
+        "seed_initial_characters)。長期間、場所ごとの人物が増えない問題への対処",
+        sort_order=309)
+
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=310)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=320)
 
