@@ -24,7 +24,7 @@ claudeが実行するスクリプト群を配置する。
 Entrypoint(claude_interface/_base.py)
 ├─ SessionEntrypoint            db セッションを開いて execute(session) へ渡す
 │   ├─ CommitEntrypoint         「確定する」系の共通処理(parse/check_columns/check_exists)
-│   │   ├─ randomizer.CommitDraft   → commit_character.py / commit_event.py
+│   │   ├─ randomizer.CommitDraft   → commit_character.py / commit_event.py / commit_place.py / update_place.py
 │   │   └─ story.StoryCommit        → commit_episode.py / set_episode_synced.py
 │   ├─ world.WorldQuery          → list_kinds.py / list_objects.py / list_places.py / search_terms.py
 │   └─ story.StoryQuery          → list_stories.py / read_*.py / start_story.py
