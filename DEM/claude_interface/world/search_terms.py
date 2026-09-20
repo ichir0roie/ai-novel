@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """**語をキーワードで検索する**、claude が呼ぶ入口。
 
-`term.text`（本文）にそのキーワードを含む語を一覧で返す。db には書き込まない。
+`term.text`(本文)にそのキーワードを含む語を一覧で返す。db には書き込まない。
 """
 from __future__ import annotations
 

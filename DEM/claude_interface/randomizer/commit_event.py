@@ -5,13 +5,13 @@
 ものを受け取る想定。db に触れるのはこのモジュールだけ——
 `create_random_event` 側は一切 db を見ない。
 
-実在レコードを指す欄（`place_id` `character_ids` `object_ids`
-`parent_event_id`）は、渡された id が db に実在するかをここで確かめてから
-書き込む。`character_ids` `object_ids` は id のリスト（多対多。何人・
-何個体でも渡せる。省けば空の一覧のまま）で、`event_character` `event_object`
-（中間テーブル）へ一件ずつ書き込む。`name` と `time` は必須。
-スキーマに無い欄が混じっていたら（`DEM/db/schema.py` の `Event` の列と
-照らして）そこで止める。
+実在レコードを指す欄(`place_id` `character_ids` `object_ids`
+`parent_event_id`)は、渡された id が db に実在するかをここで確かめてから
+書き込む。`character_ids` `object_ids` は id のリスト(多対多。何人・
+何個体でも渡せる。省けば空の一覧のまま)で、`event_character` `event_object`
+(中間テーブル)へ一件ずつ書き込む。`name` と `time` は必須。
+スキーマに無い欄が混じっていたら(`DEM/db/schema.py` の `Event` の列と
+照らして)そこで止める。
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class CommitEvent(CommitDraft):
     """出来事を一件、db へ確定して、格納後の中身を辞書で返す。
 
     `event` は JSON 文字列でも辞書でもよい。`id` キーは無視する
-    （採番は db に任せる）。
+    (採番は db に任せる)。
     """
 
     model = Event

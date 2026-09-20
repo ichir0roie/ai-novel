@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 # 2 段階マイグレーションの 2 段目。filepath の文字列を格納していた FK 列を、
-# 参照先テーブルの id（BigInteger）へ差し替える。
+# 参照先テーブルの id(BigInteger)へ差し替える。
 # table -> [(column, referenced_table), ...]
 _FK_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "location": [("parent_id", "location")],
@@ -70,7 +70,7 @@ _FK_COLUMNS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
-# 元の型に戻すときのため（downgrade）。全て String（filepath）。
+# 元の型に戻すときのため(downgrade)。全て String(filepath)。
 _ORIGINAL_TYPE = sa.String()
 
 
@@ -80,14 +80,14 @@ def _tmp(column: str) -> str:
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # 1) 一時列（BigInteger）を追加
+    # 1) 一時列(BigInteger)を追加
     for table, columns in _FK_COLUMNS.items():
         with op.batch_alter_table(table, schema=None) as batch_op:
             for column, _ in columns:
                 batch_op.add_column(sa.Column(_tmp(column), sa.BigInteger(), nullable=True))
 
-    # 2) filepath を辿って id を埋める（自己参照テーブルも filepath 列自体は
-    #    まだ残っているので、この時点なら参照できる）
+    # 2) filepath を辿って id を埋める(自己参照テーブルも filepath 列自体は
+    #    まだ残っているので、この時点なら参照できる)
     for table, columns in _FK_COLUMNS.items():
         for column, ref_table in columns:
             op.execute(
@@ -99,8 +99,8 @@ def upgrade() -> None:
 
     # 3) 旧列を落として一時列を本来の名前へ戻し、FK 制約を張り直す。
     #    drop/rename/create_foreign_key を同じ batch 内でまとめて行う
-    #    （batch を分けると、リネーム後の列に対する既存インデックスの
-    #    複製で名前が衝突する）。
+    #    (batch を分けると、リネーム後の列に対する既存インデックスの
+    #    複製で名前が衝突する)。
     #    旧列に張られていたインデックスは、リネーム後の同名インデックス複製と
     #    衝突するので先に落としておく。
     bind = op.get_bind()
@@ -126,8 +126,8 @@ def upgrade() -> None:
                     f"fk_{table}_{column}_{ref_table}",
                     ref_table, [column], ["id"],
                 )
-        # batch の外で張り直す（batch 内で drop/create を両方行うと、
-        # 内部の新旧テーブル間インデックス複製処理が壊れる）
+        # batch の外で張り直す(batch 内で drop/create を両方行うと、
+        # 内部の新旧テーブル間インデックス複製処理が壊れる)
         for ix_name, ix_columns in stale_indexes:
             op.create_index(ix_name, table, ix_columns)
 

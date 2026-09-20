@@ -20,13 +20,13 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# 過去のマイグレーション（04072625802a, 6a507ffc8bdb）は「1 テーブルずつ
+# 過去のマイグレーション(04072625802a, 6a507ffc8bdb)は「1 テーブルずつ
 # rename → create → copy → drop」を回していた。だが SQLite の
 # ALTER TABLE RENAME は、他テーブルの FK 参照テキストをリネーム先の名前へ
 # 自動的に書き換えてしまうため、まだ処理していないテーブルを later rename
 # したとき、既に作り直したテーブルの FK が実在しない "_old_<table>" /
 # "_alembic_tmp_<table>" を指したまま壊れて残っていた
-# （PRAGMA foreign_key_check で実際に検出できる）。
+# (PRAGMA foreign_key_check で実際に検出できる)。
 #
 # ここでは FK を持つ全テーブルを「全部 rename → 全部 create → 全部 copy →
 # 全部 drop」の 4 フェーズでまとめて作り直し、schema.py の定義どおりの
@@ -74,7 +74,7 @@ def downgrade() -> None:
     """Downgrade schema.
 
     FK の張り方を直しただけで列構成やデータは変えていないため、
-    downgrade は no-op でよい（一つ前のリビジョンに戻っても
-    データが壊れることはない）。
+    downgrade は no-op でよい(一つ前のリビジョンに戻っても
+    データが壊れることはない)。
     """
     pass

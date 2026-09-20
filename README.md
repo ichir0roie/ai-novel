@@ -13,14 +13,14 @@ AI にラノベを書いてもらうためのプロジェクト。
 | `core/`      | 共通の作業方針やテクニック。どの世界線・どの作品にも効く知見 |
 | `novels/`    | 世界の記録と本文。**置き場所がレコードの種類を決める**       |
 | `tools/`     | Python ツール群                                              |
-| `docs/`      | 覚書とプロットアイデア置き場（`docs/plot-ideas/`）            |
+| `docs/`      | 覚書とプロットアイデア置き場(`docs/plot-ideas/`)             |
 
 ```
 core/
-  principles.md       プロジェクトの目的と禁止事項（最優先）
+  principles.md       プロジェクトの目的と禁止事項(最優先)
   workflow.md         **進め方。三つのモードに分かれている**
   chronicle.md        **記録の取り方と、話を尽きさせない仕組み**
-  naming.md           用語と名づけの基準（日本語として自然に）
+  naming.md           用語と名づけの基準(日本語として自然に)
   writing-style.md    文体の基本方針
   structure.md        構成・プロットのテクニック
   characters.md       キャラ造形のテクニック
@@ -30,19 +30,19 @@ core/
 
 novels/
   worlds/<世界線>/     場所の木。1 ディレクトリ = 1 世界線
-  objects/<世界線>/     群として振る舞うもの。種別（系統・国・組織・仕組み）と、
+  objects/<世界線>/     群として振る舞うもの。種別(系統・国・組織・仕組み)と、
                        その個体。居場所と行動の時系列を持つ
   characters/<出身地>/ 一人ひとりの人間。感情・思想・性格・背丈・能力・性別・
                        種族・一人称・二人称・三人称まで持つ、いちばん細かい記録
-  terms/               語（`<語>/<語>.md`。入れ子にできる）
+  terms/               語(`<語>/<語>.md`。入れ子にできる)
   stories/<作品名>/     本文。meta.md / plot.md / episodes/<話数>.md
   novel.db             組み上げた SQLite。git には入れない
 
 tools/
-  schema.py           **記録の形（SQLAlchemy）。DB の列も front matter の欄もここ一か所**
+  schema.py           **記録の形(SQLAlchemy)。DB の列も front matter の欄もここ一か所**
   reader.py           マークダウンをレコードに起こす読み取り
-  novel.py            入口（check / build / brief / list / show / template / index / sql）
-  roll.py             乱数ツール（設定をアバウトに決めるとき）
+  novel.py            入口(check / build / brief / list / show / template / index / sql)
+  roll.py             乱数ツール(設定をアバウトに決めるとき)
   tables.json         乱数テーブル
 ```
 
@@ -65,31 +65,31 @@ pip install -r requirements.txt
 ```
 
 1. principles.md と workflow.md を読む
-2. 世界を起こす（モード 1）。world-template.md から
+2. 世界を起こす(モード 1)。world-template.md から
    `novels/worlds/<世界線>/<世界線>.md` を書く
 3. 作品を起こす。story-meta-template.md と `plot-template.md` から
    `novels/stories/<作品名>/` に置く
-4. **書く前に断面を取る**（`python3 tools/novel.py brief --place <場所> --time <年>`）
-5. `novels/stories/<作品名>/episodes/` に本文を書く（モード 2）
-6. **書けたら世界の側へ戻す**（モード 3 → `python3 tools/novel.py check`）
+4. **書く前に断面を取る**(`python3 tools/novel.py brief --place <場所> --time <年>`)
+5. `novels/stories/<作品名>/episodes/` に本文を書く(モード 2)
+6. **書けたら世界の側へ戻す**(モード 3 → `python3 tools/novel.py check`)
 
 ## 命名規約
 
 - 世界線・場所・種別・個体・人物・語のディレクトリ名とファイル名は**日本語でよい**。
   **名前から id を採番する**ので、中身がひと目で分かる名前を優先する。
-  **id は資料に書かない**（chronicle.md）
+  **id は資料に書かない**(chronicle.md)
 - 出来事・行動・居場所は `{年}_{mm}_{dd}_{名}.md`。時刻まで要るなら
-  `{年}_{mm}_{dd}_{hhmmss}_{名}.md`（`4360_07_12_着陸.md` / `4360_07_12_093000_着陸.md`）。
-  front matter の中は `y/mm/dd hh:mm:ss`。**年に上限はない**（`tools/stamp.py`）
-- スクリプトなど日本語が扱いにくいものは半角英数とハイフン（例: `tools/roll.py`）
-- 各話ファイルは話数だけ（`1.md`, `2.md`）。**ゼロ埋めしない**
+  `{年}_{mm}_{dd}_{hhmmss}_{名}.md`(`4360_07_12_着陸.md` / `4360_07_12_093000_着陸.md`)。
+  front matter の中は `y/mm/dd hh:mm:ss`。**年に上限はない**(`tools/stamp.py`)
+- スクリプトなど日本語が扱いにくいものは半角英数とハイフン(例: `tools/roll.py`)
+- 各話ファイルは話数だけ(`1.md`, `2.md`)。**ゼロ埋めしない**
 
 ## AI に依頼するときのコツ
 
-- **どのモードの作業か**を最初に言う（「設定を足して」「3 話を書いて」「台帳に戻して」）
+- **どのモードの作業か**を最初に言う(「設定を足して」「3 話を書いて」「台帳に戻して」)
 - 「どの世界線か」「どの作品か」をパスで指定する
-  （例: `novels/stories/<作品名>` の 3 話を書いて）
+  (例: `novels/stories/<作品名>` の 3 話を書いて)
 - 新しく決めた設定は本文だけに置かず、必ずモード 3 で世界の側へ戻す
 - 続きを書かせるときは話数ではなく**年と場所**で指定する
-  （例: `--place ムシュヴァン --time 4362` の断面から 2 話）
+  (例: `--place ムシュヴァン --time 4362` の断面から 2 話)
 - 文体の好みが変わったら writing-style.md を直す。次からの全作品に効く

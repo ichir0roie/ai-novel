@@ -2,7 +2,7 @@
 """schema.py の ORM モデルから、pydantic モデルを自動で組む。
 
 **欄の一元管理は schema.py のまま。** ここでは欄を並べ直さず、
-SQLAlchemy のマッパー情報（列の型・Nullable・ForeignKey・relationship）を
+SQLAlchemy のマッパー情報(列の型・Nullable・ForeignKey・relationship)を
 そのまま読み取って pydantic モデルを作る。schema.py に欄を足せば、
 ここは何も書き換えずに追随する。
 
@@ -73,14 +73,14 @@ def _model_for(orm_cls: type[DeclarativeBase]) -> type[BaseModel]:
 def to_model(row) -> BaseModel:
     """ORM インスタンス一件を、対応する pydantic モデルへ変換する。
 
-    relationship でぶら下がる先（`Event.place` など）は含まない。
+    relationship でぶら下がる先(`Event.place` など)は含まない。
     列だけを持つ、素の一件分のデータになる。
     """
     return _model_for(type(row)).model_validate(row)
 
 
 def to_dict(row) -> dict:
-    """`to_model` の JSON 化しやすい dict 版（Stamp は文字列にする）。"""
+    """`to_model` の JSON 化しやすい dict 版(Stamp は文字列にする)。"""
     return _to_jsonable(to_model(row).model_dump())
 
 
@@ -103,14 +103,14 @@ def to_json(row) -> str:
 def relation_names(row, relations) -> dict:
     """**ロード済みの relationship から、関連レコードの名前だけを引く。**
 
-    追加クエリ（旧 `query._name()`）を打たず、`selectinload` 等で
+    追加クエリ(旧 `query._name()`)を打たず、`selectinload` 等で
     あらかじめ読み込んである関連オブジェクトの `.name` を読むだけにする。
-    未ロードの relationship（`lazy="noload"`）を渡すと素の SQLAlchemy が
+    未ロードの relationship(`lazy="noload"`)を渡すと素の SQLAlchemy が
     例外を投げるので、呼ぶ側は select 文に `options(selectinload(...))` を
     付けておく。
 
-    `relations` はリレーション名のリスト（`["kind", "belong"]`。出力の
-    キーは `"kind_name"` のように `_name` を足したもの）か、出力キーを
+    `relations` はリレーション名のリスト(`["kind", "belong"]`。出力の
+    キーは `"kind_name"` のように `_name` を足したもの)か、出力キーを
     変えたいときの `{"kind": "kind_name"}` のような辞書。値は関連レコードが
     無ければ `None`。
     """
@@ -128,8 +128,8 @@ def relation_names(row, relations) -> dict:
 def to_dict_with(row, *, relations=(), text: bool = True) -> dict:
     """`to_dict` に、ロード済み relationship の名前解決を重ねる。
 
-    `text=False` なら `text` 欄を落とす（一覧を見るときなど、本文までは
-    要らない場合に使う）。
+    `text=False` なら `text` 欄を落とす(一覧を見るときなど、本文までは
+    要らない場合に使う)。
     """
     data = to_dict(row)
     if not text:

@@ -10,4 +10,4 @@ class StoryQuery(SessionEntrypoint):
 
 
 class StoryCommit(CommitEntrypoint):
-    """話（episode）を db へ確定する系の基底。"""
+    """話(episode)を db へ確定する系の基底。"""

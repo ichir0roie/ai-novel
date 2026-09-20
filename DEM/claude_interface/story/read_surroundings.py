@@ -2,8 +2,8 @@
 """**人物一人を軸に、その時刻・その居場所の周辺**を読む、claude が呼ぶ入口。
 
 `read_cast` が作品の立つ場所を軸にするのに対して、こちらは**人物**を軸にする。
-その人物がその時点で居る場所（とその配下）に、同じ時点で居合わせる人物・
-個体（群）、そこで起きた直近の出来事（`reach` 年ぶん）を一度に返す。
+その人物がその時点で居る場所(とその配下)に、同じ時点で居合わせる人物・
+個体(群)、そこで起きた直近の出来事(`reach` 年ぶん)を一度に返す。
 ランダム生成・展開の検討材料を広げるのに使う。
 
 `DEM/data_access_logic/query/character_simulation_query.character_around_event`
@@ -22,7 +22,7 @@ class ReadSurroundings(StoryQuery):
 
     def __init__(self, character_id: int, time, reach: int = 60):
         if time is None:
-            raise ValueError("時刻が決まらない（time を渡す）")
+            raise ValueError("時刻が決まらない(time を渡す)")
         self.character_id = character_id
         self.time = time
         self.reach = reach

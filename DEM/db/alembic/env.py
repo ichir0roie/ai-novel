@@ -19,7 +19,7 @@ from DEM.db.schema import Base, DB_PATH  # noqa: E402
 # access to the values within the .ini file in use.
 config = context.config
 
-# DEM/schema.py の DB_PATH（DEM_DB_PATH 環境変数で上書き可）をそのまま使う。
+# DEM/schema.py の DB_PATH(DEM_DB_PATH 環境変数で上書き可)をそのまま使う。
 # 実行時のカレントディレクトリに関わらずリポジトリルート基準で解決する。
 _db_path = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(ROOT, DB_PATH)
 config.set_main_option("sqlalchemy.url", f"sqlite:///{_db_path}")

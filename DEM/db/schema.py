@@ -64,7 +64,7 @@ def location_text(values) -> str | None:
     """**場所の一意テキスト。** `w/p/lon/lat/alt` を並べて一本の文字列にする。
 
     `values` は辞書でもレコードの行でもよい。欠けている桁は `-` で埋める。
-    どの桁も無ければ `None`（座標を持たない場所）。
+    どの桁も無ければ `None`(座標を持たない場所)。
 
     `w4/p1/lon12/lat-/alt-` のように、上から順に並ぶ。前方一致がそのまま
     「同じ世界線」「同じ星」の絞り込みになる。
@@ -107,23 +107,62 @@ class Location(MarkdownBase):
     location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W")
     location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P")
     location_longitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="経度。基準の子午線から東へ何度（西は負）")
+        DECIMAL, comment="経度。基準の子午線から東へ何度(西は負)")
     location_latitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="緯度。赤道から北へ何度（南は負）")
+        DECIMAL, comment="緯度。赤道から北へ何度(南は負)")
     location_altitude: Mapped[float | None] = mapped_column(
         DECIMAL, comment="高度。基準面から上へ何 m")
 
     location_key: Mapped[str | None] = mapped_column(
         String, unique=True, index=True,
         comment="場所の一意テキスト。`w/p/lon/lat/alt` を並べて文字列にしたもの。"
-                "md には書かない。読み込みのときに組み立てる（location_text）")
+                "md には書かない。読み込みのときに組み立てる(location_text)")
+
+    area: Mapped[float | None] = mapped_column(
+        DECIMAL, comment="広さ。単位は決めていないが、親と子で揃える。"
+        "子の広さは親未満、兄弟(同じ parent_id)を足しても親を超えない")
+    environment: Mapped[str | None] = mapped_column(String, comment="環境")
 
     start: Mapped[Stamp | None] = mapped_column(StampType)
     end: Mapped[Stamp | None] = mapped_column(StampType)
 
-    # 自分の親（一つ上の場所）。木をのぼって道筋（place_path）を組むのに使う。
+    # 自分の親(一つ上の場所)。木をのぼって道筋(place_path)を組むのに使う。
     parent: Mapped["Location | None"] = relationship(remote_side="Location.id", lazy="noload")
     children: Mapped[list[Location]] = relationship()
+
+
+class LocationResource(MarkdownBase):
+    """**場所に紐づく資源。** `start` 時点で `quantity`(総量)、`end` 時点で 0 になるよう、
+    その間を線形に減らしていく前提で持つ(`resource_amount_at` で時点の量を計算する)。
+    """
+
+    __tablename__ = "location_resource"
+
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), index=True)
+    location: Mapped["Location"] = relationship(lazy="noload")
+
+    kind: Mapped[str] = mapped_column(String, comment="種別")
+    quantity: Mapped[int] = mapped_column(Integer, comment="総量。start 時点の量")
+    unit: Mapped[str] = mapped_column(String, comment="単位")
+
+    start: Mapped[Stamp] = mapped_column(StampType, comment="この量を数え始める時刻。総量ぶんある")
+    end: Mapped[Stamp] = mapped_column(StampType, comment="尽きる時刻。0になる")
+
+
+def resource_amount_at(resource: LocationResource, time) -> float:
+    """`resource` の、`time` 時点での残量。
+
+    `start` 時点で `quantity`(総量)、`end` 時点で 0 になるよう、その間を
+    線形に減らす。範囲の外なら両端の値(`quantity` / `0`)で止める。
+    """
+    at = Stamp.parse(time)
+    if at <= resource.start:
+        return float(resource.quantity)
+    if at >= resource.end:
+        return 0.0
+    total_span = resource.end.to_seconds() - resource.start.to_seconds()
+    elapsed = at.to_seconds() - resource.start.to_seconds()
+    return resource.quantity * (1 - elapsed / total_span)
 
 
 class Event(MarkdownBase):
@@ -141,10 +180,10 @@ class Event(MarkdownBase):
     place: Mapped[Location | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
-    # 誰の行動かは `event_character` `event_object`（中間テーブル）が持つ。
+    # 誰の行動かは `event_character` `event_object`(中間テーブル)が持つ。
     # 掛かり先の出来事は `parent_event_id`。どちらも空なら、
     # 誰の行動でもない「ただ起きたこと」。人物・個体は**それぞれ何人・何個体でも**
-    # 掛かれる（多対多）
+    # 掛かれる(多対多)
     event_characters: Mapped[list["EventCharacter"]] = relationship(
         back_populates="event", lazy="noload", cascade="all, delete-orphan")
     event_objects: Mapped[list["EventObject"]] = relationship(
@@ -174,7 +213,7 @@ class EventCharacter(Base):
 
 
 class EventObject(Base):
-    """**出来事 ↔ 個体（群）の中間テーブル。** 一つの出来事に何個体でも掛かれる。"""
+    """**出来事 ↔ 個体(群)の中間テーブル。** 一つの出来事に何個体でも掛かれる。"""
 
     __tablename__ = "event_object"
 
