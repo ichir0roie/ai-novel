@@ -48,7 +48,9 @@ _SYSTEM_PROMPT = (
     "(例えば老成した説明なら年長めに、幼さの残る説明なら年少めに)。"
     "技(skill)は、渡された既存の技一覧の中に似合うものがあればその名前を"
     "そのまま返し、無ければ新しい技名を考えてください。新しい技名を返す"
-    "ときは、その効果(skill_effect)と詳しい説明(skill_text)も添えてください。"
+    "ときは、その効果(skill_effect)・範囲(skill_range)・持続時間"
+    "(skill_duration)・対象(skill_target)・制約(skill_constraint。無ければ"
+    "空文字)・詳しい説明(skill_text)も、それぞれ一言で添えてください。"
     "この人物が技を何も持たないのが自然なら、skill は空文字にしてください。"
     "情動(emotion)は、この人物を特徴づける信念・目標・意図を一言〜二言で、"
     "その強さ(emotion_level)を1〜5の整数で決めてください。"
@@ -56,8 +58,10 @@ _SYSTEM_PROMPT = (
     "そこに自然に馴染む人物になるよう考慮してください。"
     "キーは name(名前), read(読み), text(一言で分かる人物説明), "
     "age(年齢, 整数), skill(技名), skill_effect(技の効果), "
+    "skill_range(技の範囲), skill_duration(技の持続時間), "
+    "skill_target(技の対象), skill_constraint(技の制約), "
     "skill_text(技の詳しい説明), emotion(情動), "
-    "emotion_level(情動の強さ, 整数)の九つだけ。"
+    "emotion_level(情動の強さ, 整数)の十四だけ。"
 )
 
 
@@ -161,6 +165,10 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
             skill = Skill(
                 name=skill_name,
                 effect=decided.get("skill_effect") or "",
+                range=decided.get("skill_range") or "",
+                duration=decided.get("skill_duration") or "",
+                target=decided.get("skill_target") or "",
+                constraint=decided.get("skill_constraint") or "",
                 text=decided.get("skill_text") or decided.get("skill_effect") or skill_name,
             )
             session.add(skill)
