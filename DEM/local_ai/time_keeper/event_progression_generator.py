@@ -9,7 +9,8 @@ from typing import Mapping
 from sqlalchemy import select
 
 from DEM.ai_instructions.event_writing import (
-    EVENT_PROGRESSION_INSTRUCTION, EVENT_SCENE_INSTRUCTION,
+    CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_PROGRESSION_INSTRUCTION,
+    EVENT_SCENE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
@@ -54,11 +55,9 @@ _INVOLVEMENT_INSTRUCTION = (
 )
 
 _CHARACTER_UPDATE_INSTRUCTION = (
-    "text はその人物の現状を一言で言い直したもの(直近の様子・立場が"
-    "この出来事で変わったときだけ書く。変わっていなければこの人物自体を"
-    "character_updates に含めない)。belong_id はその人物の所属が"
-    "この出来事で変わったときだけ、渡した「居合わせる個体」の id から選ぶ"
-    "(変わっていなければキー自体を省く)。"
+    CHARACTER_TEXT_UPDATE_INSTRUCTION + "belong_id はその人物の"
+    "所属がこの出来事で変わったときだけ、渡した「居合わせる個体」の id から"
+    "選ぶ(変わっていなければキー自体を省く)。"
 )
 
 _LOCATION_CHANGE_INSTRUCTION = (
@@ -156,7 +155,7 @@ def _progress_place(
     characters: list[Character], objects: list[Object], time: Stamp,
 ) -> Event | None:
     recent_events = session.scalars(
-        common_query.events_of_select(place_id, until=time, limit=10)
+        common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
     catalog = session.scalars(select(Skill)).all()
     place = session.get(Location, place_id)
@@ -286,8 +285,11 @@ def _progress_place(
             continue
         applied = []
         if update.get("text"):
-            character.text = update["text"]
-            applied.append(f"text={update['text']}")
+            character.text = (
+                f"{character.text}\n{update['text']}"
+                if character.text else update["text"]
+            )
+            applied.append(f"text+={update['text']}")
         if update.get("belong_id") is not None:
             try:
                 belong_id = int(update["belong_id"])

@@ -70,6 +70,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 喋る人物を一件読む(2-3)              | `DEM.claude_interface.story.read_character.ReadCharacter(<人物id>, time=None).run()`(口調・性格・技・情動・直近の行動)                                                                                                                                           |
 | 人物を軸にその時刻の周辺を読む       | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`(同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う) |
 | 出来事を引く                         | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()`                                                                                                                                                              |
+| 出来事を一覧で見る(全件)             | `DEM.claude_interface.world.list_events.ListEvents().run()`(絞り込みなし、新しい順に全件。db には触れない)                                                                                                                                                      |
 | 出来事の `text` の書き方             | 要約(「〜という出来事があった」)で済ませない。**軽い小説として 1000 文字程度**で、その場のキャラクターの思考・行動・(その出来事が及ぼす)影響を場面として書く(`IHG/chronicle.md`「出来事の text は場面で書く」)                                              |
 | 本文を db へ確定する(2-4)            | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`(字数を数えて入れる。`synced` は必ず下りる)                                                                                                                                         |
 | 同期フラグを立てる(3-3)              | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()`                                                                                                                                                                         |
@@ -146,14 +147,20 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - **IHG の基準を、Claude を介さないローカル AI にも同じく守らせる**:
   `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下や
   `random_skill_generator.py` など、Claude を介さず db への確定まで自動で
-  回す部分)は対話越しに `IHG/*.md` を読めない。そこで使う基準は要旨だけ
-  `DEM/ai_instructions/` に定数として切り出し、各生成のプロンプトに埋め込む
-  (`naming.py` は `IHG/naming.md` 由来、`event_writing.py` は
-  `IHG/chronicle.md`「出来事の text は場面で書く」「同じ出来事を名前だけ
-  変えて繰り返さない」由来、`principles.py` は `IHG/principles.md`
-  「避けるもの」由来)。**Claude 自身はこの定数ではなく `IHG/*.md` を直接
-  読む。IHG の該当節を直したら、対応する `DEM/ai_instructions/` の定数も
-  揃えて直す**
+  回す部分)は対話越しに `IHG/*.md` を読めない。そこで使う基準は
+  `DEM/ai_instructions/` に定数として切り出し、各生成のプロンプトに埋め込む。
+  二つのパターンがある
+  - `naming.py`(`IHG/naming.md` 由来)`principles.py`(`IHG/principles.md`
+    「避けるもの」由来)は、**対話の中で人間(Claude)が手順を踏む前提の
+    長い IHG 文書から、常駐ループ向けに要旨だけ抜き出した簡略版。**
+    正本は `IHG/*.md` のまま。Claude 自身はこの定数ではなく `IHG/*.md` を
+    直接読む。IHG の該当節を直したら、対応する定数も揃えて直す
+  - `event_writing.py`(出来事の書き方・進め方)は、**文面そのものが
+    正本。** `IHG/chronicle.md` は理由(なぜその形にしたか)だけを持ち、
+    ルールの文面は書き写さず `event_writing.py` を指す。Claude が
+    `commit_event` を書くときも、この定数の文面をそのまま基準にする。
+    ルールの文面を変えたくなったら `event_writing.py` を直す
+    (二重メンテを避けるため、対応が要る箇所ごとに正本を一つに決める)
 - **アバウトな要素は乱数で決める**: `DEM/randomizer/roll.py` を使い、引いた目を記録に残す。
   AI の第一想起で埋めない。**現状 `DEM/randomizer/tables.json` が無く、`roll.py`
   は動かない。** 直すか作者に確認するまでは、`random` で代用しつつシードを

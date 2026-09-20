@@ -217,6 +217,13 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     return query
 
 
+def events_select() -> Select:
+    """**db にある出来事を全件、新しい順に。**"""
+    return (select(Event)
+            .options(*EVENT_LOAD_OPTIONS)
+            .order_by(Event.time.desc(), Event.id.desc()))
+
+
 def plots_select() -> Select:
     """筋書きの一覧。新しい順。
 
