@@ -126,6 +126,16 @@ class Location(MarkdownBase):
         "子の広さは親未満、兄弟(同じ parent_id)を足しても親を超えない", sort_order=290)
     environment: Mapped[str | None] = mapped_column(String, comment="環境", sort_order=300)
 
+    sample_region: Mapped[str | None] = mapped_column(
+        String, comment="参考にした実在の地域(例: 「北欧」「地中海沿岸」)。"
+        "固有名詞をそのまま使うのではなく、地理・気候・景観の手がかりとして持つ", sort_order=305)
+    sample_culture: Mapped[str | None] = mapped_column(
+        String, comment="参考にした実在の文化(例: 「遊牧」「稲作」)。"
+        "風習・生活様式・価値観の手がかりとして持つ", sort_order=307)
+    sample_era: Mapped[str | None] = mapped_column(
+        String, comment="参考にした実在の時代(例: 「中世」「産業革命期」)。"
+        "技術水準・社会制度の手がかりとして持つ", sort_order=308)
+
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=310)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=320)
 

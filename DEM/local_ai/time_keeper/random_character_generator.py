@@ -17,7 +17,7 @@ from sqlalchemy import select
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Character, Kind, Session, Stamp
 from DEM.local_ai import ai_client
-from DEM.local_ai.time_keepr._format import format_time
+from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
 
 PROBABILITY = 0.10  # 1月に1度、10%の確率で

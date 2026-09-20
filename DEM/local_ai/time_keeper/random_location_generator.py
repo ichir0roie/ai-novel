@@ -17,8 +17,8 @@ import random
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Location, Session, Stamp
 from DEM.local_ai import ai_client
-from DEM.local_ai.time_keepr import random_location_resource_generator
-from DEM.local_ai.time_keepr._format import format_time
+from DEM.local_ai.time_keeper import random_location_resource_generator
+from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_location_generator import build_location
 
 PROBABILITY = 0.01  # 1年に1度、1%の確率で
