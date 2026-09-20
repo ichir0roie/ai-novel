@@ -31,6 +31,16 @@ class LocalAIError(RuntimeError):
     """ローカルAIサーバとの通信・応答が失敗したときに投げる。"""
 
 
+# Ollama の既定値(temperature 0.8 / repeat_penalty 1.1 前後)のまま使うと、
+# gemma3n:e2b/e4b のような小型モデルは、渡した設定が薄い場面で高確率トークン
+# (場所を問わず使い回せる抽象的なムード語)へ収束しやすい。temperature を
+# 少し下げ、repeat_penalty を上げることで、同じ言い回しの多用を抑える。
+_DEFAULT_OPTIONS = {
+    "temperature": 0.6,
+    "repeat_penalty": 1.3,
+}
+
+
 def _host() -> str:
     return os.environ.get("DEM_LOCAL_AI_HOST", "http://localhost:11434")
 
@@ -48,12 +58,18 @@ def generate(
     system: str | None = None,
     json_mode: bool = False,
     timeout: float = 120.0,
+    options: dict | None = None,
 ) -> str:
-    """Ollamaの `/api/generate` を叩き、生成テキストを返す。"""
+    """Ollamaの `/api/generate` を叩き、生成テキストを返す。
+
+    `options` は Ollama の `options`(temperature 等)に上書きでマージする。
+    省略時は `_DEFAULT_OPTIONS` を使う。
+    """
     payload: dict = {
         "model": _model(),
         "prompt": prompt,
         "stream": False,
+        "options": {**_DEFAULT_OPTIONS, **(options or {})},
     }
     if system is not None:
         payload["system"] = system
@@ -85,9 +101,11 @@ def generate_json(
     *,
     system: str | None = None,
     timeout: float = 120.0,
+    options: dict | None = None,
 ) -> dict:
     """`generate` をJSONモードで呼び、パースした辞書を返す。"""
-    text = generate(prompt, system=system, json_mode=True, timeout=timeout)
+    text = generate(
+        prompt, system=system, json_mode=True, timeout=timeout, options=options)
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:
@@ -100,6 +118,7 @@ def try_generate_json(
     *,
     system: str | None = None,
     timeout: float = 120.0,
+    options: dict | None = None,
 ) -> dict:
     """`generate_json` を試し、失敗(接続不可・応答がJSONとして壊れている)なら
     空の辞書を返す。
@@ -110,7 +129,7 @@ def try_generate_json(
     その件はすべて既定値で進む)。
     """
     try:
-        return generate_json(prompt, system=system, timeout=timeout)
+        return generate_json(prompt, system=system, timeout=timeout, options=options)
     except LocalAIError as error:
         print(f"[ai_client] ローカルAIの応答が使えなかったため既定値で進める: {error}")
         return {}
