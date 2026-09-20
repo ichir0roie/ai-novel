@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from sqlalchemy import Select, func, or_, select
 
-from DEM.db.schema import Character, Location, Object
+from DEM.db.schema import Character, Location, LocationResource, Object
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
 MAX_PER_LOCATION = 10
@@ -47,6 +47,19 @@ def alive_locations_select(time) -> Select:
     return (select(Location)
             .where(or_(Location.start.is_(None), Location.start <= time))
             .where(or_(Location.end.is_(None), Location.end > time)))
+
+
+def locations_without_current_resource_select(time) -> Select:
+    """**時刻 `time` に、有効な資源(`start`〜`end` が `time` を含む)を
+    一つも持っていない、生きている場所。**
+
+    場所が生まれた直後(まだ資源が無い)と、前の資源が尽きた後
+    (`end` を過ぎた)の両方を拾う。次の資源を足す場所を選ぶのに使う。
+    """
+    covered = (select(LocationResource.location_id)
+               .where(LocationResource.start <= time)
+               .where(LocationResource.end > time))
+    return alive_locations_select(time).where(Location.id.not_in(covered))
 
 
 def check_within_parent_span(parent: Location, child_start, child_end, label: str) -> None:
