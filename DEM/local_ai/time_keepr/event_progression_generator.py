@@ -23,7 +23,9 @@ import random
 
 from sqlalchemy import select
 
-from DEM.data_access_logic.query import common_query, world_createion_query
+from DEM.data_access_logic.query import (
+    character_simulation_query, common_query, world_createion_query,
+)
 from DEM.db.schema import (
     Character, CharacterEmotion, CharacterSkill, Event, EventCharacter,
     EventObject, Object, Session, Skill, Stamp,
@@ -71,13 +73,13 @@ def _progress_character(
     session: Session, character: Character, time: Stamp,
 ) -> Event | None:
     place_id = _current_place_id(session, character, time)
-    companions = []
-    if place_id is not None:
-        companions = [
-            c for c in session.scalars(
-                common_query.resident_character_ids_select([place_id], time)).all()
-            if c != character.id
-        ]
+
+    # `read_surroundings`(claude_interface)と同じ、人物を軸にした周辺取得。
+    # 居合わせる人物・個体と、直近の出来事を一度に取る。
+    companions, nearby_objects, recent_events = (
+        character_simulation_query.character_around_event(session, character.id, time)
+    )
+    companions = [c for c in companions if c.id != character.id]
 
     drives = session.scalars(common_query.emotions_select(character.id, time)).all()
     skills = session.scalars(common_query.skills_select(character.id)).all()
@@ -87,7 +89,9 @@ def _progress_character(
     prompt = (
         f"人物: {character.name}(id={character.id}, 口調={character.tone})\n"
         f"現在の場所id: {place_id if place_id is not None else '不明'}\n"
-        f"居合わせる人物の id: {companions[:20]}\n"
+        f"居合わせる人物: {[(c.id, c.name) for c in companions[:20]]}\n"
+        f"居合わせる個体: {[(o.id, o.name) for o in nearby_objects[:20]]}\n"
+        f"直近の出来事: {[e.name for e in recent_events[:10]]}\n"
         f"今の情動: {[(d.text, d.level) for d in drives]}\n"
         f"今の技: {[(s.skill.name, s.level) for s in skills if s.skill]}\n"
         f"選べる技の候補: {sorted(known_skill_names)}\n"
