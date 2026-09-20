@@ -31,7 +31,7 @@ def load_location_plot(
             Plot
         )
         .where(
-            or_(Plot.location_id.in_(location_ids), Plot.location_id.is_(None)),
+            Plot.location_id.in_(location_ids),
             plot_time_condition(time),
         )
     ).all()
