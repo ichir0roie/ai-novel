@@ -29,6 +29,18 @@ def next_day(time: Stamp) -> Stamp:
     return Stamp(year, month, day, time.hour, time.minute, time.second)
 
 
+def add_days(time: Stamp, days: int) -> Stamp:
+    """時刻を `days` 日ぶん進める。`next_day` を `days` 回繰り返すだけの素朴な
+    実装(`Stamp` は年に上限が無く、大きい年でも月日の繰り上がりを安全に
+    済ませるには、これが一番間違えにくい)。出来事の `end`(進行中と見なす
+    幅)を `start` から日数で組み立てるのに使う。
+    """
+    result = time
+    for _ in range(max(days, 0)):
+        result = next_day(result)
+    return result
+
+
 def format_time(time: Stamp) -> str:
     """**`1234年5月6日`。** 時刻が0時0分0秒でなければ、そこも続けて出す。"""
     text = f"{time.year}年{time.month}月{time.day}日"

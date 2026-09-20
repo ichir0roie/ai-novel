@@ -82,6 +82,8 @@ def _kill(
         text=decided.get("event_text") or "",
         time=time,
         location_id=place_id,
+        start=time,
+        end=time,
     )
     record.event_characters = [EventCharacter(character_id=character.id)]
     session.add(record)
