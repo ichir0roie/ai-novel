@@ -1,0 +1,30 @@
+from typing import Sequence
+from DEM.db.schema import *
+from DEM.data_access_logic.query import common_query
+
+
+def character_time_condition(time: Stamp):
+    return or_(
+        and_(
+            CharacterPlace.start <= time,
+            CharacterPlace.end > time,
+        ),
+        and_(
+            CharacterPlace.start <= time,
+            CharacterPlace.end == None
+        )
+
+    )
+
+
+def object_time_condition(time: Stamp):
+    return or_(
+        and_(
+            ObjectPlace.start <= time,
+            ObjectPlace.end > time
+        ),
+        and_(
+            ObjectPlace.start <= time,
+            ObjectPlace.end == None
+        )
+    )

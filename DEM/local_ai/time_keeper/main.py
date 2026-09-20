@@ -42,7 +42,8 @@ def time_process(
 ):
 
     random_location_generator.generate_random(s, time)
-    random_location_resource_generator.generate_random(s, time)
+    # random_location_resource_generator.generate_random(s, time)
+
     random_character_generator.generate_random(s, time)
     character_lifespan.generate_random(s, time)
     event_progression_generator.generate_random(s, time)

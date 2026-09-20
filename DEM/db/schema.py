@@ -237,21 +237,11 @@ class EventObject(Base):
     object: Mapped["Object"] = relationship(lazy="noload")
 
 
-class Kind(MarkdownBase):
-
-    __tablename__ = "kind"
-
-    name: Mapped[str] = mapped_column(String, sort_order=200)
-    read: Mapped[str] = mapped_column(String, sort_order=210)
-
-
 class ObjectBase:
     root_place_name: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=200)
 
     name: Mapped[str | None] = mapped_column(String, sort_order=210)
     read: Mapped[str | None] = mapped_column(String, sort_order=220)
-
-    kind_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("kind.id"), sort_order=230)
 
     world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える", sort_order=240)
 
@@ -261,8 +251,6 @@ class ObjectBase:
 
 class Object(MarkdownBase, ObjectBase):
     __tablename__ = "object"
-
-    kind: Mapped["Kind | None"] = relationship(lazy="noload")
 
 
 class ObjectPlace(Base):
@@ -315,8 +303,6 @@ class Character(MarkdownBase, ObjectBase):
     imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力", sort_order=500)
 
     # relationships
-
-    kind: Mapped["Kind | None"] = relationship(lazy="noload")
 
     places: Mapped[list[CharacterPlace]] = relationship(
         back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"

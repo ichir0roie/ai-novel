@@ -62,6 +62,18 @@ def locations_without_current_resource_select(time) -> Select:
     return alive_locations_select(time).where(Location.id.not_in(covered))
 
 
+def active_resources_select(location_id: int, time) -> Select:
+    """**時刻 `time` に、その場所(`location_id`)でまだ有効な資源(`start`〜`end` が `time` を含む)。**
+
+    出来事の結果としてその場所の資源が尽きた(枯渇・破壊された)ときに、
+    `end` を今の時刻へ繰り上げる対象を拾うのに使う。
+    """
+    return (select(LocationResource)
+            .where(LocationResource.location_id == location_id)
+            .where(LocationResource.start <= time)
+            .where(LocationResource.end > time))
+
+
 def alive_characters_select(time) -> Select:
     """**時刻 `time` にまだ生きている人物だけ。**(`start` 以後・`end` より前)
 

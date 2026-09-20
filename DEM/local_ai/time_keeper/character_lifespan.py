@@ -132,6 +132,11 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
 
         age = time.year - character.start.year
 
+        if _NATURAL_DEATH_MAX_AGE < age:
+            dead_age = random.randint(age, _NATURAL_DEATH_MAX_AGE)
+            dead_time = Stamp(character.start+dead_age)
+            created.append(_kill(session, character, dead_time, "老衰"))
+
         if _AGELESS_SKILL not in skills:
             if random.random() < _natural_death_probability(age):
                 created.append(_kill(session, character, time, "老衰"))

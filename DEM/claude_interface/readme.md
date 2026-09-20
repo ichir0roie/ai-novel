@@ -28,7 +28,7 @@ Entrypoint(claude_interface/_base.py)
 │   │   │                             commit_event.py / commit_place.py / commit_skill.py / delete_place.py /
 │   │   │                             update_character.py / update_place.py
 │   │   └─ story.StoryCommit        → commit_episode.py / set_episode_synced.py
-│   ├─ world.WorldQuery          → list_characters.py / list_kinds.py / list_objects.py / list_places.py / search_terms.py
+│   ├─ world.WorldQuery          → list_characters.py / list_objects.py / list_places.py / search_terms.py
 │   └─ story.StoryQuery          → list_stories.py / read_*.py / start_story.py
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
 ```
