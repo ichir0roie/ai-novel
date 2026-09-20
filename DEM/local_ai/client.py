@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""
+ローカルAI(Ollama)を叩く、環境非依存の薄いクライアント。
+
+<https://huggingface.co/google/gemma-4-E2B>
+
+`oracle/system-idea/ローカル環境AI.md` の設計に沿う: notePC(テスト、
+`gemma-4-e2b` 想定)とGPU PC(本番、`gemma-4-12b-it` 想定)で呼び出し処理は
+共通にし、差分はホスト／モデル名の環境変数だけに閉じる。
+
+- `DEM_LOCAL_AI_HOST`: OllamaのベースURL(既定 `http://localhost:11434`)
+
+db には一切触れない。返すのは生成テキスト(`generate`)／パース済み辞書
+(`generate_json`)だけで、`DEM/randomizer/` の「作る」側と同じく、db への
+書き込みは呼び出し側(`DEM/claude_interface/` の「確定する」入口)の仕事。
+
+<https://huggingface.co/google/gemma-4-E2B>
+sudo curl -fsSL https://ollama.com/install.sh | sh
+
+
+
+"""
+from __future__ import annotations
+
+import json
+import os
+import urllib.error
+import urllib.request
+
+
+class LocalAIError(RuntimeError):
+    """ローカルAIサーバとの通信・応答が失敗したときに投げる。"""
+
+
+def _host() -> str:
+    return os.environ.get("DEM_LOCAL_AI_HOST", "http://localhost:11434")
+
+
+def _model() -> str:
+    model = os.environ.get("DEM_LOCAL_AI_MODEL")
+    if not model:
+        raise LocalAIError("環境変数 DEM_LOCAL_AI_MODEL が設定されていない")
+    return model
+
+
+def generate(
+    prompt: str,
+    *,
+    system: str | None = None,
+    json_mode: bool = False,
+    timeout: float = 120.0,
+) -> str:
+    """Ollamaの `/api/generate` を叩き、生成テキストを返す。"""
+    payload: dict = {
+        "model": _model(),
+        "prompt": prompt,
+        "stream": False,
+    }
+    if system is not None:
+        payload["system"] = system
+    if json_mode:
+        payload["format"] = "json"
+
+    url = f"{_host().rstrip('/')}/api/generate"
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            result = json.loads(response.read())
+    except urllib.error.URLError as error:
+        raise LocalAIError(f"ローカルAIサーバ({url})に接続できない: {error}") from error
+
+    text = result.get("response")
+    if text is None:
+        raise LocalAIError(f"ローカルAIサーバの応答に 'response' が無い: {result}")
+    return text
+
+
+def generate_json(
+    prompt: str,
+    *,
+    system: str | None = None,
+    timeout: float = 120.0,
+) -> dict:
+    """`generate` をJSONモードで呼び、パースした辞書を返す。"""
+    text = generate(prompt, system=system, json_mode=True, timeout=timeout)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise LocalAIError(
+            f"ローカルAIサーバの応答がJSONとしてパースできない: {text!r}") from error
