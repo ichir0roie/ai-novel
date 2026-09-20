@@ -83,48 +83,51 @@ class Base(DeclarativeBase):
 
     # SQLite は「INTEGER PRIMARY KEY」だけを rowid の別名として autoincrement する。
     # Integer だと型名が INTEGER と一致せず insert のたびに id が NULL のまま失敗する。
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # sort_order は列の並び順を明示するための番号。継承の段が一段深くなるごとに
+    # 開始値を 100 増やし、同じクラス内では 10 刻みで振る(あとで列を挟みやすい)。
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, sort_order=0)
 
 
 class MarkdownBase(Base):
     __abstract__ = True
 
-    text: Mapped[str] = mapped_column(String,  nullable=False)
+    text: Mapped[str] = mapped_column(String,  nullable=False, sort_order=10000)
 
-    filepath: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    filepath: Mapped[str | None] = mapped_column(String, nullable=True, default=None, sort_order=20000)
 
 
 class Location(MarkdownBase):
 
     __tablename__ = "location"
 
-    name: Mapped[str | None] = mapped_column(String)
-    kind: Mapped[str | None] = mapped_column(String)
-    parent_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    name: Mapped[str | None] = mapped_column(String, sort_order=200)
+    kind: Mapped[str | None] = mapped_column(String, sort_order=210)
+    parent_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=220)
 
     # 位置は**一つの座標系だけ**で持つ。経度・緯度・高度で持ち、
     # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
-    location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W")
-    location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P")
+    location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W", sort_order=230)
+    location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P", sort_order=240)
     location_longitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="経度。基準の子午線から東へ何度(西は負)")
+        DECIMAL, comment="経度。基準の子午線から東へ何度(西は負)", sort_order=250)
     location_latitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="緯度。赤道から北へ何度(南は負)")
+        DECIMAL, comment="緯度。赤道から北へ何度(南は負)", sort_order=260)
     location_altitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="高度。基準面から上へ何 m")
+        DECIMAL, comment="高度。基準面から上へ何 m", sort_order=270)
 
     location_key: Mapped[str | None] = mapped_column(
         String, unique=True, index=True,
         comment="場所の一意テキスト。`w/p/lon/lat/alt` を並べて文字列にしたもの。"
-                "md には書かない。読み込みのときに組み立てる(location_text)")
+                "md には書かない。読み込みのときに組み立てる(location_text)",
+        sort_order=280)
 
     area: Mapped[float | None] = mapped_column(
         DECIMAL, comment="広さ。単位は決めていないが、親と子で揃える。"
-        "子の広さは親未満、兄弟(同じ parent_id)を足しても親を超えない")
-    environment: Mapped[str | None] = mapped_column(String, comment="環境")
+        "子の広さは親未満、兄弟(同じ parent_id)を足しても親を超えない", sort_order=290)
+    environment: Mapped[str | None] = mapped_column(String, comment="環境", sort_order=300)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=310)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=320)
 
     # 自分の親(一つ上の場所)。木をのぼって道筋(place_path)を組むのに使う。
     parent: Mapped["Location | None"] = relationship(remote_side="Location.id", lazy="noload")
@@ -138,15 +141,15 @@ class LocationResource(MarkdownBase):
 
     __tablename__ = "location_resource"
 
-    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), index=True)
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), index=True, sort_order=200)
     location: Mapped["Location"] = relationship(lazy="noload")
 
-    kind: Mapped[str] = mapped_column(String, comment="種別")
-    quantity: Mapped[int] = mapped_column(Integer, comment="総量。start 時点の量")
-    unit: Mapped[str] = mapped_column(String, comment="単位")
+    kind: Mapped[str] = mapped_column(String, comment="種別", sort_order=210)
+    quantity: Mapped[int] = mapped_column(Integer, comment="総量。start 時点の量", sort_order=220)
+    unit: Mapped[str] = mapped_column(String, comment="単位", sort_order=230)
 
-    start: Mapped[Stamp] = mapped_column(StampType, comment="この量を数え始める時刻。総量ぶんある")
-    end: Mapped[Stamp] = mapped_column(StampType, comment="尽きる時刻。0になる")
+    start: Mapped[Stamp] = mapped_column(StampType, comment="この量を数え始める時刻。総量ぶんある", sort_order=240)
+    end: Mapped[Stamp] = mapped_column(StampType, comment="尽きる時刻。0になる", sort_order=250)
 
 
 def resource_amount_at(resource: LocationResource, time) -> float:
@@ -169,14 +172,14 @@ class Event(MarkdownBase):
 
     __tablename__ = "event"
 
-    name: Mapped[str] = mapped_column(String)
-    kind: Mapped[str] = mapped_column(String, default="")
-    time: Mapped[Stamp] = mapped_column(StampType, index=True)
+    name: Mapped[str] = mapped_column(String, sort_order=200)
+    kind: Mapped[str] = mapped_column(String, default="", sort_order=210)
+    time: Mapped[Stamp] = mapped_column(StampType, index=True, sort_order=220)
 
-    parent_event_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("event.id"))
+    parent_event_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("event.id"), sort_order=230)
 
     place_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("location.id"), index=True)
+        Integer, ForeignKey("location.id"), index=True, sort_order=240)
     place: Mapped[Location | None] = relationship(lazy="noload")
 
     # **行動もここに入る。** 人物・個体の行動は別表を持たない。
@@ -189,8 +192,8 @@ class Event(MarkdownBase):
     event_objects: Mapped[list["EventObject"]] = relationship(
         back_populates="event", lazy="noload", cascade="all, delete-orphan")
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
     parent_event: Mapped["Event | None"] = relationship(
         remote_side="Event.id", back_populates="child_events", lazy="noload"
@@ -205,8 +208,8 @@ class EventCharacter(Base):
 
     __tablename__ = "event_character"
 
-    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True)
-    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("character.id"), index=True)
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True, sort_order=100)
+    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("character.id"), index=True, sort_order=110)
 
     event: Mapped["Event"] = relationship(back_populates="event_characters", lazy="noload")
     character: Mapped["Character"] = relationship(lazy="noload")
@@ -217,8 +220,8 @@ class EventObject(Base):
 
     __tablename__ = "event_object"
 
-    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True)
-    object_id: Mapped[int] = mapped_column(Integer, ForeignKey("object.id"), index=True)
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True, sort_order=100)
+    object_id: Mapped[int] = mapped_column(Integer, ForeignKey("object.id"), index=True, sort_order=110)
 
     event: Mapped["Event"] = relationship(back_populates="event_objects", lazy="noload")
     object: Mapped["Object"] = relationship(lazy="noload")
@@ -228,22 +231,22 @@ class Kind(MarkdownBase):
 
     __tablename__ = "kind"
 
-    name: Mapped[str] = mapped_column(String)
-    read: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String, sort_order=200)
+    read: Mapped[str] = mapped_column(String, sort_order=210)
 
 
 class ObjectBase:
-    root_place_name: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    root_place_name: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=200)
 
-    name: Mapped[str | None] = mapped_column(String)
-    read: Mapped[str | None] = mapped_column(String)
+    name: Mapped[str | None] = mapped_column(String, sort_order=210)
+    read: Mapped[str | None] = mapped_column(String, sort_order=220)
 
-    kind_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("kind.id"))
+    kind_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("kind.id"), sort_order=230)
 
-    world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える")
+    world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える", sort_order=240)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
 
 class Object(MarkdownBase, ObjectBase):
@@ -255,11 +258,11 @@ class Object(MarkdownBase, ObjectBase):
 class ObjectPlace(Base):
     __tablename__ = "object_place"
 
-    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"))
-    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
+    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), sort_order=100)
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), sort_order=110)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=120)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=130)
 
     object: Mapped["Object | None"] = relationship(lazy="noload")
     place: Mapped[Location] = relationship(lazy="noload")
@@ -270,36 +273,36 @@ class Character(MarkdownBase, ObjectBase):
     __tablename__ = "character"
 
     # --- 出自 -------------------------------------------------------------
-    born_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    born_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=300)
     born_place: Mapped[Location | None] = relationship(
         foreign_keys="Character.born_place_id", lazy="noload")
-    belong_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), comment="所属。個体のどれか")
+    belong_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), comment="所属。個体のどれか", sort_order=310)
     belong: Mapped["Object | None"] = relationship(lazy="noload")
 
     # --- 体格 -------------------------------------------------------------
-    sex: Mapped[str] = mapped_column(String,  comment="性別")
-    height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm")
-    build: Mapped[str] = mapped_column(String,  comment="体格")
+    sex: Mapped[str] = mapped_column(String,  comment="性別", sort_order=320)
+    height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm", sort_order=330)
+    build: Mapped[str] = mapped_column(String,  comment="体格", sort_order=340)
 
     # --- 口調 -------------------------------------------------------------
-    first_person: Mapped[str] = mapped_column(String,  comment="一人称")
-    second_person: Mapped[str] = mapped_column(String,  comment="二人称")
-    third_person: Mapped[str] = mapped_column(String,  comment="三人称")
-    tone: Mapped[str] = mapped_column(String,  comment="口調")
+    first_person: Mapped[str] = mapped_column(String,  comment="一人称", sort_order=350)
+    second_person: Mapped[str] = mapped_column(String,  comment="二人称", sort_order=360)
+    third_person: Mapped[str] = mapped_column(String,  comment="三人称", sort_order=370)
+    tone: Mapped[str] = mapped_column(String,  comment="口調", sort_order=380)
 
     # --- 性格 -----------------------------------------------------------
-    sincerity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="誠実性")
-    curiosity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="好奇心")
-    proactivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="行動力")
-    cooperativeness: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="協調性")
-    sociability: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="社交性")
-    emotional_expression: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感情表現")
-    self_esteem: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己肯定感")
-    self_efficacy: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己効力感")
-    stress_resilience: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="ストレス耐性")
-    flexibility_of_values: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="価値観の柔軟性")
-    sensitivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感受性")
-    imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力")
+    sincerity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="誠実性", sort_order=390)
+    curiosity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="好奇心", sort_order=400)
+    proactivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="行動力", sort_order=410)
+    cooperativeness: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="協調性", sort_order=420)
+    sociability: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="社交性", sort_order=430)
+    emotional_expression: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感情表現", sort_order=440)
+    self_esteem: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己肯定感", sort_order=450)
+    self_efficacy: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己効力感", sort_order=460)
+    stress_resilience: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="ストレス耐性", sort_order=470)
+    flexibility_of_values: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="価値観の柔軟性", sort_order=480)
+    sensitivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感受性", sort_order=490)
+    imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力", sort_order=500)
 
     # relationships
 
@@ -323,11 +326,11 @@ class CharacterPlace(Base):
 
     __tablename__ = "character_place"
 
-    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
-    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"))
+    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"), sort_order=100)
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), sort_order=110)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=120)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=130)
 
     character: Mapped[Character | None] = relationship(back_populates="places", lazy="noload")
     place: Mapped[Location] = relationship(lazy="noload")
@@ -337,76 +340,76 @@ class Skill(MarkdownBase):
 
     __tablename__ = "skill"
 
-    name: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String, sort_order=200)
 
     # 現象、コスト、効果、範囲、持続時間、対象、条件、制約
-    cost: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="コスト")
-    effect: Mapped[str] = mapped_column(String, nullable=False, comment="効果")
-    range: Mapped[str] = mapped_column(String, comment="範囲")
-    duration: Mapped[str] = mapped_column(String, comment="持続時間")
-    target: Mapped[str] = mapped_column(String, comment="対象")
-    constraint: Mapped[str] = mapped_column(String,  comment="制約")
+    cost: Mapped[int] = mapped_column(Integer, default=1, comment="コスト", sort_order=210)
+    effect: Mapped[str] = mapped_column(String, nullable=False, comment="効果", sort_order=220)
+    range: Mapped[str] = mapped_column(String, comment="範囲", sort_order=230)
+    duration: Mapped[str] = mapped_column(String, comment="持続時間", sort_order=240)
+    target: Mapped[str] = mapped_column(String, comment="対象", sort_order=250)
+    constraint: Mapped[str] = mapped_column(String,  comment="制約", sort_order=260)
 
 
 class CharacterSkill(Base):
 
     __tablename__ = "character_skill"
 
-    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
-    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"))
+    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"), sort_order=100)
+    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), sort_order=110)
 
-    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skill.id"), nullable=False)
+    skill_id: Mapped[int] = mapped_column(Integer, ForeignKey("skill.id"), nullable=False, sort_order=120)
     skill: Mapped["Skill"] = relationship(lazy="noload")
 
-    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度")
+    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, comment="熟練度", sort_order=130)
 
 
 class CharacterEmotion(MarkdownBase):
 
     __tablename__ = "character_drive"
 
-    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"))
+    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"), sort_order=200)
 
-    text: Mapped[str] = mapped_column(String, nullable=False)
-    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    text: Mapped[str] = mapped_column(String, nullable=False, sort_order=210)
+    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, sort_order=220)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType)
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=230)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=240)
 
 
 class Term(MarkdownBase):
     __tablename__ = "term"
 
-    name: Mapped[str] = mapped_column(String)
-    kind: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String, sort_order=200)
+    kind: Mapped[str] = mapped_column(String, sort_order=210)
 
-    restrict_world_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
-    restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
-    restrict_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"))
+    restrict_world_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=220)
+    restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=230)
+    restrict_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=240)
 
     parent_term_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる")
+        Integer, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる", sort_order=250)
 
 
 class Story(MarkdownBase):
 
     __tablename__ = "story"
 
-    name: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String, sort_order=200)
 
     world_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("location.id"), comment="使用する世界線")
+        Integer, ForeignKey("location.id"), comment="使用する世界線", sort_order=210)
     world: Mapped[Location | None] = relationship(
         foreign_keys="Story.world_id", lazy="noload")
     place_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("location.id"), comment="立つ場所。断面を取るのに使う")
+        Integer, ForeignKey("location.id"), comment="立つ場所。断面を取るのに使う", sort_order=220)
     place: Mapped[Location | None] = relationship(
         foreign_keys="Story.place_id", lazy="noload")
-    narration: Mapped[str] = mapped_column(String,  comment="語り")
-    state: Mapped[str] = mapped_column(String,  comment="状態")
+    narration: Mapped[str] = mapped_column(String,  comment="語り", sort_order=230)
+    state: Mapped[str] = mapped_column(String,  comment="状態", sort_order=240)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年")
-    end: Mapped[Stamp | None] = mapped_column(StampType)
+    start: Mapped[Stamp | None] = mapped_column(StampType, comment="立つ年", sort_order=250)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
     episodes: Mapped[list["Episode"]] = relationship(
         back_populates="story", lazy="noload", order_by="Episode.number.asc()")
@@ -416,18 +419,19 @@ class Episode(MarkdownBase):
 
     __tablename__ = "episode"
 
-    story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"))
+    story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"), sort_order=200)
     story: Mapped[Story] = relationship(back_populates="episodes", lazy="noload")
     number: Mapped[int | None] = mapped_column(
-        Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**")
+        Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**", sort_order=210)
     title: Mapped[str] = mapped_column(
-        String,  comment="サブタイトル。本文の見出しから読む")
-    letters: Mapped[int | None] = mapped_column(Integer, comment="字数")
+        String,  comment="サブタイトル。本文の見出しから読む", sort_order=220)
+    letters: Mapped[int | None] = mapped_column(Integer, comment="字数", sort_order=230)
     synced: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
         comment="同期フラグ。この話の出来事・行動が台帳へ戻してあるか。"
                 "自動生成時はオン、手で書いたときはオフ。"
-                "オフの話があるあいだは、次の話の材料を読み出せない")
+                "オフの話があるあいだは、次の話の材料を読み出せない",
+        sort_order=240)
 
 
 DB_PATH = os.environ.get("DEM_DB_PATH", "novel.db")

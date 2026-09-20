@@ -14,11 +14,12 @@
    読み出した行を新しい db へ流し込む。列名が一致する列だけをコピーするので、
    `schema.py` 側で削った列があっても止まらない
 """
+import decimal
 import os
 import shutil
 from datetime import datetime
 
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, text
 
 from DEM.db.schema import Base, DB_PATH, create_db
 
@@ -60,8 +61,29 @@ def rebuild_db(path=DB_PATH, backup_dir="backup"):
             rows = old_conn.execute(old_table.select()).mappings().all()
             if not rows:
                 continue
-            insert_rows = [{name: row[name] for name in common_columns} for row in rows]
-            new_conn.execute(table.insert(), insert_rows)
+            insert_rows = [
+                {
+                    name: (
+                        str(row[name])
+                        if isinstance(row[name], decimal.Decimal)
+                        else row[name]
+                    )
+                    for name in common_columns
+                }
+                for row in rows
+            ]
+            # `table.insert()` は列の型(StampType 等)を通して値を変換し直すが、
+            # ここで運ぶ値は元の db に既に格納済みの生の値(例: Stamp は
+            # 年月日を詰めた整数)なので、再変換すると Stamp.parse が
+            # 受け付けない形になって落ちる。型変換をかけない生 SQL で流し込む
+            # (sqlite3 ドライバは Decimal を直接バインドできないので str にする)。
+            columns_sql = ", ".join(f'"{name}"' for name in common_columns)
+            placeholders_sql = ", ".join(f":{name}" for name in common_columns)
+            insert_stmt = text(
+                f'INSERT INTO "{table.name}" ({columns_sql}) '
+                f"VALUES ({placeholders_sql})"
+            )
+            new_conn.execute(insert_stmt, insert_rows)
         new_conn.exec_driver_sql("PRAGMA foreign_keys=ON")
 
     old_engine.dispose()
