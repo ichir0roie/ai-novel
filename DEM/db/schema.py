@@ -141,6 +141,8 @@ class Location(MarkdownBase):
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=310)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=320)
 
+    active_random_generation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # 自分の親(一つ上の場所)。木をのぼって道筋(place_path)を組むのに使う。
     # 書き込みは常に parent_id を直に触るので、どちらも読み取り専用にしておく
     # (viewonly を外すと、同じ外部キーを double-write しようとして SQLAlchemy が警告する)。
