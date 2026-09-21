@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""世界の側の人物を、時の流れの中で自動的に増やす。二つの経路がある。
+"""世界の側の人物を、時の流れの中で自動的に増やす。
 
-- `generate_random`: 月初に確率 `PROBABILITY` で場所を一つ選び、人物を一件生む
-- `seed_initial_characters`: `Location.random_character_source` がオンで、まだ誰も
-  居ない場所へ、月初のたびに 1〜4 人をまとめて生む(場所ごとに一度きり)
-
-どちらも候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物には情動
+`generate_random`: 月初に確率 `PROBABILITY` で場所を一つ選び、人物を一件生む。
+候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物には情動
 (`CharacterDrive`)と、その人物専用の筋書き(`CharacterPlot`)も一件ずつ添えて
 db へ確定する。
 """
@@ -24,9 +21,6 @@ from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
 
 PROBABILITY = 0.25  # 1月に1度、25%の確率で
-
-# `random_character_source` がオンの場所にまとめて生む人数の幅。
-SEED_COUNT_RANGE = (1, 4)
 
 # 生成時点での年齢の幅。0(赤子)ではなく、この範囲でランダムに選んだ年数だけ
 # 過去に生まれたことにする(`character_lifespan._NATURAL_DEATH_MIN_AGE` の
@@ -204,7 +198,7 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     # 出自の人物が既に上限に達している場所・プロットの無い場所は選ばない。
     eligible_places = [
         p for p in places
-        if int(session.scalar(world_createion_query.character_count_at_place_select(p.id)) or 0)
+        if int(session.scalar(world_createion_query.character_count_at_place_select(p.id, time)) or 0)
         < world_createion_query.MAX_PER_LOCATION
         and world_createion_query.location_has_plot(session, p.id)
     ]
@@ -214,32 +208,3 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     born_place = rng.choice(eligible_places) if eligible_places else None
 
     return _generate_one(session, born_place, time, rng)
-
-
-def seed_initial_characters(session: Session, time: Stamp) -> list[Character]:
-    """`random_character_source` がオンで、まだ誰も居ない場所へ、まとめて人物を生む(場所ごとに一度きり)。"""
-    if not _should_roll(time):
-        return []
-
-    places = session.scalars(
-        world_createion_query.flagged_character_source_locations_select(time)).all()
-    unseeded_places = [
-        p for p in places
-        if int(session.scalar(world_createion_query.character_count_at_place_select(p.id)) or 0) == 0
-        and world_createion_query.location_has_plot(session, p.id)
-    ]
-    if not unseeded_places:
-        return []
-
-    when = format_time(time)
-    created: list[Character] = []
-    for place in unseeded_places:
-        seed = random.randrange(10 ** 9)
-        rng = random.Random(seed)
-        count = rng.randint(*SEED_COUNT_RANGE)
-        print(f"[time_keepr/character] {when} 初回生成: {place.name}(id={place.id}) "
-              f"seed={seed} {count}人をまとめて生成")
-        for _ in range(count):
-            created.append(_generate_one(session, place, time, rng))
-
-    return created
