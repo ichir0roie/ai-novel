@@ -33,7 +33,6 @@ from DEM.db.schema import (
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import add_days, format_time
-from DEM.local_ai.time_keeper._typo_check import check_typos
 from DEM.randomizer.random_location_generator import build_location
 
 _EVENT_TEXT_INSTRUCTION = (
@@ -486,8 +485,8 @@ def _progress_place(
     if not decided.get("event_name"):
         return None
 
-    event_name, event_text = check_typos(
-        decided["event_name"], decided.get("event_text") or "", characters)
+    event_name = decided["event_name"]
+    event_text = decided.get("event_text") or ""
 
     character_ids = {c.id: c for c in characters}
 

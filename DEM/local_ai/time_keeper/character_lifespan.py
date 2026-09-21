@@ -10,7 +10,6 @@ from DEM.db.schema import CHARACTER_KIND_PERSON, Character, Event, EventCharacte
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
-from DEM.local_ai.time_keeper._typo_check import check_typos
 
 _DEATH_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある人物の死を記録する設定作家です。"
@@ -65,9 +64,8 @@ def _kill(
         "この人物の最期を1件、決めてください。"
     )
     decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_DEATH_SYSTEM_PROMPT)
-    event_name, event_text = check_typos(
-        decided.get("event_name") or f"{character.name}の死({cause})",
-        decided.get("event_text") or "", [character])
+    event_name = decided.get("event_name") or f"{character.name}の死({cause})"
+    event_text = decided.get("event_text") or ""
 
     character.end = time
 
