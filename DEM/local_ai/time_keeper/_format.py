@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """`time_keepr` のログに出す時刻を、人が読みやすい形にする。"""
 from __future__ import annotations
+import random
 
 from DEM.db.schema import Stamp
 
@@ -18,7 +19,7 @@ def next_day(time: Stamp) -> Stamp:
     if month == 2 and is_leap_year(year):
         days_in_month = 29
 
-    day += 1
+    day += random.randint(1, 60)
     if day > days_in_month:
         day = 1
         month += 1

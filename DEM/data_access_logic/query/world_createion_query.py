@@ -6,7 +6,7 @@ from sqlalchemy import Select, func, or_, select
 
 from DEM.data_access_logic.query import common_query
 from DEM.db.schema import (
-    Character, Event, EventCharacter, Location, LocationResource, Object,
+    Character, Event, EventCharacter, Location, Object,
     Plot, Session,
 )
 
@@ -52,22 +52,6 @@ def alive_locations_select(time) -> Select:
     return (select(Location)
             .where(or_(Location.start.is_(None), Location.start <= time))
             .where(or_(Location.end.is_(None), Location.end > time)))
-
-
-def locations_without_current_resource_select(time) -> Select:
-    """時刻 `time` に、有効な資源(`start`〜`end` が `time` を含む)を一つも持っていない、生きている場所。"""
-    covered = (select(LocationResource.location_id)
-               .where(LocationResource.start <= time)
-               .where(LocationResource.end > time))
-    return alive_locations_select(time).where(Location.id.not_in(covered))
-
-
-def active_resources_select(location_id: int, time) -> Select:
-    """時刻 `time` に、その場所(`location_id`)でまだ有効な資源(`start`〜`end` が `time` を含む)。"""
-    return (select(LocationResource)
-            .where(LocationResource.location_id == location_id)
-            .where(LocationResource.start <= time)
-            .where(LocationResource.end > time))
 
 
 def alive_characters_select(time) -> Select:

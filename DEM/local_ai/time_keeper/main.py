@@ -15,7 +15,6 @@ from DEM.local_ai.time_keeper import (
     event_progression_generator,
     random_character_generator,
     random_location_generator,
-    random_location_resource_generator,
     random_object_generator,
 )
 from DEM.local_ai.time_keeper._format import format_time, next_day
@@ -56,7 +55,6 @@ def time_process(
     s: Session, time: Stamp
 ):
     random_location_generator.generate_random(s, time)
-    random_location_resource_generator.generate_random(s, time)
 
     # フラグを立てた場所へ、まだ誰も居なければまとめて人物を生む(月初)。
     # 月一件だけの generate_random より先に呼び、同じ月内に両方当たっても

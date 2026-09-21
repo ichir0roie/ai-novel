@@ -3,7 +3,6 @@ from DEM.db.schema import *
 
 
 delete_tables = [
-    LocationResource,
     Event,
     EventCharacter,
     EventObject,

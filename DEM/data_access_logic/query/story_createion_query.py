@@ -16,3 +16,12 @@ def load_location_plot(s: Session, location_id: int, time: Stamp):
     return s.scalars(
         select(Plot).where(Plot.location_id.in_(location_ids), plot_time_condition(time))
     ).all()
+
+
+def load_character_plot(s: Session, character_id: int, time: Stamp):
+    return s.scalars(
+        select(CharacterPlot).where(
+            CharacterPlot.character_id == character_id,
+            character_plot_time_condition(time),
+        )
+    ).all()

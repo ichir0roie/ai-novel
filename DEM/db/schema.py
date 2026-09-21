@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     select,
     Select,
+    text,
     update,
     or_,
     and_,
@@ -160,40 +161,6 @@ class Location(MarkdownBase):
     children: Mapped[list[Location]] = relationship()
 
 
-class LocationResource(MarkdownBase):
-    """**場所に紐づく資源。** `start` 時点で `quantity`(総量)、`end` 時点で 0 になるよう、
-    その間を線形に減らしていく前提で持つ(`resource_amount_at` で時点の量を計算する)。
-    """
-
-    __tablename__ = "location_resource"
-
-    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), index=True, sort_order=200)
-    location: Mapped["Location"] = relationship(lazy="noload")
-
-    kind: Mapped[str] = mapped_column(String, comment="種別", sort_order=210)
-    quantity: Mapped[int] = mapped_column(Integer, comment="総量。start 時点の量", sort_order=220)
-    unit: Mapped[str] = mapped_column(String, comment="単位", sort_order=230)
-
-    start: Mapped[Stamp] = mapped_column(StampType, comment="この量を数え始める時刻。総量ぶんある", sort_order=240)
-    end: Mapped[Stamp] = mapped_column(StampType, comment="尽きる時刻。0になる", sort_order=250)
-
-
-def resource_amount_at(resource: LocationResource, time) -> float:
-    """`resource` の、`time` 時点での残量。
-
-    `start` 時点で `quantity`(総量)、`end` 時点で 0 になるよう、その間を
-    線形に減らす。範囲の外なら両端の値(`quantity` / `0`)で止める。
-    """
-    at = Stamp.parse(time)
-    if at <= resource.start:
-        return float(resource.quantity)
-    if at >= resource.end:
-        return 0.0
-    total_span = resource.end.to_seconds() - resource.start.to_seconds()
-    elapsed = at.to_seconds() - resource.start.to_seconds()
-    return resource.quantity * (1 - elapsed / total_span)
-
-
 class Event(MarkdownBase):
 
     __tablename__ = "event"
@@ -338,6 +305,8 @@ class Character(MarkdownBase, ObjectBase):
     )
     emotions: Mapped[list[CharacterDrive]] = relationship(
         lazy="noload",  order_by="CharacterDrive.start.desc()")
+    plots: Mapped[list[CharacterPlot]] = relationship(
+        back_populates="character", lazy="noload", order_by="CharacterPlot.start.desc()")
 
     events: Mapped[list[Event]] = relationship(
         secondary="event_character", viewonly=True, lazy="noload",
@@ -372,6 +341,20 @@ class CharacterDrive(MarkdownBase):
 
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=230)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=240)
+
+
+class CharacterPlot(MarkdownBase):
+    """その人物の出来事生成に指示したい筋書き。`Plot`(場所側)の人物版。"""
+
+    __tablename__ = "character_plot"
+
+    character_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("character.id"), index=True,
+        comment="この筋書きが掛かる人物", sort_order=100)
+    character: Mapped["Character"] = relationship(back_populates="plots", lazy="noload")
+
+    start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
+    end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
 
 
 class Term(MarkdownBase):
@@ -444,6 +427,10 @@ def create_db(path=DB_PATH):
     if os.path.exists(path):
         os.remove(path)
     engine = create_engine(f"sqlite:///{path}", future=True)
+    with engine.begin() as conn:
+        # sqlite の既定も UTF-8 だが、文字化け事故を防ぐため明記しておく。
+        # テーブルが空のうちしか効かないので create_all の前に打つ。
+        conn.execute(text("PRAGMA encoding='UTF-8'"))
     Base.metadata.create_all(engine)
     return engine
 

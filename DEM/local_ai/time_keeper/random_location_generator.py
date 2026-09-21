@@ -8,7 +8,6 @@ from IHG.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Location, Session, Stamp
 from DEM.local_ai import ai_client
-from DEM.local_ai.time_keeper import random_location_resource_generator
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_location_generator import build_location
 
@@ -109,5 +108,4 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
           f" id={record.id} 親={parent_label} 広さ={record.area} 環境={record.environment}\n"
           f"    説明: {record.text or '(説明なし)'}")
 
-    random_location_resource_generator.generate_for_new_location(session, record, time)
     return record

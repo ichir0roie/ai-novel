@@ -22,7 +22,7 @@ from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
 
-PROBABILITY = 0.1  # 1月に1度、10%の確率で
+PROBABILITY = 0.25  # 1月に1度、25%の確率で
 
 # `random_character_source` がオンの場所にまとめて生む人数の幅。
 SEED_COUNT_RANGE = (1, 4)

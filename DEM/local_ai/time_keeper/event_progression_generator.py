@@ -26,22 +26,17 @@ from DEM.data_access_logic.query import (
 )
 from DEM.db.schema import (
     Character, CharacterDrive, Event, EventCharacter,
-    EventObject, Location, LocationResource, Object, Session, Stamp,
+    EventObject, Location, Object, Session, Stamp,
 )
 from DEM.local_ai import ai_client
-from DEM.local_ai.time_keeper import random_location_resource_generator
 from DEM.local_ai.time_keeper._format import add_days, format_time
 from DEM.local_ai.time_keeper.random_object_generator import (
     _DEFAULT_SCALE, _SCALE_INFLUENCE,
 )
 from DEM.randomizer.random_location_generator import build_location
-from DEM.randomizer.random_location_resource_generator import (
-    build_location_resource,
-)
 from DEM.randomizer.random_object_generator import build_object
 
-EVENT_ROLL_INTERVAL_DAYS = 3  # 3日毎に、人物・個体が居る場所それぞれでロールする
-PLACE_PROBABILITY = 0.10  # ロールのたび、場所1件につき10%の確率で出来事を起こす
+PLACE_PROBABILITY = 0.30  # 月初のロールのたび、場所1件につき30%の確率で出来事を起こす(場所ごとに数ヶ月に一度)
 
 # 遠隔候補(`_reach_objects`)をどこまで拾うか。`read_cast` の既定
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
@@ -57,7 +52,7 @@ _EVENT_TEXT_INSTRUCTION = (
     "textをベースに人物像を推測し、個体(国・組織・集団・物)はその text と"
     "世界線への影響度からいまの立場・方針を推測する。状況と、そこに居合わせる"
     "もの同士の関係に基づいて、人物と個体それぞれの行動を決定する。人物も"
-    "個体も、自分や他の人物・個体・場所・資源に影響を与える。"
+    "個体も、自分や他の人物・個体・場所に影響を与える。"
     + EVENT_PROGRESSION_INSTRUCTION + EVENT_RECORD_INSTRUCTION
 )
 
@@ -95,13 +90,50 @@ _CHARACTER_UPDATE_INSTRUCTION = (
 )
 
 _LOCATION_CHANGE_INSTRUCTION = (
-    "この出来事が場所自身や資源の改廃(消滅・新設・枯渇・発見)に及ぶときだけ、"
-    "location_abolished / location_founded / resource_depleted / "
-    "resource_created を埋める。何も変わっていなければ location_abolished と "
-    "resource_depleted は false、location_founded と resource_created は null "
-    "のままにする。location_founded の固有名詞は次の基準で名づける。"
+    "この出来事が場所自身の改廃(消滅・新設)に及ぶときだけ、"
+    "location_abolished / location_founded を埋める。何も変わっていなければ "
+    "location_abolished は false、location_founded は null のままにする。"
+    "location_founded の固有名詞は次の基準で名づける。"
     + PLACE_NAMING_INSTRUCTION
 )
+
+_TYPO_CHECK_SYSTEM_PROMPT = (
+    "あなたは、生成された出来事の記録を確認する校正者です。渡す「正しい"
+    "名前の一覧」(人物は character_id、個体は object_id を持つ)と、"
+    "出来事の名前・本文を見比べ、本文中に一覧の名前と紛らわしい誤字・"
+    "表記ゆれ(似ているが違う表記、文字の入れ替わり、送り仮名や括弧の"
+    "崩れなど)が無いかを確認してください。見つかったら、一覧にある"
+    "正式な表記に直してください。誤字が無ければ、名前も本文もそのまま"
+    "返す。名前の表記以外(出来事の展開や意味、文体)は書き換えない。"
+    "JSON で答えてください。キーは event_name(直した出来事の名前)、"
+    "event_text(直した出来事の本文)の二つだけ。"
+)
+
+
+def _check_typos(
+    event_name: str, event_text: str,
+    characters: list[Character], objects: list[Object], reach_objects: list[Object],
+) -> tuple[str, str]:
+    """生成した出来事の名前・本文を、渡した人物・個体の正式名と照らして誤字・表記ゆれが無いか、もう一度ローカルAIに確認させる。"""
+    known_names = (
+        [{"character_id": c.id, "name": c.name} for c in characters]
+        + [{"object_id": o.id, "name": o.name} for o in objects]
+        + [{"object_id": o.id, "name": o.name} for o in reach_objects]
+    )
+    if not known_names:
+        return event_name, event_text
+    prompt = (
+        f"正しい名前の一覧: {known_names}\n"
+        f"出来事の名前: {event_name}\n"
+        f"出来事の本文: {event_text}\n"
+        "誤字・表記ゆれが無いか確認し、あれば直してください。"
+    )
+    checked = ai_client.try_generate_json(prompt, system=_TYPO_CHECK_SYSTEM_PROMPT)
+    return (
+        checked.get("event_name") or event_name,
+        checked.get("event_text") or event_text,
+    )
+
 
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
@@ -113,8 +145,8 @@ _PLACE_SYSTEM_PROMPT = (
     "event_name(出来事の名前), event_text(出来事の内容。"
     + _EVENT_TEXT_INSTRUCTION + "), "
     "character_ids(関わった人物の id のリスト。渡した「居合わせる人物」の "
-    "id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
-    "「居合わせる個体」と「一つ上の圏内の個体」の id からだけ選ぶ), "
+    "character_id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
+    "「居合わせる個体」と「一つ上の圏内の個体」の object_id からだけ選ぶ), "
     "character_drives(関わった人物のうち、情動・欲求が動いた者だけのリスト。"
     "各要素は character_id(対象の人物 id), text(" + _DRIVE_TEXT_INSTRUCTION +
     "), level(その情動の強さ。1〜10の整数)の三つ), "
@@ -133,13 +165,8 @@ _PLACE_SYSTEM_PROMPT = (
 
 
 def _should_roll(time: Stamp) -> bool:
-    """3日毎にロールする(1日を起点に、その日から3日刻み)。"""
-    return (time.day - 1) % EVENT_ROLL_INTERVAL_DAYS == 0
-
-
-def _end_after_years(start: Stamp, years: int) -> Stamp:
-    return Stamp(start.year + max(years, 1), start.month, start.day,
-                 start.hour, start.minute, start.second)
+    """月に一度、月初(1日)にだけロールする。"""
+    return time.day == 1
 
 
 def _append_note(record: Character | Object, note: str) -> None:
@@ -230,29 +257,49 @@ def _progress_place(
     ).all()
     place = session.get(Location, place_id)
     plots = story_createion_query.load_location_plot(session, place_id, time)
+    character_plots = {
+        c.id: [p.text for p in story_createion_query.load_character_plot(session, c.id, time)]
+        for c in characters[:20]
+    }
+    characters_payload = [
+        {"character_id": c.id, "name": c.name, "tone": c.tone, "text": c.text,
+         "plot": character_plots.get(c.id) or "(指定なし)"}
+        for c in characters[:20]
+    ]
 
     prompt = (
         f"場所id: {place_id}\n"
         f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
-        f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
+        f"居合わせる人物: {characters_payload}\n"
         f"居合わせる個体(国・組織・集団・物): "
-        f"{[(o.id, o.name, o.text, o.world_influence) for o in objects[:20]]}\n"
+        f"{[{'object_id': o.id, 'name': o.name, 'text': o.text, 'world_influence': o.world_influence} for o in objects[:20]]}\n"
         f"一つ上の圏内で拠点を持つ個体(今はここに居ないが、遠隔で"
         f"働きかけてくる余地がある候補): "
-        f"{[(o.id, o.name, o.text, o.world_influence) for o in reach_objects] or '(無し)'}\n"
+        f"{[{'object_id': o.id, 'name': o.name, 'text': o.text, 'world_influence': o.world_influence} for o in reach_objects] or '(無し)'}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
-        "居合わせる人物・個体・場所・資源のうち、どれとどれが噛み合って"
-        "この出来事になったのかを踏まえる。"
+        "居合わせる人物・個体・場所のうち、どれとどれが噛み合って"
+        "この出来事になったのかを踏まえる。人物の character_id と個体の "
+        "object_id は別々の番号空間なので、event_text 内で番号に触れるなら "
+        "「character_id」「object_id」のどちらの番号かが分かる書き方にする"
+        "(迷うなら番号ではなく名前だけで書く)。"
         + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"
            if plots else "")
+        + ("居合わせる人物のうち plot を持つ者がいれば、その人物個人について"
+           "進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
+           if any(character_plots.values()) else "")
     )
     decided = ai_client.try_generate_json(prompt, system=_PLACE_SYSTEM_PROMPT)
 
     if not decided.get("event_name"):
         return None
+
+    event_name, event_text = _check_typos(
+        decided["event_name"], decided.get("event_text") or "",
+        characters, objects, reach_objects,
+    )
 
     character_ids = {c.id: c for c in characters}
     object_ids = {o.id: o for o in objects}
@@ -303,8 +350,8 @@ def _progress_place(
     end = add_days(time, duration_days)
 
     record = Event(
-        name=decided["event_name"],
-        text=decided.get("event_text") or "",
+        name=event_name,
+        text=event_text,
         time=time,
         location_id=place_id,
         start=time,
@@ -405,33 +452,7 @@ def _progress_place(
         new_location = Location(**draft)
         session.add(new_location)
         session.flush()
-        random_location_resource_generator.generate_for_new_location(session, new_location, time)
         location_notes.append(f"{new_location.name}(id={new_location.id}): 新設")
-
-    resource_notes = []
-    if decided.get("resource_depleted"):
-        depleted = session.scalars(
-            world_createion_query.active_resources_select(place_id, time)
-        ).all()
-        for resource in depleted:
-            resource.end = time
-        if depleted:
-            resource_notes.append(f"既存資源{len(depleted)}件が枯渇")
-
-    created_resource = decided.get("resource_created")
-    if isinstance(created_resource, dict) and created_resource.get("kind"):
-        years = int(created_resource.get("years") or 50)
-        draft = build_location_resource(
-            location_id=place_id,
-            kind=created_resource.get("kind"),
-            quantity=int(created_resource.get("quantity") or 1000),
-            unit=created_resource.get("unit") or "単位",
-            text=created_resource.get("text") or "",
-            start=time,
-            end=_end_after_years(time, years),
-        )
-        session.add(LocationResource(**draft))
-        resource_notes.append(f"{draft['kind']} {draft['quantity']}{draft['unit']} 発見")
 
     session.commit()
     when = format_time(time)
@@ -448,13 +469,12 @@ def _progress_place(
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
           + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")
-          + (f" / 場所: {'; '.join(location_notes)}" if location_notes else "")
-          + (f" / 資源: {'; '.join(resource_notes)}" if resource_notes else ""))
+          + (f" / 場所: {'; '.join(location_notes)}" if location_notes else ""))
     return record
 
 
 def generate_random(session: Session, time: Stamp) -> list[Event]:
-    """3日毎に、人物・個体が居る場所それぞれについて出来事を進行させる。"""
+    """月初に、人物・個体が居る場所それぞれについて出来事を進行させる。"""
     if not _should_roll(time):
         return []
 
