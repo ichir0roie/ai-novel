@@ -15,6 +15,7 @@ from sqlalchemy.orm import aliased
 
 from DEM.ai_instructions.naming import (
     CHARACTER_NAMING_INSTRUCTION, NAME_PLACEHOLDER, TERM_NAMING_INSTRUCTION,
+    fill_name_placeholder,
 )
 from DEM.ai_instructions.plot_writing import CHARACTER_PLOT_INSTRUCTION, plot_span_instruction
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
@@ -343,8 +344,8 @@ def _generate_one(
         system=_NAME_SYSTEM_PROMPT if person else _NON_PERSON_NAME_SYSTEM_PROMPT)
     draft["name"] = named.get("name") or draft["name"]
     draft["read"] = named.get("read") or draft["read"]
-    draft["text"] = draft["text"].replace(NAME_PLACEHOLDER, draft["name"])
-    plot_text = plot_text.replace(NAME_PLACEHOLDER, draft["name"])
+    draft["text"] = fill_name_placeholder(draft["text"], draft["name"])
+    plot_text = fill_name_placeholder(plot_text, draft["name"])
 
     record = Character(**draft)
     session.add(record)
