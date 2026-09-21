@@ -6,7 +6,8 @@
   居ない場所へ、月初のたびに 1〜4 人をまとめて生む(場所ごとに一度きり)
 
 どちらも候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物には情動
-(`CharacterDrive`)も一件添えて db へ確定する。
+(`CharacterDrive`)と、その人物専用の筋書き(`CharacterPlot`)も一件ずつ添えて
+db へ確定する。
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import random
 from IHG.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import story_createion_query, world_createion_query
 from DEM.db.schema import (
-    Character, CharacterDrive, Location, Session,
+    Character, CharacterDrive, CharacterPlace, CharacterPlot, Location, Session,
     Stamp,
 )
 from DEM.local_ai import ai_client
@@ -52,11 +53,16 @@ _SYSTEM_PROMPT = (
     "自然に馴染むよう考慮してください(参考地域・参考文化・参考時代は、"
     "固有名詞をそのまま持ち込むのではなく、地理・気候・生業・価値観の"
     "手がかりとして使ってください)。"
+    "plot は、この人物個人について今後たどってほしい筋書き。text の人物説明・"
+    "emotion と矛盾せず、この人物が今後どう動く・何に向かうかの方向づけを"
+    "1〜2文で。出来事生成のたびに読まれ、その人物が関わる出来事の展開の"
+    "優先材料になる。"
     "キーは name(名前), read(読み), text(具体的な生活・仕事・関係が伝わる"
     "2〜3文の人物説明。能力・特技があれば含む。「優しい」「謎めいた」の"
     "ような、誰にでも当てはまる抽象的な形容だけで済ませず、この人物固有の"
     "具体的な癖・関わり・生い立ちを最低一つ含める), age(年齢, 整数), "
-    "emotion(情動), emotion_level(情動の強さ, 整数)の五つだけ。"
+    "emotion(情動), emotion_level(情動の強さ, 整数), plot(今後の筋書き)"
+    "の七つだけ。"
 )
 
 
@@ -109,9 +115,7 @@ def _generate_one(
     session: Session, born_place: Location | None, time: Stamp, rng: random.Random,
 ) -> Character:
     """**人物を一件、db へ確定して返す。** ロール判定(当たり外れ)は呼び出し側の責任。"""
-    draft = build_character(
-        born_place_id=born_place.id if born_place else None,
-    )
+    draft = build_character()
 
     region_label = _region_label(session, born_place)
     plot_texts = _plot_texts(session, born_place, time)
@@ -142,7 +146,12 @@ def _generate_one(
 
     record = Character(**draft)
     session.add(record)
-    session.flush()  # emotion から character_id で参照するため、先に id を確定する
+    session.flush()  # emotion/plot/place から character_id で参照するため、先に id を確定する
+
+    if born_place is not None:
+        session.add(CharacterPlace(
+            character_id=record.id, location_id=born_place.id,
+            start=record.start, end=record.end))
 
     emotion_label = "(なし)"
     emotion_text = (decided.get("emotion") or "").strip()
@@ -156,6 +165,11 @@ def _generate_one(
             character_id=record.id, text=emotion_text, level=emotion_level, start=time))
         emotion_label = f"{emotion_text}(level={emotion_level})"
 
+    # 生んだ人物には必ず一件、専用の筋書き(CharacterPlot)を添える。
+    # ローカルAIが plot を返さなかったときは人物説明をそのまま使う。
+    plot_text = (decided.get("plot") or "").strip() or record.text
+    session.add(CharacterPlot(character_id=record.id, text=plot_text, start=time))
+
     session.commit()
     when = format_time(time)
     place_label = f"{born_place.name}(id={born_place.id})" if born_place else "不明"
@@ -163,6 +177,7 @@ def _generate_one(
           f" id={record.id} 出自={place_label} 年齢={age}\n"
           f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
           f"    情動: {emotion_label}\n"
+          f"    筋書き: {plot_text}\n"
           f"    説明: {record.text or '(説明なし)'}")
     return record
 

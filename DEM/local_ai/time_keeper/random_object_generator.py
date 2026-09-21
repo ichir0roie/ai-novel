@@ -9,8 +9,8 @@ import random
 
 from IHG.ai_instructions.naming import TERM_NAMING_INSTRUCTION
 from IHG.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
-from DEM.data_access_logic.query import story_createion_query, world_createion_query
-from DEM.db.schema import Location, Object, Session, Stamp
+from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
+from DEM.db.schema import Location, Object, ObjectPlace, Session, Stamp
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_object_generator import build_object
@@ -53,17 +53,21 @@ def _should_roll(time: Stamp) -> bool:
 
 
 def _characters_at(session: Session, place_id: int, time: Stamp) -> list:
-    """その場所を出自に持つ、その時点で生きている人物。"""
+    """その場所に居る、その時点で生きている人物。"""
     characters = session.scalars(
         world_createion_query.alive_characters_select(time)).all()
-    return [c for c in characters if c.born_place_id == place_id]
+    resident_ids = set(session.scalars(
+        common_query.resident_character_ids_select([place_id], time)).all())
+    return [c for c in characters if c.id in resident_ids]
 
 
 def _objects_at(session: Session, place_id: int, time: Stamp) -> list:
-    """その場所を拠り所に持つ、その時点で残っている個体。"""
+    """その場所に居る、その時点で残っている個体。"""
     objects = session.scalars(
         world_createion_query.alive_objects_select(time)).all()
-    return [o for o in objects if o.root_place_name == place_id]
+    resident_ids = set(session.scalars(
+        common_query.resident_object_ids_select([place_id], time)).all())
+    return [o for o in objects if o.id in resident_ids]
 
 
 def _place_context(place: Location) -> str:
@@ -118,7 +122,7 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
     objects = _objects_at(session, place.id, time)
     plots = story_createion_query.load_location_plot(session, place.id, time)
 
-    draft = build_object(root_place_name=place.id)
+    draft = build_object()
 
     prompt = (
         f"場所: {place.name}({place.kind}) id={place.id}\n"
@@ -139,11 +143,14 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
     if scale not in _SCALE_INFLUENCE:
         scale = _DEFAULT_SCALE
     draft["world_influence"] = _SCALE_INFLUENCE[scale]
-    draft["root_place_name"] = place.id
     draft["start"] = time
 
     record = Object(**draft)
     session.add(record)
+    session.flush()  # place から object_id で参照するため、先に id を確定する
+    session.add(ObjectPlace(
+        object_id=record.id, location_id=place.id,
+        start=record.start, end=record.end))
     session.commit()
     print(f"[time_keepr/object] {when} 生成: {record.name}({record.read})"
           f" id={record.id} 拠り所={place.name}(id={place.id})"

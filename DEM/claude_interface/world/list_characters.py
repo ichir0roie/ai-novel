@@ -11,9 +11,10 @@ class ListCharacters(WorldQuery):
         return common_query.characters_select()
 
     def row(self, row) -> dict:
+        place = row.places[0] if row.places else None
         return {
             "id": row.id, "name": row.name, "text": row.text,
             "sex": row.sex, "tone": row.tone,
-            "born_place_id": row.born_place_id, "belong_id": row.belong_id,
+            "place_id": place.location_id if place else None, "belong_id": row.belong_id,
             "emotion_count": len(row.emotions),
         }

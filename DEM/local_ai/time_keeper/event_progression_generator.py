@@ -26,7 +26,7 @@ from DEM.data_access_logic.query import (
 )
 from DEM.db.schema import (
     Character, CharacterDrive, Event, EventCharacter,
-    EventObject, Location, Object, Session, Stamp,
+    EventObject, Location, Object, ObjectPlace, Session, Stamp,
 )
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import add_days, format_time
@@ -183,13 +183,13 @@ def _append_note(record: Character | Object, note: str) -> None:
 def _current_place_id(session: Session, character: Character, time: Stamp) -> int | None:
     place = session.scalars(
         common_query.character_place_select(character.id, time)).first()
-    return place.location_id if place else character.born_place_id
+    return place.location_id if place else None
 
 
 def _current_object_place_id(session: Session, obj: Object, time: Stamp) -> int | None:
     place = session.scalars(
         common_query.object_place_select(obj.id, time)).first()
-    return place.location_id if place else obj.root_place_name
+    return place.location_id if place else None
 
 
 def _group_by_place(
@@ -327,7 +327,7 @@ def _progress_place(
         scale = founded_object.get("scale")
         if scale not in _SCALE_INFLUENCE:
             scale = _DEFAULT_SCALE
-        draft = build_object(root_place_name=place_id)
+        draft = build_object()
         draft["name"] = founded_object.get("name") or draft["name"]
         draft["read"] = founded_object.get("read") or draft["read"]
         draft["text"] = founded_object.get("text") or draft["text"]
@@ -336,6 +336,9 @@ def _progress_place(
         new_object = Object(**draft)
         session.add(new_object)
         session.flush()
+        session.add(ObjectPlace(
+            object_id=new_object.id, location_id=place_id,
+            start=new_object.start, end=new_object.end))
         object_ids[new_object.id] = new_object
         involved_object_ids.append(new_object.id)
         object_found_notes.append(
