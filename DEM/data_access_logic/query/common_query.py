@@ -342,11 +342,10 @@ def unsynced_episodes_select(story_id: int | None = None) -> Select:
 # ---------------------------------------------------------------- 断面
 
 def terms_select(place_ids) -> Select:
-    """その場所(群)で使われる語。場所に縛られない語(restrict が空)も含む。"""
+    """その場所(群)で使われる語。"""
     place_ids = list(place_ids)
     return (select(Term)
             .where(or_(Term.restrict_place_id.in_(place_ids),
                        Term.restrict_planet_id.in_(place_ids),
-                       Term.restrict_world_id.in_(place_ids),
-                       Term.restrict_place_id.is_(None)))
+                       Term.restrict_world_id.in_(place_ids)))
             .order_by(Term.id))
