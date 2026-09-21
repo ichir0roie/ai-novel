@@ -13,7 +13,9 @@ import random
 from sqlalchemy import and_, func, select, union, union_all
 from sqlalchemy.orm import aliased
 
-from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import (
+    CHARACTER_NAMING_INSTRUCTION, NAME_PLACEHOLDER, TERM_NAMING_INSTRUCTION,
+)
 from DEM.ai_instructions.plot_writing import CHARACTER_PLOT_INSTRUCTION, plot_span_instruction
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
@@ -23,9 +25,6 @@ from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
-
-# 名前は中身が決まったあとに付けるので、本文・筋書きの中ではこの仮置きで呼ばせ、命名後に置き換える。
-NAME_PLACEHOLDER = "【名前】"
 
 _PLACEHOLDER_INSTRUCTION = (
     f"この一件の名前はまだ決まっていない。text と plot の中でこの一件を指す"
