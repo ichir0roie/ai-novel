@@ -13,6 +13,9 @@
 `world_createion_query.MAX_PER_LOCATION`(10)件あれば止める。
 また、`start`〜`end` が `born_place_id` の場所の `start`〜`end` に収まって
 いるか(その場所がまだ無い時刻・既に終わった時刻に生まれていないか)も確かめる。
+さらに、その場所(か祖先、か場所を問わない筋書き)にプロットが一件も無ければ
+止める(`world_createion_query.check_has_plot`)。プロットの無いエリアに
+展開の当てが無いまま人物だけが増えるのを防ぐ。
 """
 from __future__ import annotations
 
@@ -44,6 +47,7 @@ class CommitCharacter(CommitDraft):
         self.check_exists(session, Object, data.get("belong_id"), "belong_id")
         self._check_capacity(session, data)
         self._check_span(session, data)
+        self._check_plot(session, data)
 
         record = Character(**data)
         session.add(record)
@@ -70,3 +74,10 @@ class CommitCharacter(CommitDraft):
         born_place = session.get(Location, born_place_id)
         world_createion_query.check_within_parent_span(
             born_place, data.get("start"), data.get("end"), "character")
+
+    @staticmethod
+    def _check_plot(session, data: dict) -> None:
+        born_place_id = data.get("born_place_id")
+        if born_place_id is None:
+            return
+        world_createion_query.check_has_plot(session, born_place_id, "character")
