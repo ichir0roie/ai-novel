@@ -59,6 +59,25 @@ _SYSTEM_PROMPT = (
     "の七つだけ。"
 )
 
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "read": {"type": "string"},
+        "text": {"type": "string"},
+        "age": {"type": "integer", "minimum": _AGE_RANGE[0], "maximum": _AGE_RANGE[1]},
+        "emotion": {"type": "string"},
+        "emotion_level": {
+            "type": "integer",
+            "minimum": _EMOTION_LEVEL_RANGE[0],
+            "maximum": _EMOTION_LEVEL_RANGE[1],
+        },
+        "plot": {"type": "string"},
+    },
+    "required": ["name", "read", "text", "age", "emotion", "emotion_level", "plot"],
+    "additionalProperties": False,
+}
+
 
 def _should_roll(time: Stamp) -> bool:
     """月に一度、月初(1日)にだけロールする。"""
@@ -126,7 +145,7 @@ def _generate_one(
         f"この場所・時刻に関連する筋書き:\n{plot_label}\n"
         "この場所に自然な人物を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, system=_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
 
     draft["name"] = decided.get("name") or draft["name"]
     draft["read"] = decided.get("read") or draft["read"]

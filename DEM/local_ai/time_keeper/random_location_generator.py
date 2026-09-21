@@ -25,6 +25,18 @@ _SYSTEM_PROMPT = (
     "地形など一言)の四つだけ。"
 )
 
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "kind": {"type": "string"},
+        "text": {"type": "string"},
+        "environment": {"type": "string"},
+    },
+    "required": ["name", "kind", "text", "environment"],
+    "additionalProperties": False,
+}
+
 
 def _remaining_area(session: Session, parent: Location) -> float | None:
     """`parent` の配下に、あとどれだけ広さを割り当てられるか。
@@ -91,7 +103,7 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
         f"現在の時刻: {time}\n"
         "この親の配下に新しく生まれる場所を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, system=_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
 
     draft["name"] = decided.get("name") or draft["name"]
     draft["kind"] = decided.get("kind") or draft["kind"]

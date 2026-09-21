@@ -27,6 +27,16 @@ _DEATH_SYSTEM_PROMPT = (
     "event_text(死の記録)の二つだけ。"
 )
 
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "event_name": {"type": "string"},
+        "event_text": {"type": "string"},
+    },
+    "required": ["event_name", "event_text"],
+    "additionalProperties": False,
+}
+
 
 def _should_roll(time: Stamp) -> bool:
     """年に一度、元日(1月1日)にだけロールする。"""
@@ -60,7 +70,7 @@ def _kill(
         f"現在の時刻: {time}\n"
         "この人物の最期を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, system=_DEATH_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_DEATH_SYSTEM_PROMPT)
 
     character.end = time
 

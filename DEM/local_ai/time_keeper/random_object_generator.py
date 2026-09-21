@@ -46,6 +46,18 @@ _SYSTEM_PROMPT = (
     " のいずれか一つ)の四つだけ。"
 )
 
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "read": {"type": "string"},
+        "text": {"type": "string"},
+        "scale": {"type": "string", "enum": list(_SCALE_INFLUENCE)},
+    },
+    "required": ["name", "read", "text", "scale"],
+    "additionalProperties": False,
+}
+
 
 def _should_roll(time: Stamp) -> bool:
     """月に一度、月初(1日)にだけロールする。"""
@@ -134,7 +146,7 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
         f"現在の時刻: {time}\n"
         "この場所を拠り所に生まれる群を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, system=_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
 
     draft["name"] = decided.get("name") or draft["name"]
     draft["read"] = decided.get("read") or draft["read"]

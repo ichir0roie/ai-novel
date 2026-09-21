@@ -109,6 +109,16 @@ _TYPO_CHECK_SYSTEM_PROMPT = (
     "event_text(直した出来事の本文)の二つだけ。"
 )
 
+_TYPO_CHECK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "event_name": {"type": "string"},
+        "event_text": {"type": "string"},
+    },
+    "required": ["event_name", "event_text"],
+    "additionalProperties": False,
+}
+
 
 def _check_typos(
     event_name: str, event_text: str,
@@ -128,7 +138,8 @@ def _check_typos(
         f"出来事の本文: {event_text}\n"
         "誤字・表記ゆれが無いか確認し、あれば直してください。"
     )
-    checked = ai_client.try_generate_json(prompt, system=_TYPO_CHECK_SYSTEM_PROMPT)
+    checked = ai_client.try_generate_json(
+        prompt, _TYPO_CHECK_SCHEMA, system=_TYPO_CHECK_SYSTEM_PROMPT)
     return (
         checked.get("event_name") or event_name,
         checked.get("event_text") or event_text,
@@ -162,6 +173,93 @@ _PLACE_SYSTEM_PROMPT = (
     "{name, kind, text, environment}。無ければ null), "
     + _LOCATION_CHANGE_INSTRUCTION + EVENT_DURATION_INSTRUCTION
 )
+
+_OBJECT_FOUND_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": {
+        "name": {"type": "string"},
+        "read": {"type": "string"},
+        "text": {"type": "string"},
+        "scale": {"type": "string", "enum": list(_SCALE_INFLUENCE)},
+    },
+    "required": ["name", "read", "text", "scale"],
+    "additionalProperties": False,
+}
+
+_LOCATION_FOUND_SCHEMA = {
+    "type": ["object", "null"],
+    "properties": {
+        "name": {"type": "string"},
+        "kind": {"type": "string"},
+        "text": {"type": "string"},
+        "environment": {"type": "string"},
+    },
+    "required": ["name", "kind", "text", "environment"],
+    "additionalProperties": False,
+}
+
+_PLACE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "event_name": {"type": "string"},
+        "event_text": {"type": "string"},
+        "character_ids": {"type": "array", "items": {"type": "integer"}},
+        "object_ids": {"type": "array", "items": {"type": "integer"}},
+        "character_drives": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "character_id": {"type": "integer"},
+                    "text": {"type": "string"},
+                    "level": {"type": "integer", "minimum": 1, "maximum": 10},
+                },
+                "required": ["character_id", "text", "level"],
+                "additionalProperties": False,
+            },
+        },
+        "character_updates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "character_id": {"type": "integer"},
+                    "text": {"type": "string"},
+                    "belong_id": {"type": ["integer", "null"]},
+                },
+                "required": ["character_id"],
+                "additionalProperties": False,
+            },
+        },
+        "object_updates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "object_id": {"type": "integer"},
+                    "text": {"type": "string"},
+                },
+                "required": ["object_id", "text"],
+                "additionalProperties": False,
+            },
+        },
+        "object_founded": _OBJECT_FOUND_SCHEMA,
+        "location_abolished": {"type": "boolean"},
+        "location_founded": _LOCATION_FOUND_SCHEMA,
+        "event_duration_days": {
+            "type": "integer",
+            "minimum": _EVENT_DURATION_RANGE_DAYS[0],
+            "maximum": _EVENT_DURATION_RANGE_DAYS[1],
+        },
+    },
+    "required": [
+        "event_name", "event_text", "character_ids", "object_ids",
+        "character_drives", "character_updates", "object_updates",
+        "object_founded", "location_abolished", "location_founded",
+        "event_duration_days",
+    ],
+    "additionalProperties": False,
+}
 
 
 def _should_roll(time: Stamp) -> bool:
@@ -291,7 +389,7 @@ def _progress_place(
            "進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
            if any(character_plots.values()) else "")
     )
-    decided = ai_client.try_generate_json(prompt, system=_PLACE_SYSTEM_PROMPT)
+    decided = ai_client.try_generate_json(prompt, _PLACE_SCHEMA, system=_PLACE_SYSTEM_PROMPT)
 
     if not decided.get("event_name"):
         return None
