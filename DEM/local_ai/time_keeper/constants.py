@@ -16,6 +16,10 @@ ACCIDENT_PROBABILITY_PER_YEAR = 0.003
 # random_character_generator
 GENERATION_CHARACTER_PROBABILITY = 0.3
 GENERATION_CHARACTER_AGE_RANGE = (0, 40)
+# 命名時の重複回避に渡す「既にいる人物・対象」の上限。born_place とその祖先
+# (国・大陸まで)全体の居住者を対象にするため、世界が育つほど際限なく
+# 増える。上限が無いとプロンプトが肥大化し続ける。
+NEARBY_CHARACTER_LIMIT = 20
 
 NON_PERSON_PROBABILITY = 0.3
 NON_PERSON_KINDS = ("国", "組織", "商会", "氏族", "集団", "物")

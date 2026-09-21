@@ -211,13 +211,17 @@ def _nearby_place_ids(session: Session, born_place: Location | None) -> list[int
 
 
 def _nearby_characters(session: Session, born_place: Location | None, time: Stamp) -> list[Character]:
-    """`born_place` かその祖先に、`time` 時点で居る人物・対象。重複回避の材料にする。"""
+    """`born_place` かその祖先に、`time` 時点で居る人物・対象。重複回避の材料にする。
+
+    件数は `constants.NEARBY_CHARACTER_LIMIT` まで(祖先をたどるほど無際限に増えるため)。
+    """
     place_ids = _nearby_place_ids(session, born_place)
     if not place_ids:
         return []
     ids = session.scalars(common_query.resident_character_ids_select(place_ids, time)).all()
     if not ids:
         return []
+    ids = ids[:constants.NEARBY_CHARACTER_LIMIT]
     return session.scalars(select(Character).where(Character.id.in_(ids))).all()
 
 
