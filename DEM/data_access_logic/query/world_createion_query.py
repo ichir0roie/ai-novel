@@ -11,8 +11,9 @@ from DEM.db.schema import (
     ObjectPlace, Plot, Session, Stamp,
 )
 
-# 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
-MAX_PER_LOCATION = 10
+# 一つの場所につき作れる人物・個体の上限。
+MAX_CHARACTERS_PER_LOCATION = 5
+MAX_OBJECTS_PER_LOCATION = 3
 
 
 def character_count_at_place_select(place_id: int, stamp: Stamp) -> Select:
