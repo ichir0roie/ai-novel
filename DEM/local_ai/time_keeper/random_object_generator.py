@@ -5,7 +5,7 @@
 「1月に一度、月初に、5%の確率で」新しい個体が一件生まれる。
 
 **人物が居る場所にだけ生む。** 個体は出来事の中で行為の主体として立つ
-(`DEM/ai_instructions/event_writing.py` の `OBJECT_ACTION_INSTRUCTION`)が、
+(`IHG/ai_instructions/event_writing.py` の `OBJECT_ACTION_INSTRUCTION`)が、
 その決定に従う・背く相手が居なければ、組織があっても何も動かない。だから
 候補は「その場所を出自に持つ人物が一人でも居る場所」に絞る。
 
@@ -29,8 +29,8 @@ from __future__ import annotations
 
 import random
 
-from DEM.ai_instructions.naming import TERM_NAMING_INSTRUCTION
-from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
+from IHG.ai_instructions.naming import TERM_NAMING_INSTRUCTION
+from IHG.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import story_createion_query, world_createion_query
 from DEM.db.schema import Location, Object, Session, Stamp
 from DEM.local_ai import ai_client

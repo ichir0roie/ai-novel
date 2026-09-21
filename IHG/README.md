@@ -14,6 +14,7 @@
 | `characters.md`    | キャラ造形と書き分け                       |
 | `dialogue.md`      | 会話文の作り方                             |
 | `checklist.md`     | 推敲チェックリスト                         |
+| `ai_instructions/` | 常駐ループへ渡す基準の Python 定数(下の節) |
 
 ## IHG と DEM の分担
 
@@ -28,43 +29,59 @@
 
 **IHG はその使い方と判断の基準を書くところで、欄を増やす場所ではない。**
 
-## 常駐ループへ渡す基準(DEM/ai_instructions/)
+## 常駐ループへ渡す基準(IHG/ai_instructions/)
 
 `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下など、Claude を
 介さず db への確定まで自動で回す部分)は、対話の中で人間(Claude)が
-`IHG/*.md` を読んで手順を踏む、ということができない。そこで使う基準は
-`DEM/ai_instructions/` に Python の定数として切り出し、各生成の
-システムプロンプトへ文字列として埋め込む。**正本(どちらを直せば
-反映されるか)は、ファイルごとに一つに決めてある**(二重メンテを避けるため)。
+IHG の他の md を読んで手順を踏む、ということができない。そこで使う基準は
+`IHG/ai_instructions/` に Python の定数として切り出し、各生成の
+システムプロンプトへ文字列として埋め込む(**db にも AI クライアントにも
+触れない。定数を持つだけ**)。**正本(どちらを直せば反映されるか)は、
+ファイルごとに一つに決めてある**(二重メンテを避けるため)。
 
 | 定数ファイル        | 正本                                                              |
 | ------------------- | ------------------------------------------------------------------ |
-| `naming.py`         | `IHG/naming.md`(定数はその**簡略版**)                             |
-| `principles.py`     | `IHG/principles.md`「避けるもの」(定数は**簡略版**)                |
-| `event_writing.py`  | **定数の文面そのものが正本**(`IHG/chronicle.md` は理由だけを持つ) |
+| `naming.py`         | `naming.md`(定数はその**簡略版**)                                 |
+| `principles.py`     | `principles.md`「避けるもの」(定数は**簡略版**)                    |
+| `event_writing.py`  | **定数の文面そのものが正本**(`chronicle.md` は理由だけを持つ)     |
 
-- **簡略版のほう**(`naming.py` `principles.py`): `naming.md` `workflow.md` は
+- **簡略版のほう**(`naming.py` `principles.py`): `naming.md` は
   乱数で言語を一つ引いてから固有名詞を組み立てる、といった対話越しの手順を
   前提にしていて、そのままでは JSON 生成 1 回で名づけを終える常駐ループに
   埋め込めない。定数はその要旨だけを持つ簡略版でしかない。**Claude 自身が
-  名づけ・世界観判断をするときは、この定数ではなく `IHG/*.md` を直接読んで
-  手順を踏む。** `IHG/naming.md` `IHG/principles.md`「避けるもの」を直したら、
-  対応する定数も揃えて直す
+  名づけ・世界観判断をするときは、この定数ではなく `naming.md` `principles.md`
+  を直接読んで手順を踏む。** そちらを直したら、対応する定数も揃えて直す
 - **文面が正本のほう**(`event_writing.py`): 出来事の書き方は対話越しの手順を
   要らない(手順ではなく文面そのものが基準)ので、定数の文面をそのまま正本に
   できる。Claude が `commit_event` を書くときも、この定数の文面をそのまま
   基準にする。ルールの文面を変えたいときは `event_writing.py` を直し、
-  `IHG/chronicle.md` 側は理由(なぜその形にしたか)だけを見直す
+  `chronicle.md` 側は理由(なぜその形にしたか)だけを見直す
 
 **定数を書くときの注意**: 避けたい語を具体例として書かない。小型モデルほど、
 否定命令より例示された語のほうが強く残り、かえってその語を呼び出しやすく
 なる。避けたい傾向は「何を使うか」という**肯定形**で書く
 (`chronicle.md`「出来事の text は記録として書く」に経緯がある)。形式の指定
 (「小説として書かない」「セリフを書かない」)はこれに当たらない。
+**近い内容の定数を複数持ちたくなったら、文面を二重に書かず、差分だけを
+引数に取る関数から組み立てる**(`event_writing.py` の
+`CHARACTER_TEXT_UPDATE_INSTRUCTION` / `OBJECT_TEXT_UPDATE_INSTRUCTION` が実例)。
 
-`DEM/ai_instructions/` 側にある「どの生成器がどの定数を使っているか」の
-配線表は `DEM/ai_instructions/readme.md` を見る(コードの配線であって、
-IHG の関心事ではない)。
+### どの生成器が何を使っているか
+
+| 定数                                                                                 | 使う側                                                                       |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `naming.TERM_NAMING_INSTRUCTION`                                                       | `time_keeper/random_object_generator.py`(国・組織などの名)と、下の二つの土台 |
+| `naming.PLACE_NAMING_INSTRUCTION`                                                      | `time_keeper/random_location_generator.py`、`time_keeper/event_progression_generator.py`(新しい場所が生まれたとき) |
+| `naming.CHARACTER_NAMING_INSTRUCTION`                                                  | `time_keeper/random_character_generator.py`                                   |
+| `principles.AVOID_NARO_TEMPLATE_INSTRUCTION`                                           | `time_keeper/event_progression_generator.py`、`time_keeper/random_object_generator.py`、`random_drive_generator.py` |
+| `event_writing.EVENT_RECORD_INSTRUCTION`                                               | `time_keeper/event_progression_generator.py`、`time_keeper/character_lifespan.py` |
+| `event_writing.EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION`                 | `time_keeper/event_progression_generator.py`                                  |
+| `event_writing.EVENT_PROGRESSION_INSTRUCTION` `EVENT_DURATION_INSTRUCTION`             | 同上                                                                          |
+| `event_writing.CHARACTER_TEXT_UPDATE_INSTRUCTION` `OBJECT_TEXT_UPDATE_INSTRUCTION`     | 同上                                                                          |
+| `event_writing.RECENT_EVENT_LIMIT` `CHARACTER_NOTE_LIMIT` `CHARACTER_NOTE_SEPARATOR`   | 同上(件数の上限。プロンプトではなく処理側で使う)                             |
+
+(呼び出し元はすべて `DEM/local_ai/`。`IHG/ai_instructions/` 自体は db にも
+`DEM/` の他のどこにも依存しない、定数だけの葉のパッケージ)
 
 ## 更新のしかた
 

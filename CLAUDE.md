@@ -62,7 +62,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - `IHG/naming.md` — 用語と名づけの基準
 - `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
   — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
-- `IHG/README.md` — IHG の索引と、IHG / DEM / `DEM/ai_instructions/` の分担
+- `IHG/README.md` — IHG の索引と、IHG / DEM の分担・`IHG/ai_instructions/` の位置づけ
 - 対象作品の直前の話・企画・その作品が立つ世界線の断面
   (`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る)
 

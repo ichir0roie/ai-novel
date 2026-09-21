@@ -164,7 +164,7 @@ kind がほぼ一意に氾濫しているのを実際に観測)。「一言で�
 `CommitEvent` の `text` の書き方(小説ではなく記録として書く・その場に
 あるもの同士の関係から立てる)、直近の出来事を何件まで見るか、人物・個体の
 `text` の更新のしかたは、
-**`DEM/ai_instructions/event_writing.py` が正本。** Claude が `CommitEvent`
+**`IHG/ai_instructions/event_writing.py` が正本。** Claude が `CommitEvent`
 を呼ぶときも、`DEM/local_ai/`(常駐ループ)が出来事を生成するときも、
 同じ定数の文面をそのまま基準にする。**ルールの文面を変えたくなったら、
 このファイルではなく `event_writing.py` を直す。**
@@ -247,7 +247,7 @@ kind がほぼ一意に氾濫しているのを実際に観測)。「一言で�
 見送ってよい(「イベントは作者の意思で起こす」——停滞そのものは問題ではない。
 問題は、停滞を「同じ要約の量産」で埋めてしまうこと)。
 
-**この基準も、常駐ループ向けに `DEM/ai_instructions/event_writing.py` の
+**この基準も、常駐ループ向けに `IHG/ai_instructions/event_writing.py` の
 `EVENT_PROGRESSION_INSTRUCTION` として切り出してある。**
 `event_progression_generator.py` はこれをシステムプロンプトに埋め込み、
 判断材料として直近の出来事の**名前**を渡す(`kind` 廃止前は種別も渡して
@@ -337,7 +337,7 @@ kind がほぼ一意に氾濫しているのを実際に観測)。「一言で�
   (`main.loop_time` が日を進めるたびに確かめる)。作者の方向づけが尽きた先
   まで無方向に生成し続けないための安全弁で、`CommitPlot` で `start`〜`end`
   が先の筋書きを足せば、そこから再開できる
-- 常駐ループが守る基準は `DEM/ai_instructions/` の定数として渡る。
+- 常駐ループが守る基準は `IHG/ai_instructions/` の定数として渡る。
   IHG の文書はそのまま読めないので、要旨を切り出してある(「形は一か所で
   決まっている」)
 
@@ -405,8 +405,8 @@ principles.md は**ステータス画面・レベル・数値で強さを説明�
 | 欄の変更                         | `DEM/db/alembic/` のマイグレーション                   |
 | 読み書きの入口                   | `DEM/claude_interface/<領域>/<動詞_対象>.py`           |
 | 引き方(Select の組み立て)        | `DEM/data_access_logic/query/`                         |
-| 出来事の書き方・進め方           | `DEM/ai_instructions/event_writing.py`(**文面が正本**) |
-| 名づけ・なろう系回避の要旨       | `DEM/ai_instructions/naming.py` `principles.py`(**正本は `IHG/naming.md` `IHG/principles.md`**) |
+| 出来事の書き方・進め方           | `IHG/ai_instructions/event_writing.py`(**文面が正本**) |
+| 名づけ・なろう系回避の要旨       | `IHG/ai_instructions/naming.py` `principles.py`(**正本は `IHG/naming.md` `IHG/principles.md`**) |
 
 `ai_instructions/` の各ファイルでどちらが正本か、なぜそういう分担に
 しているかは `IHG/README.md`「常駐ループへ渡す基準」にまとめてある。
