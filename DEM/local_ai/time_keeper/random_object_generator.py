@@ -15,7 +15,7 @@ from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_object_generator import build_object
 
-PROBABILITY = 0.05  # 1月に1度、5%の確率で
+PROBABILITY = 0.15  # 1月に1度、15%の確率で
 
 # AI に選ばせる「どこまで届く群か」と、それを落とす world_influence の値。
 # 数そのものを AI に決めさせない(尺度が決まっていないため)。

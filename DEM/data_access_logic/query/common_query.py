@@ -8,7 +8,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
-    Character, CharacterDrive, CharacterPlace, Episode,
+    Character, CharacterDrive, CharacterPlace, CharacterPlot, Episode,
     Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
     Plot, Story, Term,
 )
@@ -193,6 +193,15 @@ def plots_select() -> Select:
     `story_createion_query.load_location_plot` を使う。
     """
     return select(Plot).order_by(Plot.id.desc())
+
+
+def character_plots_select() -> Select:
+    """人物の筋書き(`CharacterPlot`)の一覧。新しい順。
+
+    ある人物・時刻に有効なものだけに絞る読み方は
+    `story_createion_query.load_character_plot` を使う。
+    """
+    return select(CharacterPlot).order_by(CharacterPlot.id.desc())
 
 
 def open_events_select(place_ids, until: Stamp) -> Select:

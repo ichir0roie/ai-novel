@@ -141,7 +141,7 @@ class Stamp:
 
         絶対的な暦の起点は決めていない(西暦0年をそのまま起点にしただけ)ので、
         単独の値には意味がなく、二点の差分(間に何秒あるか)を見るのにだけ使う
-        (`LocationResource` の残量のような、時の幅に対する線形補間)。
+        (時の幅に対する線形補間など)。
         """
         days_before_year = (365 * self.year + self.year // 4
                             - self.year // 100 + self.year // 400)

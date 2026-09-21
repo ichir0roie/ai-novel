@@ -24,11 +24,11 @@ claudeが実行するスクリプト群を配置する。
 | 領域         | 入口                                                                                                                             |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `randomizer/` | `create_random_character` `create_random_place` `create_random_event` `create_random_object`(db に触れない下書き)                |
-|              | `commit_character` `commit_place` `commit_event` `commit_object` `commit_character_drive` `commit_plot`(確定する)                 |
-|              | `update_character` `update_place` `update_plot` `delete_place`(確定済みを直す・消す)                                              |
+|              | `commit_character` `commit_place` `commit_event` `commit_object` `commit_character_drive` `commit_plot` `commit_character_plot`(確定する) |
+|              | `update_character` `update_place` `update_plot` `update_character_plot` `delete_place`(確定済みを直す・消す)                      |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
-| `world/`     | `list_places` `list_objects` `list_characters` `list_events` `list_plots` `search_terms`                                           |
+| `world/`     | `list_places` `list_objects` `list_characters` `list_events` `list_plots` `list_character_plots` `search_terms`                    |
 | `sync/`      | `export_db`(db → md の写し) `import_db`(md → db。逆向き)                                                                          |
 
 **`term`(語)を確定する入口はまだ無い。** 検索(`search_terms`)だけがある。
@@ -71,7 +71,7 @@ Entrypoint(claude_interface/_base.py)
 | `common_query.py`              | モード 2 向け。時刻の扱い・断面・顔ぶれ・場所の道筋          |
 | `character_simulation_query.py` | 人物を軸に周辺を読む(`read_surroundings`)                   |
 | `dictionary_query.py`          | 語(辞書)のキーワード検索                                     |
-| `story_createion_query.py`     | 場所に掛かる筋書き(`plot`)の読み出し                         |
+| `story_createion_query.py`     | 場所に掛かる筋書き(`plot`)・人物に掛かる筋書き(`character_plot`)の読み出し |
 | `world_createion_query.py`     | モード 1・3 向け。生きている人物・個体、広さの整合、進行中の判定 |
 
 ここのファイルはその薄い呼び出し面で、**SQL は組み立てない。**

@@ -36,3 +36,11 @@ def plot_time_condition(time: Stamp):
         or_(Plot.start.is_(None), Plot.start <= time),
         or_(Plot.end.is_(None), Plot.end > time),
     )
+
+
+def character_plot_time_condition(time: Stamp):
+    """`time` の時点でまだ有効な人物の筋書き(`start`〜`end` が空なら期間を問わない)。"""
+    return and_(
+        or_(CharacterPlot.start.is_(None), CharacterPlot.start <= time),
+        or_(CharacterPlot.end.is_(None), CharacterPlot.end > time),
+    )
