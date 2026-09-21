@@ -21,7 +21,7 @@ workflow.md が「**どの順で進めるか**」なら、ここは「**どう�
   あるかはここだけを見る。欄を増やしたければ `schema.py` を直し、
   alembic でマイグレーションを一本切る(`DEM/db/alembic/`)
 - **db を直に開かない。** 読むのも書くのも `DEM/claude_interface/` 配下の
-  入口を import して呼ぶ。今ある入口の一覧は CLAUDE.md にある
+  入口を import して呼ぶ。今ある入口の一覧は `IHG/entrypoints.md` にある
 - **`worlds/` の md は読む専用の写し。**
   `DEM.claude_interface.sync.export_db.ExportDb().run()` が db から作り直す。
   **md を直しても db には戻らない**(戻す向きの `import_db` もあるが、
@@ -408,10 +408,8 @@ principles.md は**ステータス画面・レベル・数値で強さを説明�
 | 出来事の書き方・進め方           | `DEM/ai_instructions/event_writing.py`(**文面が正本**) |
 | 名づけ・なろう系回避の要旨       | `DEM/ai_instructions/naming.py` `principles.py`(**正本は `IHG/naming.md` `IHG/principles.md`**) |
 
-`ai_instructions/` に二つのパターンがあるのは、**常駐ループが対話越しに
-`IHG/*.md` を読めない**からである。`naming.py` `principles.py` は長い IHG
-文書からの簡略版(正本は IHG 側)、`event_writing.py` は文面そのものが正本
-(IHG 側は理由だけを持つ)。**対応が要る箇所ごとに、正本を一つに決めてある。**
+`ai_instructions/` の各ファイルでどちらが正本か、なぜそういう分担に
+しているかは `IHG/README.md`「常駐ループへ渡す基準」にまとめてある。
 
 **SQL は組み立てない。** 引く条件は時刻とレコードの id だけで表す。
 足りない引き方が出てきたら `DEM/data_access_logic/query/` に関数を足し、
