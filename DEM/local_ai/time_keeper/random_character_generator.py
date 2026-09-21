@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import random
 
-from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
+from IHG.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import story_createion_query, world_createion_query
 from DEM.db.schema import (
     Character, CharacterDrive, Location, Session,

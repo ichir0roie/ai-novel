@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 
-from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
+from IHG.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Location, Session, Stamp
 from DEM.local_ai import ai_client

@@ -16,12 +16,13 @@ AI にラノベを書いてもらうためのプロジェクト。
 | `novel.db`   | **世界の記録と本文そのもの**(SQLite)                             |
 | `worlds/`    | db から書き出した**読む専用の写し**(`ExportDb`。無くてもよい)    |
 | `oracle/`    | 覚書とアイデア置き場                                             |
-| `CLAUDE.md`  | **Claude 向けの作業指針。入口の一覧はここ**                      |
+| `CLAUDE.md`  | **Claude 向けの作業指針**                                         |
 
 ```
 IHG/
   principles.md       プロジェクトの目的と禁止事項(最優先)
   workflow.md         **進め方。三つのモードに分かれている**
+  entrypoints.md      **「したいこと」から使う入口を引く表**
   chronicle.md        **記録の取り方と、話を尽きさせない仕組み**
   naming.md           用語と名づけの基準(日本語として自然に)
   writing-style.md    文体の基本方針
@@ -29,6 +30,7 @@ IHG/
   characters.md       キャラ造形のテクニック
   dialogue.md         会話文のテクニック
   checklist.md        書き上げたあとの推敲チェックリスト
+  ai_instructions/    常駐ループのプロンプトに埋め込む基準の定数(Python)
 
 DEM/
   db/                 **記録の形(SQLAlchemy)。列はここ一か所で決まる**
@@ -38,7 +40,6 @@ DEM/
   data_access_logic/  引き方(Select の組み立て)。SQL 文字列は組まない
   randomizer/         db に触れない下書き作り(factory)と乱数
   local_ai/           ローカル AI。常駐ループ(time_keeper/)が世界を進める
-  ai_instructions/    常駐ループのプロンプトに埋め込む基準の定数
   tool/               md への書き出し・読み戻し、危険操作
 ```
 
@@ -68,8 +69,8 @@ from DEM.claude_interface.world.list_places import ListPlaces
 ListPlaces(kind="村").run()
 ```
 
-今ある入口の一覧は **CLAUDE.md の表**にある。そこに無い操作は「まだ無い」。
-必要になったら CLAUDE.md「入口の作り方」に沿って足す。
+今ある入口の一覧は **`IHG/entrypoints.md` の表**にある。そこに無い操作は「まだ無い」。
+必要になったら `DEM/claude_interface/readme.md`「作り方」に沿って足す。
 
 ## 命名規約
 

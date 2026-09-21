@@ -35,15 +35,15 @@ from typing import Mapping
 
 from sqlalchemy import select
 
-from DEM.ai_instructions.event_writing import (
+from IHG.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
     EVENT_RELATION_INSTRUCTION, OBJECT_ACTION_INSTRUCTION,
     OBJECT_TEXT_UPDATE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
-from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
-from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
+from IHG.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
+from IHG.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
