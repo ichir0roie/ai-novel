@@ -23,6 +23,7 @@ class LocationFactory(factory.DictFactory):
     sample_era = None
     start = None
     end = None
+    active_random_generation = False
 
 
 def build_location(**overrides) -> dict:

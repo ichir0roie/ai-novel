@@ -6,6 +6,7 @@ import random
 
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
+from DEM.data_access_logic.query.base import location_active_condition
 from DEM.db.schema import Location, Session, Stamp
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
@@ -73,7 +74,8 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
 
     # 親は、この時刻にまだ存在している(start〜end に収まっている)場所だけ。
     candidates = session.scalars(
-        world_createion_query.alive_locations_select(time)).all()
+        world_createion_query.alive_locations_select(time)
+        .where(location_active_condition())).all()
     # 広さが決まっている親は、もう入る余地(remaining > 0)がある場所だけを選ぶ。
     # 広さが決まっていない親(None)は制約が無いのでそのまま選べる。
     eligible = [
@@ -92,7 +94,9 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
         # (兄弟がまだ増える余地を残すため、余地全部は使わない)。
         area = rng.uniform(remaining * 0.05, remaining * 0.5)
 
-    draft = build_location(parent_id=parent.id if parent else None, area=area)
+    draft = build_location(
+        parent_id=parent.id if parent else None, area=area,
+        active_random_generation=parent.active_random_generation if parent else False)
 
     prompt = (
         f"既存の場所(id, 名前, 種別): "

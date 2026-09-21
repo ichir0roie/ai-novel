@@ -9,6 +9,8 @@ import random
 from collections import defaultdict
 from typing import Mapping
 
+from sqlalchemy import select
+
 from DEM.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
@@ -23,6 +25,7 @@ from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
+from DEM.data_access_logic.query.base import location_active_condition
 from DEM.db.schema import (
     Character, CharacterPlace, CharacterPlot, Event, EventCharacter,
     Location, Session, Stamp,
@@ -301,13 +304,16 @@ def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]
     busy_character_ids = set(session.scalars(
         world_createion_query.busy_character_ids_select(time)).all())
 
+    active_place_ids = set(session.scalars(
+        select(Location.id).where(location_active_condition())).all())
+
     characters = session.scalars(
         world_createion_query.alive_characters_select(time)).all()
     for character in characters:
         if character.id in busy_character_ids:
             continue
         place_id = _current_place_id(session, character, time)
-        if place_id is None:
+        if place_id is None or place_id not in active_place_ids:
             continue
         grouped[place_id].append(character)
 
@@ -447,7 +453,7 @@ def _move_destinations(
     nearby_ids -= {place_id, root_id}
     places = session.scalars(
         world_createion_query.alive_locations_select(time)
-        .where(Location.id.in_(nearby_ids))
+        .where(Location.id.in_(nearby_ids), location_active_condition())
     ).all()
     return [{"location_id": p.id, "name": p.name, "kind": p.kind}
             for p in places[:constants.MOVE_DESTINATION_LIMIT]]
@@ -641,6 +647,7 @@ def _progress_place(
             text=founded.get("text") or "",
             environment=founded.get("environment") or (place.environment if place else None),
             start=time,
+            active_random_generation=place.active_random_generation if place else False,
         )
         new_location = Location(**draft)
         session.add(new_location)
