@@ -1,31 +1,12 @@
 #!/usr/bin/env python3
-"""**世界の側の人物を、時の流れの中で自動的に増やす。**
+"""世界の側の人物を、時の流れの中で自動的に増やす。二つの経路がある。
 
-`DEM.local_ai.time_keepr.main` の常駐ループから毎日呼ばれる。二つの経路がある。
+- `generate_random`: 月初に確率 `PROBABILITY` で場所を一つ選び、人物を一件生む
+- `seed_initial_characters`: `Location.random_character_source` がオンで、まだ誰も
+  居ない場所へ、月初のたびに 1〜4 人をまとめて生む(場所ごとに一度きり)
 
-- `generate_random`: 「1月に一度、月初に、10%の確率で」場所を一つだけ選び、
-  人物を一件生む(既存の経路)。**確率が低いうえに場所も一件しか選ばないため、
-  何百年ぶん回しても特定の地域に複数の人物が生まれないことがある**(長期間、
-  一つの地域に複数のキャラが生まれない問題)
-- `seed_initial_characters`: `Location.random_character_source` がオンで、
-  まだ誰も人物が居ない場所へ、月初のたびに 1〜4 人をまとめて生む。場所を
-  「まとめて人が住む場所」として明示的に選べるようにすることで、上の細い
-  トリクルに頼らずその場所へ確実に顔ぶれを揃える。一度生まれれば
-  (`born_place_id` を持つ人物が一人でも居れば)その場所は対象から外れるので、
-  何度呼んでも増え続けることはない
-
-どちらも、候補地はプロット(`Plot`)が一件も無い場所を外してから選ぶ
-(`world_createion_query.location_has_plot`)。プロットの無いエリアに人物を
-増やさないのは、`DEM/claude_interface/randomizer/commit_character.py` と
-同じ基準(IHG の基準は Claude を介さないこの常駐ループにも同じく守らせる)。
-
-どちらも `claude を介さず db への確定まで一度に行う。名前・読み・口調・出自・
-年齢といった AI の判断が要る欄だけをローカルAI(`ai_client`)に委ねる。
-判断の材料として、場所の `text` と参考カラム(`sample_region` `sample_culture`
-`sample_era`)、所属する地域、その場所・時刻に関連する筋書き
-(`load_location_plot` で出自の場所とその祖先をたどって集める)を渡し、
-返ってきた内容から情動(`CharacterDrive`)も一件確定する。能力・特徴は
-表に分けず、`text`(人物説明)の中に書き込む。
+どちらも候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物には情動
+(`CharacterDrive`)も一件添えて db へ確定する。
 """
 from __future__ import annotations
 
@@ -205,8 +186,7 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     # born_place も、この時刻にまだ存在している場所だけを候補にする。
     places = session.scalars(
         world_createion_query.alive_locations_select(time)).all()
-    # 出自の人物が既に上限に達している場所・プロットの無い場所は選ばない
-    # (プロットの無いエリアに人物を増やさない。IHG/workflow.md)。
+    # 出自の人物が既に上限に達している場所・プロットの無い場所は選ばない。
     eligible_places = [
         p for p in places
         if int(session.scalar(world_createion_query.character_count_at_place_select(p.id)) or 0)
@@ -222,13 +202,7 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
 
 
 def seed_initial_characters(session: Session, time: Stamp) -> list[Character]:
-    """**`random_character_source` がオンで、まだ誰も居ない場所へ、まとめて人物を生む。**
-
-    月初のたびに対象を見るが、対象は「フラグがオンなのに、まだ `born_place_id`
-    を持つ人物が一人も居ない場所」だけなので、一度生めば同じ場所は次の月には
-    もう対象から外れる(場所ごとに一度きり)。`generate_random` の月一件だけの
-    細いトリクルと違い、その場所へ確実に複数人をまとめて配置する。
-    """
+    """`random_character_source` がオンで、まだ誰も居ない場所へ、まとめて人物を生む(場所ごとに一度きり)。"""
     if not _should_roll(time):
         return []
 

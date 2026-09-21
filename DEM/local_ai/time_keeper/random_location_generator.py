@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""**世界の側の場所を、時の流れの中で自動的に増やす。**
-
-`DEM.local_ai.time_keepr.main` の常駐ループから毎日呼ばれる。
-「1年に一度、年初に、1%の確率で」新しい場所が一件生まれる。
-
-`DEM/claude_interface/randomizer/` の create → commit の二段は、claude が
-対話の中で下書きを見てから確定する前提の設計だが、この常駐ループは claude
-を介さず回り続ける必要があるため、ここでは db への確定まで一度に行う
-(AIの判断が要る「名前・種別・親」の決定だけをローカルAI(`ai_client`)に
-委ねる)。
-"""
+"""世界の側の場所を、時の流れの中で自動的に増やす。年初に確率 `PROBABILITY` で一件生まれ、db へ確定する。"""
 from __future__ import annotations
 
 import random

@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""**話の同期フラグを立てる／下ろす**、claude が呼ぶ入口(モード 3-3)。
-
-その話で起きたことを台帳(場所・人物・個体・語)へ戻し終えてから立てる。
-立てないまま次の話へ行くと、`start_story` が 2-0 で止まる。
+"""話の同期フラグを立てる／下ろす、claude が呼ぶ入口。
 
     SetEpisodeSynced(1, 6).run()               立てる
     SetEpisodeSynced(1, 6, False).run()        下ろす

@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-"""**場所に紐づく資源を、時の流れの中で自動的に増やす。**
-
-`DEM.local_ai.time_keepr.main` の常駐ループから毎日呼ばれる。役目は二つ:
-
-- 場所が生まれた直後、その場所の初めの資源を一件作る
-  (`random_location_generator.generate_random` から呼ばれる)
-- 年初に、前の資源が尽きた(`end` を過ぎた)場所へ、次の資源を一件足す
-  (`generate_random` がこの常駐ループから直接呼ばれる)
-
-`DEM/claude_interface/randomizer/` の create → commit の二段と違い、この常駐
-ループは claude を介さず回り続ける必要があるため、ここでは db への確定まで
-一度に行う(判断が要る「種別・量・尽きるまでの年数」の決定だけをローカル
-AI(`ai_client`)に委ねる)。
-"""
+"""場所に紐づく資源を、時の流れの中で自動的に増やす。場所が生まれた直後と、資源が尽きた年初に一件作り db へ確定する。"""
 from __future__ import annotations
 
 from DEM.data_access_logic.query import world_createion_query

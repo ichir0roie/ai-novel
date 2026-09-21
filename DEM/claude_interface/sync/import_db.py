@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 """`worlds/` の md を db へ読み戻す、claude が呼ぶ入口。`export_db.py` の逆。
 
-`DEM.tool.markdown.import_db` の薄いラッパー。**db が本体で、`worlds/` は
-その写し。** md を手で直してからここを呼ぶと、その内容が db に反映される
-(id が既にあれば上書き、無ければ新規に作る。id が無ければ自動採番する)。
-テーブル名は置き場所(`worlds/{table_name}/`)から読み、`table_name/` からの
-相対ディレクトリパスがそのまま `directory_path` 列に入る。列の値は各ファイルの
-`# data` の json から読む。
-
     ImportDb().run()   読み込んだ件数を、テーブル名ごとの辞書で返す
 """
 from __future__ import annotations

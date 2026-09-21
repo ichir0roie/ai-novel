@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""**人物一人を軸に、その時刻・その居場所の周辺**を読む、claude が呼ぶ入口。
-
-`read_cast` が作品の立つ場所を軸にするのに対して、こちらは**人物**を軸にする。
-その人物がその時点で居る場所(とその配下)に、同じ時点で居合わせる人物・
-個体(群)、そこで起きた直近の出来事(`reach` 年ぶん)を一度に返す。
-ランダム生成・展開の検討材料を広げるのに使う。
-
-`DEM/data_access_logic/query/character_simulation_query.character_around_event`
-の薄い呼び出し面。db には触れない。
-"""
+"""人物一人を軸に、その時刻・その居場所の周辺(居合わせる人物・個体、直近の出来事)を読む、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from DEM.claude_interface.story import _rows

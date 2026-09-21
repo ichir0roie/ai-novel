@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""schema.py の ORM モデルから、pydantic モデルを自動で組む。
-
-**欄の一元管理は schema.py のまま。** ここでは欄を並べ直さず、
-SQLAlchemy のマッパー情報(列の型・Nullable・ForeignKey・relationship)を
-そのまま読み取って pydantic モデルを作る。schema.py に欄を足せば、
-ここは何も書き換えずに追随する。
+"""schema.py の ORM モデルから、SQLAlchemy のマッパー情報を読んで pydantic モデルを自動で組む。
 
 使い方:
     from schema_pydantic import to_model

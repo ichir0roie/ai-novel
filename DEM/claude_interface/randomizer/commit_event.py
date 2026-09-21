@@ -36,14 +36,6 @@ from DEM.db.schema import (
 from DEM.db.schema_pydantic import to_dict
 
 
-def _check_columns(model: type, data: dict) -> None:
-    """`model` のスキーマに無い欄が混ざっていないか確かめる。"""
-    columns = {column.key for column in model.__table__.columns} - {"id"}
-    unknown = set(data) - columns
-    if unknown:
-        raise ValueError(f"{model.__name__} のスキーマに無い欄: {sorted(unknown)}")
-
-
 class CommitEvent(CommitDraft):
     """出来事を一件、db へ確定して、格納後の中身を辞書で返す。
 
@@ -78,7 +70,7 @@ class CommitEvent(CommitDraft):
 
         for drive in drives:
             drive.pop("id", None)
-            _check_columns(CharacterDrive, drive)
+            self.check_columns(drive, CharacterDrive)
             self.check_exists(session, Character, drive.get("character_id"), "character_drives.character_id")
             if not drive.get("text"):
                 raise ValueError("character_drives.text は必須")

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""**場所の一覧**を出す、claude が呼ぶ入口。
-
-`kind` を渡すとその種別(`"村"` 等)だけに絞る。人物・出来事を場所に
-紐づけるとき、対象の場所の id をここで拾う。
-"""
+"""場所の一覧を出す、claude が呼ぶ入口。`kind` を渡すとその種別だけに絞る。"""
 from __future__ import annotations
 
 from DEM.claude_interface.world._base import WorldQuery
@@ -11,8 +7,6 @@ from DEM.data_access_logic.query import common_query
 
 
 class ListPlaces(WorldQuery):
-    """場所を一覧で返す。db には書き込まない。"""
-
     def __init__(self, kind: str | None = None):
         self.kind = kind
 

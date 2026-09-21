@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""**出来事を引く**、claude が呼ぶ入口。
-
-引く条件は時刻とレコードの id だけ。SQL は組み立てない。
+"""出来事を引く、claude が呼ぶ入口。
 
     ReadEvents(time="4354").run()       その年の出来事と行動を全部
     ReadEvents(record_id=8).run()       その id に掛かるもの(場所なら

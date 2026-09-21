@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""**語をキーワードで検索する**、claude が呼ぶ入口。
-
-`term.text`(本文)にそのキーワードを含む語を一覧で返す。db には書き込まない。
-"""
+"""語をキーワードで検索する、claude が呼ぶ入口。`term.text` にそのキーワードを含む語を返す。"""
 from __future__ import annotations
 
 from DEM.claude_interface.world._base import WorldQuery
@@ -10,8 +7,6 @@ from DEM.data_access_logic.query import dictionary_query
 
 
 class SearchTerms(WorldQuery):
-    """語をキーワードで検索して返す。db には書き込まない。"""
-
     def __init__(self, keyword: str):
         self.keyword = keyword
 

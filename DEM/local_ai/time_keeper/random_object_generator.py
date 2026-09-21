@@ -1,29 +1,7 @@
 #!/usr/bin/env python3
-"""**世界の側の個体(国・組織・商会などの群)を、時の流れの中で自動的に増やす。**
+"""世界の側の個体(国・組織・商会などの群)を、時の流れの中で自動的に増やす。
 
-`DEM.local_ai.time_keeper.main` の常駐ループから毎日呼ばれる。
-「1月に一度、月初に、5%の確率で」新しい個体が一件生まれる。
-
-**人物が居る場所にだけ生む。** 個体は出来事の中で行為の主体として立つ
-(`IHG/ai_instructions/event_writing.py` の `OBJECT_ACTION_INSTRUCTION`)が、
-その決定に従う・背く相手が居なければ、組織があっても何も動かない。だから
-候補は「その場所を出自に持つ人物が一人でも居る場所」に絞る。
-
-**プロット(`Plot`)の無い場所にも生まない。** 展開の当てが無いまま個体だけ
-積み上がるのを防ぐ基準は、`DEM/claude_interface/randomizer/commit_object.py`
-と同じ(`world_createion_query.location_has_plot`。IHG の基準は Claude を
-介さないこの常駐ループにも同じく守らせる)。
-
-`DEM/claude_interface/randomizer/` の create → commit の二段は、claude が
-対話の中で下書きを見てから確定する前提の設計だが、この常駐ループは claude
-を介さず回り続ける必要があるため、ここでは db への確定まで一度に行う
-(AI の判断が要る「名・読み・説明・規模」の決定だけをローカル AI
-(`ai_client`)に委ねる)。
-
-**個体に `kind` の欄は無い。** 国か組織か商会かは `text` に書かせる。
-`world_influence`(世界線への影響度)は数の尺度が決まっていないので、AI には
-数を決めさせず、`scale`(どこまで届く群か)だけを選ばせて `_SCALE_INFLUENCE`
-で数に落とす。
+月初に確率 `PROBABILITY` で、人物が居てプロットのある場所を選び、個体を一件生んで db へ確定する。
 """
 from __future__ import annotations
 
@@ -121,8 +99,7 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
 
     places = session.scalars(
         world_createion_query.alive_locations_select(time)).all()
-    # 人が居て、まだ個体の枠が空いていて、プロットのある場所だけを候補にする
-    # (プロットの無いエリアに個体を増やさない。IHG/workflow.md)。
+    # 人が居て、まだ個体の枠が空いていて、プロットのある場所だけを候補にする。
     eligible = [
         p for p in places
         if int(session.scalar(

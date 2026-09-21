@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
-"""**モード 2 の材料を一度に出す**、claude が呼ぶ入口(2-0 〜 2-3)。
+"""話を書き始めるのに要る材料(同期確認・作品の見出し・直前の話・断面・顔ぶれ)を一度に出す、claude が呼ぶ入口。
 
-同期の確認・作品の見出し・直前の話・断面・顔ぶれが、この一本で出る。
-一件ずつ入口を呼ぶと、そのたびに db を開き直すことになるため、
-書き始める前はここを通す。出す範囲を変えたいときだけ、個別の入口を使う。
-
-**未同期の話があれば、そこで止まる**(`stopped` が立ち、材料は出ない)。
-古い台帳の上で次の話を組み立てないため。読むだけで何も書かないときは
-`skip_sync=True` で抜けられるが、これを付けて次の話を書かない。
+未同期の話があれば `stopped` を立てて材料を出さない。`skip_sync=True` で抜けられる。
 """
 from __future__ import annotations
 
@@ -17,8 +11,6 @@ from DEM.data_access_logic.query import common_query
 
 
 class StartStory(StoryQuery):
-    """その作品を書き始めるのに要る材料を、まとめて辞書で返す。"""
-
     def __init__(self, story_id: int, time=None, episodes: int = 10, count: int = 5,
                  reach: int = 60, levels: int = 1, skip_sync: bool = False):
         self.story_id = int(story_id)
