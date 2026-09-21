@@ -23,6 +23,8 @@ Claude が `commit_event` の `text` を書くときも、`DEM/local_ai/`(`ai_cl
 """
 from __future__ import annotations
 
+from DEM.ai_instructions.naming import NAME_PLACEHOLDER
+
 # 出来事を考えるとき、判断材料として渡す「直近の出来事」の件数
 # (場所ごと・人物ごと・筋書きごとの三つの窓すべてに使う)。
 # 増やすほど過去の語彙が持ち越され、自己増殖しやすくなる一方、
@@ -86,4 +88,5 @@ CHARACTER_TEXT_UPDATE_INSTRUCTION = (
     "この出来事でそれについて新しく分かったことが無ければ、この人物"
     "自体を character_updates に含めない。書いた内容は既存の text の続きに"
     "積み足されるので、それだけで意味が通る一文にする。"
+    f"この人物自身を指すときは名前を書かず、必ず「{NAME_PLACEHOLDER}」とだけ書く。"
 )
