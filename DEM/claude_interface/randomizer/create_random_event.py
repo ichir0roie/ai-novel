@@ -6,8 +6,9 @@
 `object_ids` `parent_event_id`)の存在確認や、実際の書き込みはしない——それは
 `DEM.claude_interface.randomizer.commit_event.CommitEvent` の仕事。
 
-ここが返す辞書を、claude が文脈に合わせて `name` `kind` `time` `text` や
-各欄を書き換えてから `CommitEvent` に渡す。
+ここが返す辞書を、claude が文脈に合わせて `name` `time` `text` や各欄を
+書き換えてから `CommitEvent` に渡す。断面(`ReadBrief`)に出したくない
+裏設定・伏線は `hidden` を `True` にする(既定は `False`)。
 """
 from __future__ import annotations
 

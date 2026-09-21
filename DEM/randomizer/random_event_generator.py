@@ -14,14 +14,12 @@ from __future__ import annotations
 
 import factory
 
-_KIND_CHOICES = ("", "関係", "火種", "指標", "争点")
-
 
 class EventFactory(factory.DictFactory):
     """出来事レコード一件分の下書きを、db に触れずに辞書として組む。"""
 
     name = factory.Sequence(lambda n: f"仮の出来事{n}")
-    kind = factory.Faker("random_element", elements=_KIND_CHOICES)
+    hidden = False
     text = ""
 
     # 実在レコードを指す欄・時刻。呼び出し側が上書きする前提で None／空のまま。
