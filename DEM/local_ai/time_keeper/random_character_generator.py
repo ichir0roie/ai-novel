@@ -14,6 +14,11 @@
   (`born_place_id` を持つ人物が一人でも居れば)その場所は対象から外れるので、
   何度呼んでも増え続けることはない
 
+どちらも、候補地はプロット(`Plot`)が一件も無い場所を外してから選ぶ
+(`world_createion_query.location_has_plot`)。プロットの無いエリアに人物を
+増やさないのは、`DEM/claude_interface/randomizer/commit_character.py` と
+同じ基準(IHG の基準は Claude を介さないこの常駐ループにも同じく守らせる)。
+
 どちらも `claude を介さず db への確定まで一度に行う。名前・読み・口調・出自・
 年齢といった AI の判断が要る欄だけをローカルAI(`ai_client`)に委ねる。
 判断の材料として、場所の `text` と参考カラム(`sample_region` `sample_culture`
@@ -200,11 +205,13 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     # born_place も、この時刻にまだ存在している場所だけを候補にする。
     places = session.scalars(
         world_createion_query.alive_locations_select(time)).all()
-    # 出自の人物が既に上限に達している場所は選ばない。
+    # 出自の人物が既に上限に達している場所・プロットの無い場所は選ばない
+    # (プロットの無いエリアに人物を増やさない。IHG/workflow.md)。
     eligible_places = [
         p for p in places
         if int(session.scalar(world_createion_query.character_count_at_place_select(p.id)) or 0)
         < world_createion_query.MAX_PER_LOCATION
+        and world_createion_query.location_has_plot(session, p.id)
     ]
     if places and not eligible_places:
         print(f"[time_keepr/character] {when} 空きのある場所が無いため見送り")
@@ -230,6 +237,7 @@ def seed_initial_characters(session: Session, time: Stamp) -> list[Character]:
     unseeded_places = [
         p for p in places
         if int(session.scalar(world_createion_query.character_count_at_place_select(p.id)) or 0) == 0
+        and world_createion_query.location_has_plot(session, p.id)
     ]
     if not unseeded_places:
         return []

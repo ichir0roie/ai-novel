@@ -9,6 +9,11 @@
 その決定に従う・背く相手が居なければ、組織があっても何も動かない。だから
 候補は「その場所を出自に持つ人物が一人でも居る場所」に絞る。
 
+**プロット(`Plot`)の無い場所にも生まない。** 展開の当てが無いまま個体だけ
+積み上がるのを防ぐ基準は、`DEM/claude_interface/randomizer/commit_object.py`
+と同じ(`world_createion_query.location_has_plot`。IHG の基準は Claude を
+介さないこの常駐ループにも同じく守らせる)。
+
 `DEM/claude_interface/randomizer/` の create → commit の二段は、claude が
 対話の中で下書きを見てから確定する前提の設計だが、この常駐ループは claude
 を介さず回り続ける必要があるため、ここでは db への確定まで一度に行う
@@ -116,7 +121,8 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
 
     places = session.scalars(
         world_createion_query.alive_locations_select(time)).all()
-    # 人が居て、まだ個体の枠が空いている場所だけを候補にする。
+    # 人が居て、まだ個体の枠が空いていて、プロットのある場所だけを候補にする
+    # (プロットの無いエリアに個体を増やさない。IHG/workflow.md)。
     eligible = [
         p for p in places
         if int(session.scalar(
@@ -124,6 +130,7 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
         and int(session.scalar(
             world_createion_query.object_count_at_place_select(p.id)) or 0)
         < world_createion_query.MAX_PER_LOCATION
+        and world_createion_query.location_has_plot(session, p.id)
     ]
     if not eligible:
         print(f"[time_keepr/object] {when} 人が居て枠の空いている場所が無いため見送り")

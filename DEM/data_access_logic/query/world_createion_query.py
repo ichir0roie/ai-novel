@@ -7,17 +7,18 @@ claude はここを直接呼ばない。`DEM/claude_interface/randomizer/` の
 
 `common_query.py` と同じく、関数はほとんど `Select` を返すだけにとどめる
 (実行と、実行結果をもとにした判定は呼び出し側へ渡す)。例外は
-`check_within_parent_span` だけ: 親と子、二つのレコードを見比べる算術で、
-select で表せる問いではない(`common_query.py` の `descendant_place_ids` 等と
-同じ理由)。
+`check_within_parent_span` `check_has_plot` だけ: 親と子、二つのレコードを
+見比べる算術や、場所の木をのぼる処理で、select 一発では表せない問い
+(`common_query.py` の `descendant_place_ids` 等と同じ理由)。
 """
 from __future__ import annotations
 
 from sqlalchemy import Select, func, or_, select
 
+from DEM.data_access_logic.query import common_query
 from DEM.db.schema import (
     Character, Event, EventCharacter, Location, LocationResource, Object,
-    Plot,
+    Plot, Session,
 )
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
@@ -158,3 +159,35 @@ def check_within_parent_span(parent: Location, child_start, child_end, label: st
             raise ValueError(
                 f"{label}: end={child_end} が親(id={parent.id})の "
                 f"end={parent.end} を超える")
+
+
+def location_has_plot(session: Session, place_id: int) -> bool:
+    """**その場所(か祖先、か場所を問わない筋書き)に `Plot` が一件でもあるか。**
+
+    `Plot.location_id` が無い(場所を問わず渡る)行が一件でもあれば、どの
+    場所でも真になる。場所を限った行は、その場所自身か、木をのぼった祖先
+    (`common_query.place_path`)のどれかに掛かっていれば真になる。時期
+    (`start`〜`end`)は問わない——存在するかどうかだけを見る。
+
+    `check_has_plot`(「確定する」入口が止まるときに使う)と、
+    `DEM/local_ai/time_keeper/` の自動生成が候補地を絞るときの両方から使う
+    (`IHG` の基準は Claude を介さないローカル AI にも同じく守らせる)。
+    """
+    ancestor_ids = [node["id"] for node in common_query.place_path(session, place_id)]
+    return session.scalar(
+        select(Plot.id)
+        .where(or_(Plot.location_id.in_(ancestor_ids), Plot.location_id.is_(None)))
+        .limit(1)
+    ) is not None
+
+
+def check_has_plot(session: Session, place_id: int, label: str) -> None:
+    """**その場所(か祖先)に筋書き(`Plot`)が一件も無ければ止める。**
+
+    プロットの無いエリアに人物・個体を増やさない——展開の当てが無いまま
+    人・物だけが積み上がるのを防ぐ。
+    """
+    if not location_has_plot(session, place_id):
+        raise ValueError(
+            f"{label}: place_id={place_id} にはプロットが無い。"
+            "先に CommitPlot でその場所(か祖先)へ筋書きを置いてから確定する")
