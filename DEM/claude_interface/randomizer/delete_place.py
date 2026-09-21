@@ -29,5 +29,4 @@ class DeletePlace(CommitDraft):
 
         data = {"id": record.id, "name": record.name, "kind": record.kind}
         session.delete(record)
-        session.commit()
         return data

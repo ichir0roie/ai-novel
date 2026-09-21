@@ -32,5 +32,4 @@ class SetEpisodeSynced(StoryCommit):
             raise UnknownRecordError(
                 f"作品 {self.story_id} に {self.number} 話が無い")
         record.synced = bool(self.synced)
-        session.commit()
         return to_dict(record)

@@ -149,8 +149,11 @@ class Location(MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=320)
 
     # 自分の親(一つ上の場所)。木をのぼって道筋(place_path)を組むのに使う。
-    parent: Mapped["Location | None"] = relationship(remote_side="Location.id", lazy="noload")
-    children: Mapped[list[Location]] = relationship()
+    # 書き込みは常に parent_id を直に触るので、どちらも読み取り専用にしておく
+    # (viewonly を外すと、同じ外部キーを double-write しようとして SQLAlchemy が警告する)。
+    parent: Mapped["Location | None"] = relationship(
+        remote_side="Location.id", viewonly=True, lazy="noload")
+    children: Mapped[list[Location]] = relationship(viewonly=True)
 
 
 class Event(MarkdownBase):
@@ -412,7 +415,7 @@ def create_db(path=DB_PATH):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path):
         os.remove(path)
-    engine = create_engine(f"sqlite:///{path}", future=True)
+    engine = create_engine(f"sqlite:///{path}")
     with engine.begin() as conn:
         # sqlite の既定も UTF-8 だが、文字化け事故を防ぐため明記しておく。
         # テーブルが空のうちしか効かないので create_all の前に打つ。
@@ -421,7 +424,7 @@ def create_db(path=DB_PATH):
     return engine
 
 
-engine = create_engine(f"sqlite:///{os.path.abspath(DB_PATH)}", future=True)
+engine = create_engine(f"sqlite:///{os.path.abspath(DB_PATH)}")
 
 
 def get_session():

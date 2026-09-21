@@ -29,7 +29,7 @@ class CommitPlace(CommitDraft):
 
         record = Location(**data)
         session.add(record)
-        session.commit()
+        self.finalize(session, record)
         return to_dict(record)
 
     @staticmethod
