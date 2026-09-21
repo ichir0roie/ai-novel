@@ -23,40 +23,11 @@ class LocalAIError(RuntimeError):
     """ローカルAIサーバとの通信・応答が失敗したときに投げる。"""
 
 
-# Ollama の既定値(temperature 0.8 / repeat_penalty 1.1 前後)のまま使うと、
-# 小型モデル(ノート PC の gemma3n:e2b/e4b、GPU PC の gemma4:12b-it-qat 共通)は、
-# 渡した設定が薄い場面で高確率トークン(場所を問わず使い回せる抽象的なムード語)
-# へ収束しやすい。temperature を少し下げ、repeat_penalty を上げることで、
-# 同じ言い回しの多用を抑える。gemma4 系は「寡黙に」のような指示があっても
-# 会話が続くほど応答が長くなる傾向が報告されているため、この効果は引き続き要る。
-#
-# num_ctx は明示しないと Ollama の既定(2048〜4096 程度)に落ちる。gemma4 は
-# 数万〜数十万トークンの context window を持つモデルだが、Ollama はモデルの
-# 対応幅に関係なく既定値で黙って古い方から切り詰める(エラーは出ない)。
-# event_progression_generator._progress_place の1呼び出しだけでも、人物・個体
-# 最大20件ずつ+text+plot を渡すため、既定のままでは日本語で簡単に既定値を
-# 超えて古い情報から見えなくなる。VRAM(3080 10〜12GB, Q4量子化)に収まる
-# 範囲で余裕を持たせておく。
 _DEFAULT_OPTIONS = {
     "temperature": 0.6,
     "repeat_penalty": 1.3,
     "num_ctx": 16384,
 }
-
-# `generate_json`/`try_generate_json` は呼び出し側にJSON Schemaを必須で
-# 渡させる(`format` に素の `"json"` を渡す運用はしない)。素の `"json"` は
-# 構文が有効な JSON であることしか強制しないため、gemma4(thinking/tools
-# 対応)は要求していない `thought` キーを勝手に足したり、JSONの外側に
-# テンプレート制御トークン(`<|tool_response>` 等)を漏らして壊れた応答を
-# 返すことがある。キーと型を列挙したスキーマを渡すと、この漏れは起きない。
-#
-# さらに `think` は明示的に `False` を渡す。gemma4 は thinking 対応モデル
-# なので `think` を省く(=既定で思考が有効になる)と、Ollama 側の
-# gemma4 renderer/parser が thinking と最終応答を分離しきれず、スキーマで
-# 縛った JSON の文字列値の中に `<|channel|>` のような内部トークンや
-# ```json` の断片が漏れ込むことがある(Ollama 0.34.2 で確認)。
-# `think: True` でも同じ漏れが `thinking` フィールド側に起きるため、
-# `think: False` で思考そのものを止めるのが今のところ唯一の回避策。
 
 
 def _host() -> str:
@@ -94,7 +65,7 @@ def generate(
         payload["system"] = system
     if format is not None:
         payload["format"] = format
-        payload["think"] = False
+        payload["think"] = True
 
     url = f"{_host().rstrip('/')}/api/generate"
     body = json.dumps(payload).encode("utf-8")
