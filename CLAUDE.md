@@ -71,7 +71,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 人物を軸にその時刻の周辺を読む       | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`(同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う) |
 | 出来事を引く                         | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()`                                                                                                                                                              |
 | 出来事を一覧で見る(全件)             | `DEM.claude_interface.world.list_events.ListEvents().run()`(絞り込みなし、新しい順に全件。db には触れない)                                                                                                                                                      |
-| 出来事の `text` の書き方             | 要約(「〜という出来事があった」)で済ませない。**軽い小説として 1000 文字程度**で、その場のキャラクターの思考・行動・(その出来事が及ぼす)影響を場面として書く(`IHG/chronicle.md`「出来事の text は場面で書く」)                                              |
+| 出来事の `text` の書き方             | **小説として書かない。情報整理のための記録**として書く(文体・セリフは本文の側で決めるので、出来事では扱わない)。発端 → 誰(人物)とどの国・組織(個体)が何をしたか → 関わった人物の感情 → 前と後で何がどう変わったか、の順に 400〜800 文字程度で具体的に書く。出来事は、その時その場に居合わせるもの同士の相互関係から立てる(`DEM/ai_instructions/event_writing.py` の `EVENT_RECORD_INSTRUCTION` `EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION` が正本。背景は `IHG/chronicle.md`「出来事の text は記録として書く」)                                              |
 | 本文を db へ確定する(2-4)            | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`(字数を数えて入れる。`synced` は必ず下りる)                                                                                                                                         |
 | 同期フラグを立てる(3-3)              | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()`                                                                                                                                                                         |
 | db の本文を md へ書き出す            | `DEM.claude_interface.sync.export_db.ExportDb().run()`(`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない)                                                                                                                      |
@@ -139,9 +139,11 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - **用語は日本語として自然に**: 読者は日本人。日本的な漢字(訓読み)・ひらがな・
   カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
-- **出来事の text は場面で書く。同じ出来事を名前だけ変えて繰り返さない**:
-  `IHG/chronicle.md`「出来事の text は場面で書く」「同じ出来事を名前だけ
-  変えて繰り返さない」
+- **出来事の text は記録として書く。同じ出来事を名前だけ変えて繰り返さない**:
+  `IHG/chronicle.md`「出来事の text は記録として書く」「同じ出来事を名前だけ
+  変えて繰り返さない」。**小説として書くのは話(本文)の側だけ**で、出来事は
+  物事の変化・人物の感情・人物と組織の行動を整理して持つ。国・組織のような
+  個体も行為の主体として扱う
 - **IHG の基準を、Claude を介さないローカル AI にも同じく守らせる**:
   `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下など、Claude を
   介さず db への確定まで自動で回す部分)は対話越しに `IHG/*.md` を読めない。
