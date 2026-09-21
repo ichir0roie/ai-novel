@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ストーリー生成(モード 2)のための問い合わせ。`DEM/claude_interface/story/` から使う。"""
+"""ストーリー生成(モード 2)のための問い合わせ。`DEM/claude_interface/story/` に加え、`DEM/local_ai/`(常駐ループ)からも使う。"""
 from __future__ import annotations
 
 import re
@@ -8,7 +8,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
-    Character, CharacterDrive, CharacterPlace, CharacterPlot, Episode,
+    Character, CharacterPlace, CharacterPlot, Episode,
     Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
     Plot, Story, Term,
 )
@@ -157,6 +157,24 @@ def events_at_select(when, *, place_ids=None, limit=None) -> Select:
     return query
 
 
+def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
+    """**複数の場所にまたがる出来事を新しい順に。** `place_ids` が空/None なら場所を問わず全件。
+
+    一つの筋書き(`Plot`)が指す範囲(場所の配下全体、無指定なら世界全体)で
+    「直近どんな出来事が使われたか」を見るのに使う。単一の id で引く
+    `events_of_select` と違い、場所の集合をそのまま渡す。
+    """
+    query = select(Event).options(*EVENT_LOAD_OPTIONS)
+    if place_ids:
+        query = query.where(Event.location_id.in_(list(place_ids)))
+    if until is not None:
+        query = query.where(Event.time <= span(until)[1])
+    query = query.order_by(Event.time.desc(), Event.id.desc())
+    if limit:
+        query = query.limit(limit)
+    return query
+
+
 def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     """**その id に掛かる出来事と行動を、新しい順に。**
 
@@ -221,11 +239,11 @@ def open_events_select(place_ids, until: Stamp) -> Select:
 
 # ---------------------------------------------------------------- 人物・個体
 
-def emotions_select(character_id: int, until: Stamp) -> Select:
-    """その時点で生きている情動(欲・恐れ・嘘・必要)。"""
-    return (select(CharacterDrive)
-            .where(CharacterDrive.character_id == character_id, *_alive(CharacterDrive, until))
-            .order_by(CharacterDrive.start.desc(), CharacterDrive.id.desc()))
+def character_plots_at_select(character_id: int, until: Stamp) -> Select:
+    """その時点で生きている、その人物の筋書き(欲・恐れ・嘘・必要を含む方向づけ)。"""
+    return (select(CharacterPlot)
+            .where(CharacterPlot.character_id == character_id, *_alive(CharacterPlot, until))
+            .order_by(CharacterPlot.start.desc(), CharacterPlot.id.desc()))
 
 
 def character_place_select(character_id: int, until: Stamp) -> Select:
@@ -266,7 +284,7 @@ def character_select(character_id: int) -> Select:
 def characters_select() -> Select:
     """人物の一覧。既存キャラクターを一括で見渡すのに使う。"""
     return (select(Character)
-            .options(selectinload(Character.emotions), selectinload(Character.places))
+            .options(selectinload(Character.plots), selectinload(Character.places))
             .order_by(Character.id.asc()))
 
 

@@ -63,7 +63,7 @@ def _place_at(session: Session, select_fn, owner_id: int, until: Stamp) -> dict 
 
 def character_sheet(session: Session, character_id: int, *, until=None,
                     count: int = 5, text: bool = True) -> dict:
-    """人物一件を、口調・性格・生きている情動・居場所・直近の行動でそろえて返す。"""
+    """人物一件を、口調・性格・生きている筋書き・居場所・直近の行動でそろえて返す。"""
     character = session.scalars(common_query.character_select(character_id)).first()
     if character is None:
         raise common_query.NotFoundError(f"character_id={character_id} という id の character が見つからない")
@@ -73,8 +73,8 @@ def character_sheet(session: Session, character_id: int, *, until=None,
         "kind": "kind_name", "belong": "belong_name"},
         text=text)
     sheet["place"] = _place_at(session, common_query.character_place_select, character_id, at)
-    sheet["emotions"] = [to_dict_with(row) for row in
-                         session.scalars(common_query.emotions_select(character_id, at)).all()]
+    sheet["plots"] = [to_dict_with(row) for row in
+                      session.scalars(common_query.character_plots_at_select(character_id, at)).all()]
     sheet["recent_events"] = events_of(
         session, character_id, until=None if until is None else at,
         limit=count, text=text)

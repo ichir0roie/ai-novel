@@ -10,8 +10,6 @@ import random
 from collections import defaultdict
 from typing import Mapping
 
-from sqlalchemy import select
-
 from IHG.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
@@ -25,7 +23,7 @@ from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
 from DEM.db.schema import (
-    Character, CharacterDrive, Event, EventCharacter,
+    Character, CharacterPlot, Event, EventCharacter,
     EventObject, Location, Object, ObjectPlace, Session, Stamp,
 )
 from DEM.local_ai import ai_client
@@ -57,9 +55,10 @@ _EVENT_TEXT_INSTRUCTION = (
 )
 
 
-_DRIVE_TEXT_INSTRUCTION = (
-    "text はその人物の信念・思考の核になる情報として扱う。"
-    "出来事なら character_drives 自体を空リストのままにする。"
+_PLOT_TEXT_INSTRUCTION = (
+    "text はその人物の信念・思考の核になる情報として扱う。日常の細かな"
+    "出来事では character_plots 自体を空リストのままにし、信念・立場が"
+    "大きく動いたときだけ書く。"
 )
 
 _INVOLVEMENT_INSTRUCTION = (
@@ -158,9 +157,9 @@ _PLACE_SYSTEM_PROMPT = (
     "character_ids(関わった人物の id のリスト。渡した「居合わせる人物」の "
     "character_id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
     "「居合わせる個体」と「一つ上の圏内の個体」の object_id からだけ選ぶ), "
-    "character_drives(関わった人物のうち、情動・欲求が動いた者だけのリスト。"
-    "各要素は character_id(対象の人物 id), text(" + _DRIVE_TEXT_INSTRUCTION +
-    "), level(その情動の強さ。1〜10の整数)の三つ), "
+    "character_plots(関わった人物のうち、信念・立場が大きく動いた者だけの"
+    "リスト。各要素は character_id(対象の人物 id), text("
+    + _PLOT_TEXT_INSTRUCTION + ")の二つ), "
     "character_updates(関わった人物のうち、この出来事で人物レコード自体が"
     "変わった者だけのリスト。各要素は character_id(対象の人物 id)と、"
     + _CHARACTER_UPDATE_INSTRUCTION + "), "
@@ -205,16 +204,15 @@ _PLACE_SCHEMA = {
         "event_text": {"type": "string"},
         "character_ids": {"type": "array", "items": {"type": "integer"}},
         "object_ids": {"type": "array", "items": {"type": "integer"}},
-        "character_drives": {
+        "character_plots": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "character_id": {"type": "integer"},
                     "text": {"type": "string"},
-                    "level": {"type": "integer", "minimum": 1, "maximum": 10},
                 },
-                "required": ["character_id", "text", "level"],
+                "required": ["character_id", "text"],
                 "additionalProperties": False,
             },
         },
@@ -254,7 +252,7 @@ _PLACE_SCHEMA = {
     },
     "required": [
         "event_name", "event_text", "character_ids", "object_ids",
-        "character_drives", "character_updates", "object_updates",
+        "character_plots", "character_updates", "object_updates",
         "object_founded", "location_abolished", "location_founded",
         "event_duration_days",
     ],
@@ -356,6 +354,26 @@ def _object_recent_event_names(
     return [e.name for e in events]
 
 
+def _plot_recent_event_names(session: Session, plot, time: Stamp) -> list[str]:
+    """その筋書きが指す範囲(`location_id` の配下、無指定なら世界全体)で、
+    場所を問わず直近使われた出来事の名前。
+
+    個体ごとの `_object_recent_event_names` は個体自身の履歴しか見えないため、
+    別々の場所に立つ別々の個体が同じ筋書きの下で同じ型の展開を繰り返していても
+    検知できない(2026-09 に実際に観測)。筋書き単位でも直近の出来事を渡すことで、
+    個体をまたいだ使い回しをモデル自身が見分けられるようにする。
+    """
+    place_ids = (
+        common_query.descendant_place_ids(session, plot.location_id)
+        if plot.location_id is not None else None
+    )
+    events = session.scalars(
+        common_query.events_in_locations_select(
+            place_ids, until=time, limit=RECENT_EVENT_LIMIT)
+    ).all()
+    return [e.name for e in events]
+
+
 def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], objects: list[Object],
@@ -366,6 +384,10 @@ def _progress_place(
     ).all()
     place = session.get(Location, place_id)
     plots = story_createion_query.load_location_plot(session, place_id, time)
+    plots_payload = [
+        {"plot": p.text, "recent_events": _plot_recent_event_names(session, p, time)}
+        for p in plots
+    ]
     character_plots = {
         c.id: [p.text for p in story_createion_query.load_character_plot(session, c.id, time)]
         for c in characters[:20]
@@ -398,7 +420,8 @@ def _progress_place(
         f"働きかけてくる余地がある候補。recent_events は同上): "
         f"{reach_objects_payload or '(無し)'}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
-        f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
+        f"進めたい筋書き(recent_events はその筋書きの範囲で場所を問わず"
+        f"直近使われた出来事の名前): {plots_payload or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
         "居合わせる人物・個体・場所のうち、どれとどれが噛み合って"
@@ -489,35 +512,19 @@ def _progress_place(
     ]
     session.add(record)
 
-    drive_notes = []
-    for drive in decided.get("character_drives") or []:
-        if not isinstance(drive, dict):
+    plot_notes = []
+    for item in decided.get("character_plots") or []:
+        if not isinstance(item, dict):
             continue
         try:
-            character_id = int(drive.get("character_id") or 0)
+            character_id = int(item.get("character_id") or 0)
         except (TypeError, ValueError):
             continue
-        text = drive.get("text")
+        text = item.get("text")
         if character_id not in character_ids or not text:
             continue
-        level = int(drive.get("level") or 1)
-        # 同じ人物に既に動いている情動(end が無いもの)があれば、
-        # 積み増さずにその一件を更新する。
-        existing_drive = session.scalar(
-            select(CharacterDrive).where(
-                CharacterDrive.character_id == character_id,
-                CharacterDrive.end.is_(None),
-            )
-        )
-        if existing_drive is not None:
-            existing_drive.text = text
-            existing_drive.level = level
-        else:
-            session.add(CharacterDrive(
-                character_id=character_id, text=text,
-                level=level, start=time, end=None,
-            ))
-        drive_notes.append(f"{character_ids[character_id].name}: {text}")
+        session.add(CharacterPlot(character_id=character_id, text=text, start=time))
+        plot_notes.append(f"{character_ids[character_id].name}: {text}")
 
     update_notes = []
     for update in decided.get("character_updates") or []:
@@ -590,7 +597,7 @@ def _progress_place(
           f"{record.name} {record.text}"
           f" / 継続: {duration_days}日({when}〜{format_time(end)})"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
-          + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
+          + (f" / 人物の筋書き: {'; '.join(plot_notes)}" if plot_notes else "")
           + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")
           + (f" / 場所: {'; '.join(location_notes)}" if location_notes else ""))

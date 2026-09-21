@@ -294,8 +294,6 @@ class Character(MarkdownBase, ObjectBase):
     places: Mapped[list[CharacterPlace]] = relationship(
         back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
     )
-    emotions: Mapped[list[CharacterDrive]] = relationship(
-        lazy="noload",  order_by="CharacterDrive.start.desc()")
     plots: Mapped[list[CharacterPlot]] = relationship(
         back_populates="character", lazy="noload", order_by="CharacterPlot.start.desc()")
 
@@ -317,19 +315,6 @@ class CharacterPlace(Base):
 
     character: Mapped[Character | None] = relationship(back_populates="places", lazy="noload")
     place: Mapped[Location] = relationship(lazy="noload")
-
-
-class CharacterDrive(MarkdownBase):
-
-    __tablename__ = "character_drive"
-
-    character_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("character.id"), sort_order=200)
-
-    text: Mapped[str] = mapped_column(String, nullable=False, sort_order=210)
-    level: Mapped[int] = mapped_column(Integer, default=1, nullable=False, sort_order=220)
-
-    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=230)
-    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=240)
 
 
 class CharacterPlot(MarkdownBase):

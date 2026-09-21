@@ -1,6 +1,12 @@
 # 作業指針(AI 向け)
 
-このリポジトリはラノベの執筆用。コードではなく文章を書く。
+このリポジトリは、AI が自動で世界(`novel.db`)を進めながらラノベを
+書かせる仕組みを作るためのもの。**Claude がここで書くのは文章ではなく
+コード。** 出来事・人物・個体・場所も、本文(`episode`)も、Claude が
+対話の中で直接生成することはしない。生成は `DEM/local_ai/`(常駐ループ)
+が担い、Claude の仕事はその生成の仕組み(`DEM/local_ai/`
+`DEM/claude_interface/` `DEM/data_access_logic/` `DEM/db/`)を
+開発・保守すること。
 ローカル環境での実行の場合、現在のブランチ上で直接作業してよい。
 
 **作業を始める前に、リモートの最新の変更を取り込む**(`git pull`)。
@@ -8,11 +14,11 @@
 自分の変更と食い違って上書きしてしまう・逆に取り込んだ側の db 更新に
 気づかず古いスキーマで作業してしまう、といった事故につながる。
 
-**移行は終わっている。** 方針・テクニックは `IHG/`、仕組みは `DEM/`、
+**移行は終わっている。** 方針・設計根拠は `IHG/`、仕組みは `DEM/`、
 記録と本文は `novel.db`(`DEM/db/schema.py` の SQLAlchemy モデル)にある。
 旧 `core/` `tools/novel.py` `novels/` の md 群はもう無い。
 
-**ただし `DEM/claude_interface/` にはまだ全ての入口が揃っていない**
+**`DEM/claude_interface/` にはまだ全ての入口が揃っていない**
 (語 `term` を確定する入口が無い、など)。無いものを
 あるかのように書かない。足りない入口が要るときは、その場で作者に相談するか、
 `DEM/claude_interface/readme.md`「作り方」に沿って `DEM/claude_interface/` に足す。
@@ -26,52 +32,52 @@
 直そうとして、既存の手順と矛盾する・情報が足りないと分かったら、
 **その場で作者に相談する。** 憶測で決めない。
 
-## 執筆作業は DEM/claude_interface/* 越しにしか行わない
+## Claude はもう物語を直接生成しない
+
+出来事(`event`)・人物(`character`)・個体(`object`)・場所(`location`)・
+筋書き(`plot`)・本文(`episode`)——**このどれも、Claude が対話の中で
+`CreateRandom*`/`Commit*` のような入口を呼んで直接作ることはしない。**
+生成は `DEM/local_ai/time_keeper/` の常駐ループに一本化している。
+「イベントを起こして」「キャラを足して」と頼まれたら、Claude 自身が
+書き込むのではなく、**常駐ループ側(生成の確率・条件・`Plot`)を直す**
+仕事として受け取る。詳しくは `IHG/workflow.md`。
+
+常駐ループの起動・停止だけは、運用タスクとして
+`DEM.local_ai.time_keeper.main.claude_main()` を直接呼んでよい
+(生成そのものはローカル AI が行うため)。
+
+## db は DEM/claude_interface/* 越しにしか触らない
 
 **db(`novel.db`)を直に触らない。読むのも書くのも `DEM/claude_interface/` 配下の
 スクリプトを通す。** `DEM.db.schema` を直接 import して読み書きする、`sqlite3` で
 `novel.db` を直接開く、あとから export される想定の md を手で作る——どれもしない。
 (`DEM/db/` `DEM/randomizer/` `DEM/data_access_logic/` は下地の実装であって、
-Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_interface/` がその薄い
-呼び出し面になる)
+Claude が直接呼ぶ入口ではない。`DEM/claude_interface/` がその薄い呼び出し面になる)
 
 **入口の実装パターン(呼び出しクラスの書き方・「作る」と「確定する」の分離・
-基底クラスの継ぎ方)は `DEM/claude_interface/readme.md` にまとめてある。**
-新しい入口を足すときはそこを見る。
-
-**「したいこと」から使う入口を引く表は `IHG/entrypoints.md` にまとめてある。**
+基底クラスの継ぎ方)も、今ある入口の一覧も `DEM/claude_interface/readme.md`
+にまとめてある。** 新しい入口を足すときはそこを見る。
 上の表にない操作(語 `term` の確定、整合チェック、用語索引の書き出しなど)は
 まだ `DEM/claude_interface/` に無い。必要になった時点で、
 `DEM/claude_interface/readme.md`「作り方」に沿って足す。
 **無いものを推測で呼び出そうとしない。**
 
-## まず、どのモードかを決める
-
-作業は三つ(1 世界観構成・2 ストーリー生成・3 世界観更新)に分かれている。
-**一度に一つだけやる。** モードごとに何をする・何を触ってよいかは
-`IHG/workflow.md` にまとめてある。**モード 2 のあいだは世界の側を一行も
-書き換えず、モード 3 のあいだは本文を書き換えない。**
-
 ## 書く前に必ず読む
 
 - `IHG/principles.md` — 何のために書くか。迷ったらこれが最優先
-- `IHG/workflow.md` — **三つのモードと、それぞれの手順**
-- `IHG/entrypoints.md` — 「したいこと」から使う入口を引く表
+- `IHG/workflow.md` — **進め方。Claude はもう本文・出来事・人物などを直接生成しない**
 - `IHG/chronicle.md` — 記録の取り方と、話を尽きさせない仕組み
-- `IHG/writing-style.md` — 文体の方針
-- `IHG/naming.md` — 用語と名づけの基準
-- `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
-  — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
+- `IHG/naming.md` — 用語と名づけの基準(`ai_instructions/naming.py` の正本)
 - `IHG/README.md` — IHG の索引と、IHG / DEM の分担・`IHG/ai_instructions/` の位置づけ
-- 対象作品の直前の話・企画・その作品が立つ世界線の断面
-  (`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る)
+- `DEM/claude_interface/readme.md` — 今ある入口の一覧と、新しい入口の作り方
 
 ## 守ること
 
-執筆・世界観づくりの基準(用語の自然さ・なろう系テンプレ回避・出来事の
-書き方・数を本文に出さないこと・アバウトな要素の決め方・世界線の一貫性、等)は
-すべて `IHG/*.md` にある。ここでは繰り返さない。ここに残すのは、
-IHG では扱わない技術的な制約だけ。
+生成の基準(用語の自然さ・なろう系テンプレ回避・出来事の書き方・数を
+本文に出さないこと・世界線の一貫性、等)は `IHG/*.md` にあり、常駐ループへは
+`IHG/ai_instructions/*.py` の定数として渡っている。**基準を変えたいときは、
+まず正本の `IHG/*.md` を直し、対応する `ai_instructions/*.py` を揃えて直す**
+(どちらが正本かは `IHG/README.md`「常駐ループへ渡す基準」)。
 
 - **db を直に開かない**: 上の通り。`DEM/claude_interface/` の入口を通す
 - **レコードの型は `DEM/db/schema.py` が一か所で決めている**: 欄を増やしたければ
@@ -93,7 +99,7 @@ IHG では扱わない技術的な制約だけ。
 ## やらないこと
 
 - `novel.db` を `DEM/claude_interface/` を通さずに直接読み書きする
-- 頼まれていない話数を勝手に書き足す
-- 既存の原稿を「ついでに」推敲して書き換える(指示があったときだけ)
-- プロットにない大きな展開の追加(提案は歓迎、無断実装は不可)
-- モードをまたいで、本文と設定を同時に書き換える
+- Claude 自身が `Commit*` 系の入口を呼んで、出来事・人物・個体・場所・本文を
+  対話の中で直接 db に書き込む(常駐ループに任せる)
+- `DEM/claude_interface/world/advance_time.py` のような、常駐ループを介さず
+  Claude 自身が世界を進めるコードを新設する

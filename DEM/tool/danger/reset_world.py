@@ -10,7 +10,6 @@ delete_tables = [
     ObjectPlace,
     Character,
     CharacterPlace,
-    CharacterDrive,
     CharacterPlot,
 ]
 

@@ -6,7 +6,7 @@
 筋書き(`Plot`)が一件も無くなったら止まる。再開するには `CommitPlot` で筋書きを足す。
 
 `claude_main` は、このループを claude code から起動するための非対話の入口
-(`IHG/workflow.md`「どのモードでも共通」の例外に書いた運用タスク)。
+(`IHG/workflow.md` に書いた運用タスク)。
 """
 from __future__ import annotations
 
