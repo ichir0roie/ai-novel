@@ -94,11 +94,11 @@ def check_within_parent_span(parent: Location, child_start, child_end, label: st
 
 
 def location_has_plot(session: Session, place_id: int) -> bool:
-    """その場所(か祖先、か場所を問わない筋書き)に `Plot` が一件でもあるか。時期は問わない。"""
+    """その場所(か祖先)に `Plot` が一件でもあるか。時期は問わない。"""
     ancestor_ids = [node["id"] for node in common_query.place_path(session, place_id)]
     return session.scalar(
         select(Plot.id)
-        .where(or_(Plot.location_id.in_(ancestor_ids), Plot.location_id.is_(None)))
+        .where(Plot.location_id.in_(ancestor_ids))
         .limit(1)
     ) is not None
 

@@ -11,7 +11,7 @@ import random
 
 from sqlalchemy import select
 
-from IHG.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.db.schema import (
     Character, CharacterPlace, CharacterPlot, Location, Object, Session, Stamp,
