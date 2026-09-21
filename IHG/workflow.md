@@ -33,7 +33,7 @@
 **`novel.db` を直に開かない。`worlds/` の md も直に開かない**(md は db の写し。
 書き出しは `DEM.claude_interface.sync.export_db.ExportDb().run()`)。読むのも
 書くのも `DEM/claude_interface/` の入口を import して呼ぶ。
-**今ある入口の一覧は CLAUDE.md の表。無い操作を推測で呼び出そうとしない。**
+**今ある入口の一覧は `IHG/entrypoints.md` の表。無い操作を推測で呼び出そうとしない。**
 
 **「作る」と「確定する」は別の入口。** `CreateRandom*` は辞書を返すだけで
 db に触れない。`Commit*` を呼んで初めて db に残る。
@@ -85,7 +85,7 @@ db に触れない。`Commit*` を呼んで初めて db に残る。
 | 7   | **語**                           | **確定する入口がまだ無い**(下の注)                  |
 
 > **注:** `term`(語)を db へ確定する入口は `DEM/claude_interface/` にまだ無い。
-> 必要になったら、CLAUDE.md「入口の作り方」に沿って足す。
+> 必要になったら、`DEM/claude_interface/readme.md`「作り方」に沿って足す。
 > **無いものを推測で呼び出さない。** 既にある語を見るのは `SearchTerms`。
 
 **筋書きを個体・人物より先に置く。** `CommitObject` `CommitCharacter` は、
@@ -297,7 +297,7 @@ checklist.md を上から順に当てる。
 - 新しく出した個体(群) → `CreateRandomObject` → 名を決めて `CommitObject`。
   **組織の名前を本文に出した時点で登録する**
 - 新しく出した語 → **確定する入口がまだ無い。** 必要になったら
-  CLAUDE.md「入口の作り方」に沿って足すか、その場で作者に相談する
+  `DEM/claude_interface/readme.md`「作り方」に沿って足すか、その場で作者に相談する
 
 既存の設定と食い違う本文を書いてしまったら、本文のほうを直す。
 既存の設定は基本的に変更しない。

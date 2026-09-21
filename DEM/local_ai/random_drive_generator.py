@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import random
 
-from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
+from IHG.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.local_ai import ai_client
 
 _SYSTEM_PROMPT = (

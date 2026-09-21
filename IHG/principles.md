@@ -33,7 +33,7 @@
 量産系(`time_keeper/event_progression_generator.py`
 `time_keeper/random_character_generator.py` `random_drive_generator.py` など、
 Claude を介さず db への確定まで自動で回す部分)は対話越しにこの節を読めないので、要旨だけを
-`DEM/ai_instructions/principles.py` の `AVOID_NARO_TEMPLATE_INSTRUCTION` に
+`IHG/ai_instructions/principles.py` の `AVOID_NARO_TEMPLATE_INSTRUCTION` に
 切り出し、各生成のシステムプロンプトに埋め込んでいる。
 **この節を変えたら、そちらも合わせて直す。**
 
