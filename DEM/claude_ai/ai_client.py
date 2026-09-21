@@ -2,8 +2,8 @@
 """Claude Code(`claude -p`)を叩く、`DEM/local_ai/ai_client.py` と同じ顔の薄いクライアント。db には触れない。
 
 環境変数: `DEM_CLAUDE_AI_COMMAND`(実行する CLI、既定 `claude`)、
-`DEM_CLAUDE_AI_MODEL`(モデル名。省略時は CLI の既定)、
-`DEM_CLAUDE_AI_EFFORT`(low / medium / high。省略時は CLI の既定)、
+`DEM_CLAUDE_AI_MODEL`(モデル名、既定 `claude-sonnet-5`)、
+`DEM_CLAUDE_AI_EFFORT`(low / medium / high、既定 `low`)、
 `DEM_CLAUDE_AI_TIMEOUT`(一回の呼び出しを待つ秒数の下限、既定 300。呼び出し側の
 `timeout` が Ollama 向けに短くても、この値までは待つ)。
 認証は CLI 側(`claude login` 済みか `ANTHROPIC_API_KEY`)に任せる。
@@ -30,10 +30,22 @@ class ClaudeAIError(RuntimeError):
 _tally = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
+_DEFAULT_MODEL = "claude-sonnet-5"
+_DEFAULT_EFFORT = "low"
+
+
 def _command() -> str:
     name = os.environ.get("DEM_CLAUDE_AI_COMMAND", "claude")
     # Windows の npm shim は `claude.cmd` なので、PATHEXT を見て実体のパスに解決する。
     return shutil.which(name) or name
+
+
+def _model() -> str:
+    return os.environ.get("DEM_CLAUDE_AI_MODEL", _DEFAULT_MODEL)
+
+
+def _effort() -> str:
+    return os.environ.get("DEM_CLAUDE_AI_EFFORT", _DEFAULT_EFFORT)
 
 
 def _build_args(system: str | None, schema: dict | None) -> list[str]:
@@ -47,12 +59,7 @@ def _build_args(system: str | None, schema: dict | None) -> list[str]:
         args += ["--system-prompt", system]
     if schema is not None:
         args += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
-    model = os.environ.get("DEM_CLAUDE_AI_MODEL")
-    if model:
-        args += ["--model", model]
-    effort = os.environ.get("DEM_CLAUDE_AI_EFFORT")
-    if effort:
-        args += ["--effort", effort]
+    args += ["--model", _model(), "--effort", _effort()]
     return args
 
 

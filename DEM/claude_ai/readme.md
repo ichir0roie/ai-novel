@@ -31,8 +31,8 @@ DEM/claude_ai/
 | ----------------------- | ----------------------------------------------------------- |
 | `DEM_AI_BACKEND`        | `claude` で local_ai の生成器の呼び先を Claude Code にする。`time_keeper/main.py` は自分で立てる |
 | `DEM_CLAUDE_AI_COMMAND` | 実行する CLI。既定 `claude`                                  |
-| `DEM_CLAUDE_AI_MODEL`   | `--model` に渡す。省略時は CLI の既定                        |
-| `DEM_CLAUDE_AI_EFFORT`  | `--effort` に渡す(low / medium / high)。省略時は CLI の既定 |
+| `DEM_CLAUDE_AI_MODEL`   | `--model` に渡す。既定 `claude-sonnet-5`                     |
+| `DEM_CLAUDE_AI_EFFORT`  | `--effort` に渡す(low / medium / high)。既定 `low`          |
 | `DEM_CLAUDE_AI_TIMEOUT` | 一回の呼び出しを待つ秒数の下限。既定 300(CLI の起動ぶん、Ollama 向けの 120 秒では足りないことがある) |
 
 ## 使い方
