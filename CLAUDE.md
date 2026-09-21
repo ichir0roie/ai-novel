@@ -3,10 +3,12 @@
 このリポジトリはラノベの執筆用。コードではなく文章を書く。
 ローカル環境での実行の場合、現在のブランチ上で直接作業してよい。
 
-**このファイルはリストラクチャ中の状態を反映している。** `core/` → `IHG/`、
-`tools/novel.py` → `DEM/claude_interface/*`、`novels/` の md 群 → `novel.db`
-(`DEM/db/schema.py` の SQLAlchemy モデル)という移行の途中にあり、
-`DEM/claude_interface/` にはまだ全ての入口が揃っていない。無いものを
+**移行は終わっている。** 方針・テクニックは `IHG/`、仕組みは `DEM/`、
+記録と本文は `novel.db`(`DEM/db/schema.py` の SQLAlchemy モデル)にある。
+旧 `core/` `tools/novel.py` `novels/` の md 群はもう無い。
+
+**ただし `DEM/claude_interface/` にはまだ全ての入口が揃っていない**
+(語 `term` を確定する入口が無い、など)。無いものを
 あるかのように書かない。足りない入口が要るときは、その場で作者に相談するか、
 下の「入口の作り方」に沿って `DEM/claude_interface/` に足す。
 
@@ -71,16 +73,19 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 人物を軸にその時刻の周辺を読む       | `DEM.claude_interface.story.read_surroundings.ReadSurroundings(<人物id>, <時刻>, reach=60).run()`(同じ居場所に居合わせる人物・個体と、`reach` 年ぶんの直近の出来事。作品の場所ではなく**人物**を軸にする点が `read_cast` と違う。展開の検討材料を広げるのに使う) |
 | 出来事を引く                         | `DEM.claude_interface.story.read_events.ReadEvents(time=…).run()` / `ReadEvents(record_id=…).run()`                                                                                                                                                              |
 | 出来事を一覧で見る(全件)             | `DEM.claude_interface.world.list_events.ListEvents().run()`(絞り込みなし、新しい順に全件。db には触れない)                                                                                                                                                      |
-| 出来事の `text` の書き方             | 要約(「〜という出来事があった」)で済ませない。**軽い小説として 1000 文字程度**で、その場のキャラクターの思考・行動・(その出来事が及ぼす)影響を場面として書く(`IHG/chronicle.md`「出来事の text は場面で書く」)                                              |
+| 出来事の `text` の書き方             | **小説として書かない。情報整理のための記録**として書く(文体・セリフは本文の側で決めるので、出来事では扱わない)。発端 → 誰(人物)とどの国・組織(個体)が何をしたか → 関わった人物の感情 → 前と後で何がどう変わったか、の順に 400〜800 文字程度で具体的に書く。出来事は、その時その場に居合わせるもの同士の相互関係から立てる(`DEM/ai_instructions/event_writing.py` の `EVENT_RECORD_INSTRUCTION` `EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION` が正本。背景は `IHG/chronicle.md`「出来事の text は記録として書く」)                                              |
 | 本文を db へ確定する(2-4)            | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`(字数を数えて入れる。`synced` は必ず下りる)                                                                                                                                         |
 | 同期フラグを立てる(3-3)              | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()`                                                                                                                                                                         |
 | db の本文を md へ書き出す            | `DEM.claude_interface.sync.export_db.ExportDb().run()`(`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない)                                                                                                                      |
+| md を db へ読み戻す                  | `DEM.claude_interface.sync.import_db.ImportDb().run()`(`export_db` の逆向き。**db が本体**なので、通常は使わない。手で直した md を戻したいときだけ)                                                                                                             |
 | 場所を一覧で見る                     | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`(`kind="村"` のように絞れる。db には触れない)                                                                                                                                                |
 | ランダムな場所の下書きを作る         | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`(db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す)                      |
 | 作った場所の下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`(`parent_id` の実在確認をしてから書き込む)                                                                                                                                         |
 | 既にある場所の欄を後から直す         | `DEM.claude_interface.randomizer.update_place.UpdatePlace(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`area` を直すときは `CommitPlace` と同じ、親未満・兄弟の合計が親を超えないの制約を確かめる。`random_character_source: true` を渡すと、その場所を「まだ誰も居なければローカルAIがまとめて1〜4人生成する」対象に立てられる。`DEM.local_ai.time_keeper.random_character_generator.seed_initial_characters` が月初に見て、既に誰か居れば何もしない) |
 | 誤って確定した場所を消す             | `DEM.claude_interface.randomizer.delete_place.DeletePlace(<場所id>).run()`(子の場所が残っていると止まる)                                                                                                                                                         |
 | 個体(群)を一覧で見る                 | `DEM.claude_interface.world.list_objects.ListObjects().run()`(`belong_id` に渡す id を拾う。db には触れない)                                                                                                                                                     |
+| ランダムな個体(群)の下書きを作る     | `DEM.claude_interface.randomizer.create_random_object.CreateRandomObject(...).run()`(db には触れない。`name` は `仮の群0` のような仮の値のまま返る。国・組織・商会などの名は `IHG/naming.md`「対象ごとの当て方」の組織・機関に沿って決めてから `CommitObject` に渡す。**個体に `kind` の欄は無い**ので、国か組織か商会かは `text` に書く。何を決められて誰に対して力を持つのかまで書いておくと、出来事の生成でその個体が行為の主体として立つ) |
+| 作った個体を db へ確定する           | `DEM.claude_interface.randomizer.commit_object.CommitObject(<辞書かJSON>).run()`(`root_place_name`(拠り所の場所)の実在確認をしてから書き込む。`name` が必須で、`仮の群` を含むままなら止まる。同じ場所の個体が 10 件あるとき、`start`〜`end` がその場所の期間に収まらないときも止まる) |
 | 語をキーワードで検索する             | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`(`term.text` にキーワードを含む語を返す。db には触れない)                                                                                                                               |
 | ランダムな出来事の下書きを作る       | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`(db には触れない。辞書を返すだけ)                                                                                                                                              |
 | 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`location_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む。出来事が人物の情動を動かしたときは、同じ呼び出しに `character_drives`(`[{character_id, text, level, start?, end?}]`)を乗せると、`CharacterDrive`(情動)もまとめて一件ずつ確定する。能力・特徴が変わったときは `update_character` で `text` を書き直す) |
@@ -91,14 +96,15 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 筋書きを一覧で見る                   | `DEM.claude_interface.world.list_plots.ListPlots().run()`(`location_id` が空の行は場所を問わない筋書き。db には触れない)                                                                                                                                        |
 | 既にある筋書きの欄を後から直す       | `DEM.claude_interface.randomizer.update_plot.UpdatePlot(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`text` の書き直しなどに使う)                                                                                                                      |
 
-上の表にない操作(旧 `tools/novel.py` が持っていた `check` `index` `template`
-など)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
-沿って足す。**無いものを推測で呼び出そうとしない。**
+上の表にない操作(語 `term` の確定、整合チェック、用語索引の
+書き出しなど)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の
+「入口の作り方」に沿って足す。**無いものを推測で呼び出そうとしない。**
 
 読む側の入口(`read_*` `list_*` `start_story`)の中身は
-`DEM/data_access_logic/query.py` にある。引く条件は**時刻とレコードの id
-だけ**で表し、**SQL は組み立てない。** 引き方が足りなければ `query.py` に
-関数を足して、`DEM/claude_interface/story/` に一つ入口を被せる。
+`DEM/data_access_logic/query/`(パッケージ)にある。引く条件は**時刻とレコードの
+id だけ**で表し、**SQL は組み立てない。** 引き方が足りなければ、そこへ関数を
+足して `DEM/claude_interface/` に一つ入口を被せる
+(どのモジュールが何のためにあるかは `DEM/claude_interface/readme.md` の表)。
 
 ## まず、どのモードかを決める
 
@@ -123,6 +129,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - `IHG/naming.md` — 用語と名づけの基準
 - `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
   — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
+- `IHG/README.md` — IHG の索引と、IHG / DEM / `DEM/ai_instructions/` の分担
 - 対象作品の直前の話・企画・その作品が立つ世界線の断面
   (`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る)
 
@@ -139,9 +146,11 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - **用語は日本語として自然に**: 読者は日本人。日本的な漢字(訓読み)・ひらがな・
   カタカナ英語で名づける。音読み二字熟語の造語を重ねない(`IHG/naming.md`)
 - **なろう系テンプレを使わない**: 禁止事項の具体リストは `IHG/principles.md`。構造として避ける
-- **出来事の text は場面で書く。同じ出来事を名前だけ変えて繰り返さない**:
-  `IHG/chronicle.md`「出来事の text は場面で書く」「同じ出来事を名前だけ
-  変えて繰り返さない」
+- **出来事の text は記録として書く。同じ出来事を名前だけ変えて繰り返さない**:
+  `IHG/chronicle.md`「出来事の text は記録として書く」「同じ出来事を名前だけ
+  変えて繰り返さない」。**小説として書くのは話(本文)の側だけ**で、出来事は
+  物事の変化・人物の感情・人物と組織の行動を整理して持つ。国・組織のような
+  個体も行為の主体として扱う
 - **IHG の基準を、Claude を介さないローカル AI にも同じく守らせる**:
   `DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下など、Claude を
   介さず db への確定まで自動で回す部分)は対話越しに `IHG/*.md` を読めない。

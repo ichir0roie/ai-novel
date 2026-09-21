@@ -17,7 +17,7 @@ from DEM.local_ai.time_keeper import (
     random_character_generator,
     random_location_generator,
     random_location_resource_generator,
-    # random_object_generator,  # DEM/local_ai/time_keeper/random_object_generator.py は未実装(空ファイル)
+    random_object_generator,
 )
 from DEM.local_ai.time_keeper._format import format_time, next_day
 
@@ -58,9 +58,12 @@ def time_process(
     random_character_generator.seed_initial_characters(s, time)
     random_character_generator.generate_random(s, time)
 
+    # 個体(国・組織など)は、人物が居る場所にだけ生む。人物を生む側より
+    # 後に呼び、その月に生まれたばかりの人物も候補の材料に入るようにする。
+    random_object_generator.generate_random(s, time)
+
     character_lifespan.generate_random(s, time)
     event_progression_generator.generate_random(s, time)
-    # random_object_generator.generate_random(s, time)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
-# tools/novel.py が使う
-# 記録の形は tools/schema.py、マークダウンの読み取りは tools/reader.py
+# 記録の形は DEM/db/schema.py、マイグレーションは DEM/db/alembic/
+# 下書き作りに factory-boy、ローカル AI 以外の生成に anthropic を使う
 sqlalchemy>=2.0
 pyyaml>=6.0
 pydantic>=2.0

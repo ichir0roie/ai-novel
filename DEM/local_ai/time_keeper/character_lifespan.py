@@ -8,14 +8,15 @@
 当たったら寿命(老衰)で `end` を下ろす。老衰とは別に、ごく低い確率で
 年齢によらない事故死もロールする。
 
-死んだ人物には、老衰・事故それぞれの死を場面として書いた `Event` を一件
-起こす(`_progress_place` と同じ基準。要約で済ませず場面で書く)。
+死んだ人物には、老衰・事故それぞれの死を記録として整理した `Event` を一件
+起こす(`_progress_place` と同じ基準。小説ではなく、何がどう変わったかの
+記録として書く)。
 """
 from __future__ import annotations
 
 import random
 
-from DEM.ai_instructions.event_writing import EVENT_SCENE_INSTRUCTION
+from DEM.ai_instructions.event_writing import EVENT_RECORD_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import Character, Event, EventCharacter, Session, Stamp
 from DEM.local_ai import ai_client
@@ -30,11 +31,12 @@ _NATURAL_DEATH_MAX_AGE = 150
 _ACCIDENT_PROBABILITY_PER_YEAR = 0.003
 
 _DEATH_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある人物の死を描く設定作家です。"
-    "渡す人物の情報と死因をもとに、その最期を1件だけ場面として考えてください。"
-    + EVENT_SCENE_INSTRUCTION +
+    "あなたは架空の世界観の中で、ある人物の死を記録する設定作家です。"
+    "渡す人物の情報と死因をもとに、その最期に何が起きたかを1件だけ"
+    "決めてください。"
+    + EVENT_RECORD_INSTRUCTION +
     "JSON で答えてください。キーは event_name(出来事の名前), "
-    "event_text(死の場面)の二つだけ。"
+    "event_text(死の記録)の二つだけ。"
 )
 
 

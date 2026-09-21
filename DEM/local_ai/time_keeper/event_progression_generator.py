@@ -7,6 +7,15 @@ AI が決める `event_duration_days`(`EVENT_DURATION_INSTRUCTION`)を `start`
 対象にしない**(`_group_by_place` が `world_createion_query.busy_character_ids_select`
 で除く)。これが無いと、同じ人物が3日おきのロールのたび毎回新しい出来事に
 巻き込まれ、前の出来事がまだ続いているはずの間にも次々と話が進んでしまう。
+
+**人物だけでなく、国・組織のような個体(`Object`)も行為の主体として扱う。**
+出来事は、その時その場に居合わせるもの(人物・個体・場所・資源)同士の
+相互関係から立てる(`EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION`)。
+個体の `text` も、人物と同じように `object_updates` で積み足す
+(`OBJECT_TEXT_UPDATE_INSTRUCTION`)。
+
+`text` は小説ではなく**情報整理のための記録**として書かせる
+(`EVENT_RECORD_INSTRUCTION`)。文体・セリフは本文(話)の側で決める。
 """
 from __future__ import annotations
 
@@ -19,7 +28,9 @@ from sqlalchemy import select
 from DEM.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
-    EVENT_PROGRESSION_INSTRUCTION, EVENT_SCENE_INSTRUCTION, RECENT_EVENT_LIMIT,
+    EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
+    EVENT_RELATION_INSTRUCTION, OBJECT_ACTION_INSTRUCTION,
+    OBJECT_TEXT_UPDATE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
@@ -47,9 +58,11 @@ _DEFAULT_EVENT_DURATION_DAYS = 1
 
 _EVENT_TEXT_INSTRUCTION = (
     "直近のeventのリストから、状況を把握する。年齢、性別、性格、emotion、"
-    "textをベースに人物像を推測する。状況と人物像に基づいて、行動を決定"
-    "する。キャラクターはそれぞれ、自分や他のキャラクター、場所、オブジェ"
-    "クトに影響を与える。" + EVENT_PROGRESSION_INSTRUCTION + EVENT_SCENE_INSTRUCTION
+    "textをベースに人物像を推測し、個体(国・組織・集団・物)はその text と"
+    "世界線への影響度からいまの立場・方針を推測する。状況と、そこに居合わせる"
+    "もの同士の関係に基づいて、人物と個体それぞれの行動を決定する。人物も"
+    "個体も、自分や他の人物・個体・場所・資源に影響を与える。"
+    + EVENT_PROGRESSION_INSTRUCTION + EVENT_RECORD_INSTRUCTION
 )
 
 
@@ -59,11 +72,10 @@ _DRIVE_TEXT_INSTRUCTION = (
 )
 
 _INVOLVEMENT_INSTRUCTION = (
-    "同じ場に複数の人物・個体がいるなら、一人(一個体)だけで完結させず、"
-    "その間の対話・衝突・協力などの絡みを積極的に考える。関わった人物・"
-    "個体があれば、その id を渡した一覧の中からだけ選んで character_ids /"
-    " object_ids に入れる(複数可)。誰も(何も)関わらない出来事ならどちらも"
-    "空リストにする。"
+    EVENT_RELATION_INSTRUCTION + OBJECT_ACTION_INSTRUCTION +
+    "関わった人物・個体があれば、その id を渡した一覧の中からだけ選んで "
+    "character_ids / object_ids に入れる(複数可)。居合わせる個体があるのに "
+    "object_ids が空になるのは、その個体が本当に何一つ関わらなかったときだけ。"
 )
 
 _CHARACTER_UPDATE_INSTRUCTION = (
@@ -82,7 +94,7 @@ _LOCATION_CHANGE_INSTRUCTION = (
 )
 
 _PLACE_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある場所の日々を描写する設定作家です。"
+    "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
     "その場所自身の情報、そこに居合わせる人物・個体の一覧、その場所の"
     "直近の出来事を渡すので、この時点でこの場所に起きる出来事を1件だけ"
     "考えてください。"
@@ -99,6 +111,9 @@ _PLACE_SYSTEM_PROMPT = (
     "character_updates(関わった人物のうち、この出来事で人物レコード自体が"
     "変わった者だけのリスト。各要素は character_id(対象の人物 id)と、"
     + _CHARACTER_UPDATE_INSTRUCTION + "), "
+    "object_updates(関わった個体のうち、この出来事で個体レコード自体が"
+    "変わったものだけのリスト。各要素は object_id(対象の個体 id)と、"
+    + OBJECT_TEXT_UPDATE_INSTRUCTION + "), "
     "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
     "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
     "{name, kind, text, environment}。無ければ null), "
@@ -116,21 +131,22 @@ def _end_after_years(start: Stamp, years: int) -> Stamp:
                  start.hour, start.minute, start.second)
 
 
-def _append_character_note(character: Character, note: str) -> None:
-    """人物の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す。
+def _append_note(record: Character | Object, note: str) -> None:
+    """人物・個体の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す。
 
-    上限が無いと、一度紛れ込んだ比喩・語彙が消えずにこの人物が関わる全ての
-    将来の生成へ永久に持ち込まれ続ける(`CHARACTER_NOTE_LIMIT` のコメント
-    参照)。先頭の一段(基礎説明)は常に残し、追記は直近
-    `CHARACTER_NOTE_LIMIT - 1` 件までに切り詰める。
+    上限が無いと、一度紛れ込んだ比喩・語彙が消えずにその人物・個体が関わる
+    全ての将来の生成へ永久に持ち込まれ続ける(`CHARACTER_NOTE_LIMIT` の
+    コメント参照)。先頭の一段(基礎説明)は常に残し、追記は直近
+    `CHARACTER_NOTE_LIMIT - 1` 件までに切り詰める。人物と個体で同じ上限・
+    同じ区切りを使う。
     """
-    if not character.text:
-        character.text = note
+    if not record.text:
+        record.text = note
         return
-    base, *notes = character.text.split(CHARACTER_NOTE_SEPARATOR)
+    base, *notes = record.text.split(CHARACTER_NOTE_SEPARATOR)
     notes.append(note)
     notes = notes[-(CHARACTER_NOTE_LIMIT - 1):] if CHARACTER_NOTE_LIMIT > 1 else []
-    character.text = CHARACTER_NOTE_SEPARATOR.join([base, *notes])
+    record.text = CHARACTER_NOTE_SEPARATOR.join([base, *notes])
 
 
 def _current_place_id(session: Session, character: Character, time: Stamp) -> int | None:
@@ -198,11 +214,14 @@ def _progress_place(
         f"場所id: {place_id}\n"
         f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
         f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
-        f"居合わせる個体: {[(o.id, o.name, o.text) for o in objects[:20]]}\n"
+        f"居合わせる個体(国・組織・集団・物): "
+        f"{[(o.id, o.name, o.text, o.world_influence) for o in objects[:20]]}\n"
         f"直近の出来事(名前, 種別): {[(e.name, e.kind) for e in recent_events]}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
+        "居合わせる人物・個体・場所・資源のうち、どれとどれが噛み合って"
+        "この出来事になったのかを踏まえる。"
         + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"
            if plots else "")
     )
@@ -296,7 +315,7 @@ def _progress_place(
             continue
         applied = []
         if update.get("text"):
-            _append_character_note(character, update["text"])
+            _append_note(character, update["text"])
             applied.append(f"text+={update['text']}")
         if update.get("belong_id") is not None:
             try:
@@ -308,6 +327,19 @@ def _progress_place(
                 applied.append(f"belong_id={belong_id}")
         if applied:
             update_notes.append(f"{character.name}: {', '.join(applied)}")
+
+    for update in decided.get("object_updates") or []:
+        if not isinstance(update, dict):
+            continue
+        try:
+            object_id = int(update.get("object_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        obj = object_ids.get(object_id)
+        if obj is None or not update.get("text"):
+            continue
+        _append_note(obj, update["text"])
+        update_notes.append(f"{obj.name}: text+={update['text']}")
 
     location_notes = []
     if decided.get("location_abolished") and place is not None and place.end is None:
@@ -368,7 +400,7 @@ def _progress_place(
           f" / 継続: {duration_days}日({when}〜{format_time(end)})"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
-          + (f" / 人物更新: {'; '.join(update_notes)}" if update_notes else "")
+          + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 場所: {'; '.join(location_notes)}" if location_notes else "")
           + (f" / 資源: {'; '.join(resource_notes)}" if resource_notes else ""))
     return record
