@@ -17,6 +17,16 @@ _SYSTEM_PROMPT = (
 
 _LEVEL_RANGE = (1, 5)
 
+_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "text": {"type": "string"},
+        "level": {"type": "integer", "minimum": _LEVEL_RANGE[0], "maximum": _LEVEL_RANGE[1]},
+    },
+    "required": ["text", "level"],
+    "additionalProperties": False,
+}
+
 
 def _default_drive(rng: random.Random, n: int) -> dict:
     """AI の応答が壊れていたときに埋める、それらしい既定値。"""
@@ -38,7 +48,7 @@ def generate_random(prompt: str, count: int) -> list[dict]:
             f"お題: {prompt}\n"
             f"これは{count}件中{n}件目。既に出した情動と被らない、新しい情動を1件考えてください。"
         )
-        decided = ai_client.try_generate_json(full_prompt, system=_SYSTEM_PROMPT)
+        decided = ai_client.try_generate_json(full_prompt, _SCHEMA, system=_SYSTEM_PROMPT)
 
         draft["text"] = decided.get("text") or draft["text"]
         draft["level"] = int(decided.get("level") or draft["level"])
