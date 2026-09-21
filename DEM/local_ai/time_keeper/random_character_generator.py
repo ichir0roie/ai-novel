@@ -14,6 +14,7 @@ from sqlalchemy import and_, func, select, union, union_all
 from sqlalchemy.orm import aliased
 
 from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.plot_writing import CHARACTER_PLOT_INSTRUCTION, plot_span_instruction
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.data_access_logic.query.base import *
@@ -23,17 +24,12 @@ from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
 
-_PLOT_INSTRUCTION = (
-    "plot は、この一件について今後たどってほしい筋書き。text の説明と"
-    "矛盾しない範囲で、起・承・転・結の四つの段階を、この順に、それぞれ"
-    "一〜二文ずつ改行で区切って書く。"
-    "起は、今の立場と、抱えている問題・欲求。"
-    "承は、その問題・欲求が誰と何を巡ってどう広がるか。"
-    "転は、それを決定的に動かす転機(対立・裏切り・喪失・選択など)。"
-    "結は、その転機を経てどこに行き着くか(成功・失敗・変質、どれでもよい)。"
-    "起だけを書いて終わらせず、四つの段階を必ず全部埋める。各段階は、"
-    "誰と・何を巡って、が分かる具体的な内容にする。"
-    "出来事生成のたびに読まれ、関わる出来事の展開の優先材料になる。"
+# 名前は中身が決まったあとに付けるので、本文・筋書きの中ではこの仮置きで呼ばせ、命名後に置き換える。
+NAME_PLACEHOLDER = "【名前】"
+
+_PLACEHOLDER_INSTRUCTION = (
+    f"この一件の名前はまだ決まっていない。text と plot の中でこの一件を指す"
+    f"ときは必ず「{NAME_PLACEHOLDER}」と書き、名前を考案して書き込まない。"
 )
 
 _CONTENT_SYSTEM_PROMPT = (
@@ -56,7 +52,7 @@ _CONTENT_SYSTEM_PROMPT = (
     "「既にいる人物・対象」が渡されているときは、その役割・関係・"
     "特徴とは重ならない人物にしてください(同じ立場・同じ能力・同じ関係性の"
     "作り直しをしない)。"
-    + _PLOT_INSTRUCTION +
+    + CHARACTER_PLOT_INSTRUCTION + _PLACEHOLDER_INSTRUCTION +
     "キーは text(具体的な生活・仕事・関係が伝わる2〜3文の人物説明。能力・"
     "特技があれば含む。「優しい」「謎めいた」のような、誰にでも当てはまる"
     "抽象的な形容だけで済ませず、この人物固有の具体的な癖・関わり・生い立ちを"
@@ -84,7 +80,7 @@ _NON_PERSON_CONTENT_SYSTEM_PROMPT = (
     "既にある対象と役割が重なるものは作らない。"
     "「この対象が体現する要素」が渡されているときは、渡された要素を"
     "この対象の成り立ちの核として必ず反映してください。"
-    + _PLOT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
+    + CHARACTER_PLOT_INSTRUCTION + _PLACEHOLDER_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
     "キーは kind(種別。" + " / ".join(constants.NON_PERSON_KINDS) + " のいずれか一つ), "
     "text(この対象が何であって、何を決められて、誰に対して力を持つのかが"
     "伝わる2〜3文の説明), "
@@ -284,6 +280,7 @@ def _generate_one(
     )
 
     nearby_characters = _nearby_characters(session, born_place, time)
+    plot_years = rng.randint(*constants.CHARACTER_PLOT_YEARS_RANGE)
     person_line = (
         f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
         if person else ""
@@ -300,6 +297,7 @@ def _generate_one(
         f"この場所・時刻に関連する筋書き:\n{plot_label}\n"
         f"{element_line}"
         f"既にいる人物・対象:\n{_record_context(nearby_characters)}\n"
+        f"{plot_span_instruction(plot_years)}\n"
         f"この場所に自然な{subject}を1件、決めてください。"
     )
     if person:
@@ -346,6 +344,8 @@ def _generate_one(
         system=_NAME_SYSTEM_PROMPT if person else _NON_PERSON_NAME_SYSTEM_PROMPT)
     draft["name"] = named.get("name") or draft["name"]
     draft["read"] = named.get("read") or draft["read"]
+    draft["text"] = draft["text"].replace(NAME_PLACEHOLDER, draft["name"])
+    plot_text = plot_text.replace(NAME_PLACEHOLDER, draft["name"])
 
     record = Character(**draft)
     session.add(record)
@@ -357,7 +357,8 @@ def _generate_one(
             start=record.start, end=record.end))
 
     # 生んだ一件には必ず一件、専用の筋書き(CharacterPlot)を添える。
-    session.add(CharacterPlot(character_id=record.id, text=plot_text, start=time))
+    plot_end = Stamp(time.year + plot_years, time.month, time.day)
+    session.add(CharacterPlot(character_id=record.id, text=plot_text, start=time, end=plot_end))
 
     session.commit()
     when = format_time(time)
@@ -367,7 +368,7 @@ def _generate_one(
           + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
              if person else f"    world_influence={record.world_influence}\n")
           + f"    筋書きの要素: {chosen_element or '(無し)'}\n"
-          f"    筋書き: {plot_text}\n"
+          f"    筋書き({plot_years}年、〜{format_time(plot_end)}): {plot_text}\n"
           f"    説明: {record.text or '(説明なし)'}")
     return record
 

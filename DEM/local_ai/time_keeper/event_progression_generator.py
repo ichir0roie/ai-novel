@@ -16,6 +16,9 @@ from DEM.ai_instructions.event_writing import (
     RECENT_EVENT_LIMIT,
 )
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
+from DEM.ai_instructions.plot_writing import (
+    CHARACTER_PLOT_INSTRUCTION, PLOT_PACING_INSTRUCTION, plot_span_instruction,
+)
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
@@ -39,7 +42,8 @@ _EVENT_TEXT_INSTRUCTION = (
 _PLOT_TEXT_INSTRUCTION = (
     "text はその人物の信念・思考の核になる情報として扱う。日常の細かな"
     "出来事では character_plots 自体を空リストのままにし、信念・立場が"
-    "大きく動いたときだけ書く。"
+    "大きく動いたときだけ書く。書くときは一文で済ませず、"
+    + CHARACTER_PLOT_INSTRUCTION
 )
 
 _INVOLVEMENT_INSTRUCTION = (
@@ -317,6 +321,9 @@ _PLOT_COMPLETION_SYSTEM_PROMPT = (
     "判定してください。転機(転)を迎えただけ、結へ向かう途中、という段階では"
     "完了と見なさない。結に書かれた行き着き先(成功・失敗・変質など)が、"
     "出来事の記録として実際に起きたときだけ完了とする。"
+    "筋書きには期間(start〜end)があり、end が結に至る予定の時点。現在の時刻が"
+    "期間の終わりにまだ遠いうちは、結に似た出来事が起きても通過点と見なして"
+    "完了としない。"
     "JSON で答えてください。キーは completed(bool)と reason(一〜二文の根拠)の二つ。"
 )
 
@@ -331,6 +338,12 @@ _PLOT_COMPLETION_SCHEMA = {
 }
 
 
+def _plot_span_label(plot: CharacterPlot) -> str:
+    start = format_time(plot.start) if plot.start else "不明"
+    end = format_time(plot.end) if plot.end else "未定"
+    return f"{start}〜{end}"
+
+
 def _judge_plot_completed(
     session: Session, plot: CharacterPlot, character: Character,
     event: Event, time: Stamp,
@@ -342,6 +355,8 @@ def _judge_plot_completed(
         f"人物: {character.name}\n"
         f"人物の説明: {character.text}\n"
         f"筋書き:\n{plot.text}\n"
+        f"筋書きの期間: {_plot_span_label(plot)}\n"
+        f"現在の時刻: {format_time(time)}\n"
         f"この人物が関わった直近の出来事(名前): {[e.name for e in recent]}\n"
         f"いま起きた出来事: {event.name}\n{event.text}\n"
         "この出来事で筋書きは完了したか判定してください。"
@@ -460,11 +475,13 @@ def _progress_place(
         {"character_id": c.id, "kind": c.kind, "name": c.name, "tone": c.tone, "text": c.text,
          "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
          "world_influence": c.world_influence,
-         "plot": [p.text for p in character_plots.get(c.id, [])] or "(指定なし)",
+         "plot": [{"text": p.text, "span": _plot_span_label(p)}
+                  for p in character_plots.get(c.id, [])] or "(指定なし)",
          "recent_events": _character_recent_event_names(session, c.id, time)}
         for c in characters[:20]
     ]
     destinations = _move_destinations(session, place_id, time)
+    plot_years = rng.randint(*constants.CHARACTER_PLOT_YEARS_RANGE)
 
     situation = (
         f"場所id: {place_id}\n"
@@ -477,6 +494,7 @@ def _progress_place(
         f"筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): "
         f"{plot_recent_events or '(無し)'}\n"
         f"現在の時刻: {time}\n"
+        + (PLOT_PACING_INSTRUCTION + "\n" if any(character_plots.values()) else "")
     )
     judgements = _think_participants(situation, characters_payload)
     candidate = _roll_candidate(rng, situation, judgements)
@@ -498,6 +516,7 @@ def _progress_place(
         + ("居合わせる人物・対象のうち plot を持つ者がいれば、その者個人について"
            "進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
            if any(character_plots.values()) else "")
+        + "character_plots に新しく書く筋書きについて: " + plot_span_instruction(plot_years)
     )
     decided = ai_client.try_generate_json(prompt, _PLACE_SCHEMA, system=_PLACE_SYSTEM_PROMPT)
 
@@ -586,8 +605,9 @@ def _progress_place(
         text = item.get("text")
         if character_id not in character_ids or not text:
             continue
-        session.add(CharacterPlot(character_id=character_id, text=text, start=time))
-        plot_notes.append(f"{character_ids[character_id].name}: {text}")
+        plot_end = Stamp(time.year + plot_years, time.month, time.day)
+        session.add(CharacterPlot(character_id=character_id, text=text, start=time, end=plot_end))
+        plot_notes.append(f"{character_ids[character_id].name}({plot_years}年、〜{format_time(plot_end)}): {text}")
 
     update_notes = []
     for update in decided.get("character_updates") or []:
