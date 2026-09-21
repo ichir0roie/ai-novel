@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""世界の側の場所を、時の流れの中で自動的に増やす。年初に確率 `PROBABILITY` で一件生まれ、db へ確定する。"""
+"""世界の側の場所を、時の流れの中で自動的に増やす。年初に確率 `constants.LOCATION_PROBABILITY` で一件生まれ、db へ確定する。"""
 from __future__ import annotations
 
 import random
@@ -8,10 +8,9 @@ from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.db.schema import Location, Session, Stamp
 from DEM.local_ai import ai_client
+from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_location_generator import build_location
-
-PROBABILITY = 0.01  # 1年に1度、1%の確率で
 
 _SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
@@ -65,12 +64,12 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
     rng = random.Random(seed)
     roll = rng.random()
     when = format_time(time)
-    if roll >= PROBABILITY:
+    if roll >= constants.LOCATION_PROBABILITY:
         print(f"[time_keepr/location] {when} 年初判定: "
-              f"seed={seed} roll={roll:.4f} >= {PROBABILITY} → 見送り")
+              f"seed={seed} roll={roll:.4f} >= {constants.LOCATION_PROBABILITY} → 見送り")
         return None
     print(f"[time_keepr/location] {when} 年初判定: "
-          f"seed={seed} roll={roll:.4f} < {PROBABILITY} → 生成")
+          f"seed={seed} roll={roll:.4f} < {constants.LOCATION_PROBABILITY} → 生成")
 
     # 親は、この時刻にまだ存在している(start〜end に収まっている)場所だけ。
     candidates = session.scalars(

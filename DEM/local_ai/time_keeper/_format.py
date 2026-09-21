@@ -4,8 +4,7 @@ from __future__ import annotations
 import random
 
 from DEM.db.schema import Stamp
-
-_MONTH_DAYS = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+from DEM.local_ai.time_keeper import constants
 
 
 def is_leap_year(year: int) -> bool:
@@ -15,7 +14,7 @@ def is_leap_year(year: int) -> bool:
 def next_day(time: Stamp) -> Stamp:
     """時刻を1日ぶん進める。"""
     year, month, day = time.year, time.month, time.day
-    days_in_month = _MONTH_DAYS[month - 1]
+    days_in_month = constants.MONTH_DAYS[month - 1]
     if month == 2 and is_leap_year(year):
         days_in_month = 29
 

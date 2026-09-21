@@ -8,15 +8,8 @@ from DEM.ai_instructions.event_writing import EVENT_RECORD_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import Character, Event, EventCharacter, Session, Stamp
 from DEM.local_ai import ai_client
+from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
-
-# 老衰。この歳を過ぎるまでは自然死しない。
-_NATURAL_DEATH_MIN_AGE = 50
-# この歳に達したら、老衰は必ず起きる(不老でない限り)。
-_NATURAL_DEATH_MAX_AGE = 150
-
-# 事故。年齢によらず、年に一度この確率で起きうる(不死でない限り)。
-_ACCIDENT_PROBABILITY_PER_YEAR = 0.003
 
 _DEATH_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある人物の死を記録する設定作家です。"
@@ -44,13 +37,13 @@ def _should_roll(time: Stamp) -> bool:
 
 
 def _natural_death_probability(age: int) -> float:
-    """老衰の年間確率。`_NATURAL_DEATH_MIN_AGE` 未満は 0、`_NATURAL_DEATH_MAX_AGE` 以上は 1。"""
-    if age < _NATURAL_DEATH_MIN_AGE:
+    """老衰の年間確率。`constants.NATURAL_DEATH_MIN_AGE` 未満は 0、`constants.NATURAL_DEATH_MAX_AGE` 以上は 1。"""
+    if age < constants.NATURAL_DEATH_MIN_AGE:
         return 0.0
-    if age >= _NATURAL_DEATH_MAX_AGE:
+    if age >= constants.NATURAL_DEATH_MAX_AGE:
         return 1.0
-    span = _NATURAL_DEATH_MAX_AGE - _NATURAL_DEATH_MIN_AGE
-    return (age - _NATURAL_DEATH_MIN_AGE) / span
+    span = constants.NATURAL_DEATH_MAX_AGE - constants.NATURAL_DEATH_MIN_AGE
+    return (age - constants.NATURAL_DEATH_MIN_AGE) / span
 
 
 def _current_place_id(session: Session, character: Character, time: Stamp) -> int | None:
@@ -107,8 +100,8 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
 
         age = time.year - character.start.year
 
-        if _NATURAL_DEATH_MAX_AGE < age:
-            dead_age = random.randint(_NATURAL_DEATH_MAX_AGE, age)
+        if constants.NATURAL_DEATH_MAX_AGE < age:
+            dead_age = random.randint(constants.NATURAL_DEATH_MAX_AGE, age)
             dead_time = Stamp(character.start.year + dead_age)
             created.append(_kill(session, character, dead_time, "老衰"))
 
@@ -116,7 +109,7 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
             created.append(_kill(session, character, time, "老衰"))
             continue
 
-        if random.random() < _ACCIDENT_PROBABILITY_PER_YEAR:
+        if random.random() < constants.ACCIDENT_PROBABILITY_PER_YEAR:
             created.append(_kill(session, character, time, "事故"))
 
     return created

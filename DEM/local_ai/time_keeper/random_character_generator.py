@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """世界の側の人物を、時の流れの中で自動的に増やす。
 
-`generate_random`: 月初に確率 `PROBABILITY` で場所を一つ選び、人物を一件生む(既定では毎月一人)。
+`generate_random`: 月初に確率 `constants.CHARACTER_PROBABILITY` で場所を一つ選び、人物を一件生む(既定では毎月一人)。
 候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物にはその人物専用の
 筋書き(`CharacterPlot`)を一件添えて db へ確定する。
 """
@@ -9,29 +9,22 @@ from __future__ import annotations
 
 import random
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 
 from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
-from DEM.db.schema import (
-    Character, CharacterPlace, CharacterPlot, Location, Object, Session, Stamp,
-)
+from DEM.data_access_logic.query.base import character_time_condition, plot_time_condition
+from DEM.db.schema import *
 from DEM.local_ai import ai_client
+from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
-
-PROBABILITY = 1.0  # 1月に1度、必ず一人
-
-# 生成時点での年齢の幅。0(赤子)ではなく、この範囲でランダムに選んだ年数だけ
-# 過去に生まれたことにする(`character_lifespan._NATURAL_DEATH_MIN_AGE` の
-# 50 歳より十分若い範囲に収め、生成直後に老衰死しないようにする)。
-_AGE_RANGE = (0, 40)
 
 _CONTENT_SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
     "新しく生まれる人物1件について、人物説明・年齢・今後の筋書きを、"
     "自然な日本語で JSON で答えてください。"
-    f"年齢(age)は{_AGE_RANGE[0]}〜{_AGE_RANGE[1]}歳の範囲で、"
+    f"年齢(age)は{constants.CHARACTER_AGE_RANGE[0]}〜{constants.CHARACTER_AGE_RANGE[1]}歳の範囲で、"
     "text の人物説明と矛盾しないように、あなた自身で決めてください"
     "(例えば老成した説明なら年長めに、幼さの残る説明なら年少めに)。"
     "この人物が目立った能力・特技を持つのが自然なら、その内容を text の"
@@ -68,7 +61,7 @@ _CONTENT_SCHEMA = {
     "type": "object",
     "properties": {
         "text": {"type": "string"},
-        "age": {"type": "integer", "minimum": _AGE_RANGE[0], "maximum": _AGE_RANGE[1]},
+        "age": {"type": "integer", "minimum": constants.CHARACTER_AGE_RANGE[0], "maximum": constants.CHARACTER_AGE_RANGE[1]},
         "plot": {"type": "string"},
     },
     "required": ["text", "age", "plot"],
@@ -249,7 +242,7 @@ def _generate_one(
         f"地域: {region_label}\n"
         f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
         f"現在の時刻: {time}\n"
-        f"年齢は{_AGE_RANGE[0]}〜{_AGE_RANGE[1]}歳の範囲で、text の人物説明に"
+        f"年齢は{constants.CHARACTER_AGE_RANGE[0]}〜{constants.CHARACTER_AGE_RANGE[1]}歳の範囲で、text の人物説明に"
         "似合う歳を選んでください。\n"
         f"この場所・時刻に関連する筋書き:\n{plot_label}\n"
         f"{element_line}"
@@ -263,8 +256,8 @@ def _generate_one(
     try:
         age = int(decided.get("age", 0))
     except (TypeError, ValueError):
-        age = rng.randint(*_AGE_RANGE)
-    age = min(max(age, _AGE_RANGE[0]), _AGE_RANGE[1])
+        age = rng.randint(*constants.CHARACTER_AGE_RANGE)
+    age = min(max(age, constants.CHARACTER_AGE_RANGE[0]), constants.CHARACTER_AGE_RANGE[1])
 
     dead_age = age + rng.randint(10, 100)
 
@@ -312,6 +305,34 @@ def _generate_one(
     return record
 
 
+def get_usable_location_q(time: Stamp):
+    """`time` の時点で有効なプロットを持ち、居る人物数がまだ許容範囲未満の場所の id。"""
+    return (
+        select(Location.id)
+        .join(Plot, Plot.location_id == Location.id)
+        .outerjoin(
+            CharacterPlace,
+            and_(CharacterPlace.location_id == Location.id, character_time_condition(time)),
+        )
+        .outerjoin(
+            Character, Character.id == CharacterPlace.character_id
+        )
+        .outerjoin(
+            CharacterPlot, Character.id == CharacterPlot.character_id
+        )
+        .where(
+            or_(Location.start.is_(None), Location.start <= time),
+            or_(Location.end.is_(None), Location.end > time),
+            plot_time_condition(time),
+            character_time_condition(time),
+        )
+        .group_by(Location.id)
+        .having(
+            func.count(CharacterPlot.character_id.distinct()) < constants.MAX_CHARACTER_PLOT_PER_LOCATION
+        )
+    )
+
+
 def generate_random(session: Session, time: Stamp) -> Character | None:
     """ロールに当たったら、人物を一件 db へ確定して返す。当たらなければ None。"""
     if not _should_roll(time):
@@ -321,26 +342,20 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     rng = random.Random(seed)
     roll = rng.random()
     when = format_time(time)
-    if roll >= PROBABILITY:
+    if roll >= constants.CHARACTER_PROBABILITY:
         print(f"[time_keepr/character] {when} 月初判定: "
-              f"seed={seed} roll={roll:.4f} >= {PROBABILITY} → 見送り")
+              f"seed={seed} roll={roll:.4f} >= {constants.CHARACTER_PROBABILITY} → 見送り")
         return None
     print(f"[time_keepr/character] {when} 月初判定: "
-          f"seed={seed} roll={roll:.4f} < {PROBABILITY} → 生成")
+          f"seed={seed} roll={roll:.4f} < {constants.CHARACTER_PROBABILITY} → 生成")
 
     # born_place も、この時刻にまだ存在している場所だけを候補にする。
-    places = session.scalars(
-        world_createion_query.alive_locations_select(time)).all()
-    # 出自の人物が既に上限に達している場所・プロットの無い場所は選ばない。
-    eligible_places = [
-        p for p in places
-        if int(session.scalar(world_createion_query.character_count_at_place_select(p.id, time)) or 0)
-        < world_createion_query.MAX_CHARACTERS_PER_LOCATION
-        and world_createion_query.location_has_plot(session, p.id)
-    ]
-    if places and not eligible_places:
+    # プロットが無い場所・人物数が既に上限に達している場所は選ばない。
+    usable_location_q = get_usable_location_q(time)
+    eligible_places = session.scalars(select(Location).where(Location.id.in_(usable_location_q))).all()
+    if not eligible_places:
         print(f"[time_keepr/character] {when} 空きのある場所が無いため見送り")
         return None
-    born_place = rng.choice(eligible_places) if eligible_places else None
+    born_place = rng.choice(eligible_places)
 
     return _generate_one(session, born_place, time, rng)

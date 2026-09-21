@@ -38,6 +38,8 @@
   bash なら `PYTHONUTF8=1 .venv/Scripts/python.exe -m ...`
 - リポジトリのルートから実行する(`DEM.` から始まる import はルート基準)
 - `sqlite3` CLI は入っていない。db を覗くときは python の `sqlite3` モジュールか SQLAlchemy を使う
+- `ModuleNotFoundError` など依存不足で実行が失敗したら、まず
+  `.venv/Scripts/python.exe -m pip install -r requirements.txt` を試してから調査する
 
 # db への接続
 
