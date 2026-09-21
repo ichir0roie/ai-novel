@@ -17,6 +17,7 @@ from sqlalchemy import Select, func, or_, select
 
 from DEM.db.schema import (
     Character, Event, EventCharacter, Location, LocationResource, Object,
+    Plot,
 )
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
@@ -123,6 +124,19 @@ def alive_objects_select(time) -> Select:
     return (select(Object)
             .where(or_(Object.start.is_(None), Object.start <= time))
             .where(or_(Object.end.is_(None), Object.end > time)))
+
+
+def active_plot_count_select(time) -> Select:
+    """**時刻 `time` をカバーしている筋書き(`Plot`)の件数。**(`location_id` は問わない)
+
+    0 件なら、その時刻には作者の方向づけが一つも渡っていない。
+    `main.loop_time` はこれを見て常駐ループを止める安全弁にする
+    (「イベントは作者の意思で起こす」——方向づけが無いまま生成だけを
+    続けない)。
+    """
+    return (select(func.count(Plot.id))
+            .where(or_(Plot.start.is_(None), Plot.start <= time))
+            .where(or_(Plot.end.is_(None), Plot.end > time)))
 
 
 def check_within_parent_span(parent: Location, child_start, child_end, label: str) -> None:

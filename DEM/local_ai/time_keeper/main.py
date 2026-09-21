@@ -4,13 +4,18 @@
 `loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続ける。各生成器
 (`random_location_generator` 等)は「月初だけ」「年初だけ」のように自分の
 中で頻度を絞っているので、ここでは**全部を毎日呼ぶだけ**でよい。
+
+**その時刻をカバーする筋書き(`Plot`)が一件も無くなったら、ループを止める。**
+`CommitPlot` で作者が置いた方向づけが尽きた先まで、無方向の生成を続けない
+ための安全弁(「イベントは作者の意思で起こす」)。再開するには `CommitPlot`
+で筋書きを足してから `loop_time` を呼び直す。
 """
 from __future__ import annotations
 
 import traceback
 
 from DEM.db.schema import Session, Stamp, get_session
-from DEM.data_access_logic.query import common_query
+from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.local_ai.time_keeper import (
     character_lifespan,
     event_progression_generator,
@@ -32,6 +37,13 @@ def loop_time(start_time: Stamp | None = None):
 
     while True:
         print(f"[time_keepr] {format_time(current_time)}")
+        with get_session() as s:
+            active_plots = s.scalar(
+                world_createion_query.active_plot_count_select(current_time))
+        if not active_plots:
+            print(f"[time_keepr] {format_time(current_time)} をカバーする"
+                  "プロットが無い。CommitPlot で筋書きを足すまでループを止める。")
+            return
         try:
             with get_session() as s:
                 time_process(s, current_time)
