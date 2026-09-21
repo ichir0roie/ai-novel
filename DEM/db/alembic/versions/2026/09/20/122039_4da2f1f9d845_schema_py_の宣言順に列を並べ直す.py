@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 from DEM.db.schema import (
-    Character, Episode, Event, Location, Object, StampType,
+    Character, Episode, Event, Location, StampType,
     Story, Term,
 )
 
@@ -62,12 +62,28 @@ _character_drive_table_at_this_point = sa.Table(
     sa.Column("filepath", sa.String, nullable=True),
 )
 
+# `Object` はのちに character への一本化で表ごと落ちたため、
+# 当時の列順を静的な Table として書き残す(モデルクラスは既に無い)。
+_object_table_at_this_point = sa.Table(
+    "object", sa.MetaData(),
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("root_place_name", sa.Integer, sa.ForeignKey("location.id")),
+    sa.Column("name", sa.String),
+    sa.Column("read", sa.String),
+    sa.Column("kind_id", sa.Integer, sa.ForeignKey("kind.id")),
+    sa.Column("world_influence", sa.Integer, default=0, nullable=False),
+    sa.Column("start", StampType),
+    sa.Column("end", StampType),
+    sa.Column("text", sa.String, nullable=False),
+    sa.Column("filepath", sa.String, nullable=True),
+)
+
 # 実際に物理列順がずれていた表だけを対象にする
 # (`DEM/db/schema.py` の宣言順と一致している表は触らない)。
 # `kind` 表はこの後のマイグレーションで削除されるため、ここでは対象から外す。
 _REORDERED_TABLES = (
     _skill_table_at_this_point, Character.__table__, _character_drive_table_at_this_point,
-    Episode.__table__, Location.__table__, Object.__table__,
+    Episode.__table__, Location.__table__, _object_table_at_this_point,
     Story.__table__, Term.__table__, Event.__table__,
 )
 

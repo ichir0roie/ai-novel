@@ -164,12 +164,10 @@ class Event(MarkdownBase):
         Integer, ForeignKey("location.id"), index=True, sort_order=240)
     location: Mapped[Location | None] = relationship(lazy="noload")
 
-    # 行動もここに入る(人物・個体の行動に別表は無い)。誰の行動かは
-    # event_character/event_object(中間テーブル、多対多)が持つ。どちらも空なら
+    # 行動もここに入る(人物の行動に別表は無い)。誰の行動かは
+    # event_character(中間テーブル、多対多)が持つ。空なら
     # 誰の行動でもない「ただ起きたこと」。
     event_characters: Mapped[list["EventCharacter"]] = relationship(
-        back_populates="event", lazy="noload", cascade="all, delete-orphan")
-    event_objects: Mapped[list["EventObject"]] = relationship(
         back_populates="event", lazy="noload", cascade="all, delete-orphan")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
@@ -195,18 +193,6 @@ class EventCharacter(Base):
     character: Mapped["Character"] = relationship(lazy="noload")
 
 
-class EventObject(Base):
-    """**出来事 ↔ 個体(群)の中間テーブル。** 一つの出来事に何個体でも掛かれる。"""
-
-    __tablename__ = "event_object"
-
-    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True, sort_order=100)
-    object_id: Mapped[int] = mapped_column(Integer, ForeignKey("object.id"), index=True, sort_order=110)
-
-    event: Mapped["Event"] = relationship(back_populates="event_objects", lazy="noload")
-    object: Mapped["Object"] = relationship(lazy="noload")
-
-
 class Plot(MarkdownBase):
     """その場所の出来事生成に指示したい筋書き。"""
 
@@ -221,52 +207,37 @@ class Plot(MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
 
 
-class ObjectBase:
+CHARACTER_KIND_PERSON = "人物"
+
+
+class Character(MarkdownBase):
+    """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。"""
+
+    __tablename__ = "character"
+
     name: Mapped[str | None] = mapped_column(String, sort_order=210)
     read: Mapped[str | None] = mapped_column(String, sort_order=220)
+    kind: Mapped[str] = mapped_column(
+        String, default=CHARACTER_KIND_PERSON, nullable=False,
+        comment="種別。「人物」か、人物以外の対象(国・組織・商会・氏族・集団・物など)", sort_order=230)
 
     world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える", sort_order=240)
 
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
-
-class Object(MarkdownBase, ObjectBase):
-    __tablename__ = "object"
-
-
-class ObjectPlace(Base):
-    __tablename__ = "object_place"
-
-    object_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), sort_order=100)
-    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("location.id"), sort_order=110)
-
-    start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=120)
-    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=130)
-
-    object: Mapped["Object | None"] = relationship(lazy="noload")
-    place: Mapped[Location] = relationship(lazy="noload")
-
-
-class Character(MarkdownBase, ObjectBase):
-
-    __tablename__ = "character"
-
-    # --- 出自 -------------------------------------------------------------
     # 出自(生まれの場所)は別列を持たず、CharacterPlace の一番古い行として表す。
-    belong_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("object.id"), comment="所属。個体のどれか", sort_order=310)
-    belong: Mapped["Object | None"] = relationship(lazy="noload")
-
+    # 体格・口調は人物だけが持つ。人物以外の対象は空のまま。
     # --- 体格 -------------------------------------------------------------
-    sex: Mapped[str] = mapped_column(String,  comment="性別", sort_order=320)
+    sex: Mapped[str | None] = mapped_column(String,  comment="性別", sort_order=320)
     height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm", sort_order=330)
-    build: Mapped[str] = mapped_column(String,  comment="体格", sort_order=340)
+    build: Mapped[str | None] = mapped_column(String,  comment="体格", sort_order=340)
 
     # --- 口調 -------------------------------------------------------------
-    first_person: Mapped[str] = mapped_column(String,  comment="一人称", sort_order=350)
-    second_person: Mapped[str] = mapped_column(String,  comment="二人称", sort_order=360)
-    third_person: Mapped[str] = mapped_column(String,  comment="三人称", sort_order=370)
-    tone: Mapped[str] = mapped_column(String,  comment="口調", sort_order=380)
+    first_person: Mapped[str | None] = mapped_column(String,  comment="一人称", sort_order=350)
+    second_person: Mapped[str | None] = mapped_column(String,  comment="二人称", sort_order=360)
+    third_person: Mapped[str | None] = mapped_column(String,  comment="三人称", sort_order=370)
+    tone: Mapped[str | None] = mapped_column(String,  comment="口調", sort_order=380)
 
     # --- 性格 -----------------------------------------------------------
     sincerity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="誠実性", sort_order=390)

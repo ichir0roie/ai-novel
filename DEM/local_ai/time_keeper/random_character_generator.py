@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""世界の側の人物を、時の流れの中で自動的に増やす。
+"""世界の側の人物(と、人物以外の対象)を、時の流れの中で自動的に増やす。
 
-`generate_random`: 月初に確率 `constants.CHARACTER_PROBABILITY` で場所を一つ選び、人物を一件生む(既定では毎月一人)。
-候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物にはその人物専用の
-筋書き(`CharacterPlot`)を一件添えて db へ確定する。
+`generate_random`: 月初に確率 `constants.CHARACTER_PROBABILITY` で場所を一つ選び、一件生む。
+生む一件は確率 `constants.NON_PERSON_PROBABILITY` で人物以外の対象(国・組織・集団・物など)になり、
+どの種別かは AI に選ばせる。候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ一件には
+その者専用の筋書き(`CharacterPlot`)を一件添えて db へ確定する。
 """
 from __future__ import annotations
 
@@ -11,7 +12,8 @@ import random
 
 from sqlalchemy import and_, func, select
 
-from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.data_access_logic.query.base import character_time_condition, plot_time_condition
 from DEM.db.schema import *
@@ -19,6 +21,19 @@ from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
+
+_PLOT_INSTRUCTION = (
+    "plot は、この一件について今後たどってほしい筋書き。text の説明と"
+    "矛盾しない範囲で、起・承・転・結の四つの段階を、この順に、それぞれ"
+    "一〜二文ずつ改行で区切って書く。"
+    "起は、今の立場と、抱えている問題・欲求。"
+    "承は、その問題・欲求が誰と何を巡ってどう広がるか。"
+    "転は、それを決定的に動かす転機(対立・裏切り・喪失・選択など)。"
+    "結は、その転機を経てどこに行き着くか(成功・失敗・変質、どれでもよい)。"
+    "起だけを書いて終わらせず、四つの段階を必ず全部埋める。各段階は、"
+    "誰と・何を巡って、が分かる具体的な内容にする。"
+    "出来事生成のたびに読まれ、関わる出来事の展開の優先材料になる。"
+)
 
 _CONTENT_SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
@@ -37,20 +52,10 @@ _CONTENT_SYSTEM_PROMPT = (
     "「この人物が体現する要素」が渡されているときは、複数の立場のうち"
     "あなたが選びやすいものへ寄せず、渡された要素をこの人物の生き方の核として"
     "必ず反映してください。"
-    "「既にいる人物」「既にある個体」が渡されているときは、その役割・関係・"
+    "「既にいる人物・対象」が渡されているときは、その役割・関係・"
     "特徴とは重ならない人物にしてください(同じ立場・同じ能力・同じ関係性の"
     "作り直しをしない)。"
-    "plot は、この人物個人について今後たどってほしい筋書き。text の人物説明と"
-    "矛盾しない範囲で、起・承・転・結の四つの段階を、この順に、それぞれ"
-    "一〜二文ずつ改行で区切って書く。"
-    "起は、今の立場と、この人物が抱えている問題・欲求。"
-    "承は、その問題・欲求が誰と何を巡ってどう広がるか。"
-    "転は、それを決定的に動かす転機(対立・裏切り・喪失・選択など)。"
-    "結は、その転機を経てこの人物がどこに行き着くか(成功・失敗・変質、"
-    "どれでもよい)。"
-    "起だけを書いて終わらせず、四つの段階を必ず全部埋める。各段階は、"
-    "誰と・何を巡って、が分かる具体的な内容にする。"
-    "出来事生成のたびに読まれ、その人物が関わる出来事の展開の優先材料になる。"
+    + _PLOT_INSTRUCTION +
     "キーは text(具体的な生活・仕事・関係が伝わる2〜3文の人物説明。能力・"
     "特技があれば含む。「優しい」「謎めいた」のような、誰にでも当てはまる"
     "抽象的な形容だけで済ませず、この人物固有の具体的な癖・関わり・生い立ちを"
@@ -68,6 +73,40 @@ _CONTENT_SCHEMA = {
     "additionalProperties": False,
 }
 
+_NON_PERSON_CONTENT_SYSTEM_PROMPT = (
+    "あなたは架空の世界観を構築する設定作家です。"
+    "ある場所と、そこに居る人物・既にある対象を渡すので、この場所を拠り所に"
+    "生まれる人物以外の対象(国・組織・商会・氏族・集団など、まとまりとして"
+    "動くもの。あるいは物)を1件だけ考え、JSON で答えてください。"
+    "渡す場所の産業・地形・人間関係のうち少なくとも一つを具体的に使う。"
+    "「由緒ある」「謎めいた」のような、どの対象にも当てはまる形容だけで済ませない。"
+    "既にある対象と役割が重なるものは作らない。"
+    "「この対象が体現する要素」が渡されているときは、渡された要素を"
+    "この対象の成り立ちの核として必ず反映してください。"
+    + _PLOT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
+    "キーは kind(種別。" + " / ".join(constants.NON_PERSON_KINDS) + " のいずれか一つ), "
+    "text(この対象が何であって、何を決められて、誰に対して力を持つのかが"
+    "伝わる2〜3文の説明), "
+    f"age(成り立ってからの年数, 整数。{constants.CHARACTER_AGE_RANGE[0]}〜"
+    f"{constants.CHARACTER_AGE_RANGE[1]}の範囲), "
+    "plot(今後の筋書き), "
+    "scale(この対象の力がどこまで届くか。" + " / ".join(constants.SCALE_INFLUENCE) +
+    " のいずれか一つ)の五つだけ。"
+)
+
+_NON_PERSON_CONTENT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string", "enum": list(constants.NON_PERSON_KINDS)},
+        "text": {"type": "string"},
+        "age": {"type": "integer", "minimum": constants.CHARACTER_AGE_RANGE[0], "maximum": constants.CHARACTER_AGE_RANGE[1]},
+        "plot": {"type": "string"},
+        "scale": {"type": "string", "enum": list(constants.SCALE_INFLUENCE)},
+    },
+    "required": ["kind", "text", "age", "plot", "scale"],
+    "additionalProperties": False,
+}
+
 _NAME_SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
     "内容が決まっている人物1件に、名前と読みだけを付けます。"
@@ -77,8 +116,22 @@ _NAME_SYSTEM_PROMPT = (
     "居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・"
     "参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、"
     "同じ場所の人物として馴染む名にしてください(固有名詞をそのまま持ち込まない)。"
-    "「既にいる人物の名」が渡されているときは、頭の音や拍数がそれらと"
+    "「既にいる人物・対象の名」が渡されているときは、頭の音や拍数がそれらと"
     "重ならないようにしてください。"
+    "キーは name(名前), read(読み)の二つだけ。"
+)
+
+_NON_PERSON_NAME_SYSTEM_PROMPT = (
+    "あなたは架空の世界観を構築する設定作家です。"
+    "内容が決まっている人物以外の対象(国・組織・集団・物など)1件に、"
+    "名前と読みだけを付けます。"
+    + TERM_NAMING_INSTRUCTION +
+    "組織の名は「〜機構」「〜管理局」のような硬い漢語で止めず、場所名か"
+    "役割名で呼べる形にする。"
+    "居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・"
+    "参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、"
+    "同じ場所のものとして馴染む名にしてください(固有名詞をそのまま持ち込まない)。"
+    "「既にいる人物・対象の名」が渡されているときは、それらと紛らわしい名にしない。"
     "キーは name(名前), read(読み)の二つだけ。"
 )
 
@@ -91,6 +144,11 @@ _NAME_SCHEMA = {
     "required": ["name", "read"],
     "additionalProperties": False,
 }
+
+# 人物だけが持つ列。人物以外の対象では空にする。
+_PERSON_ONLY_COLUMNS = (
+    "sex", "height", "build", "first_person", "second_person", "third_person", "tone",
+)
 
 
 def _should_roll(time: Stamp) -> bool:
@@ -159,7 +217,7 @@ def _nearby_place_ids(session: Session, born_place: Location | None) -> list[int
 
 
 def _nearby_characters(session: Session, born_place: Location | None, time: Stamp) -> list[Character]:
-    """`born_place` かその祖先に、`time` 時点で居る人物。重複回避の材料にする。"""
+    """`born_place` かその祖先に、`time` 時点で居る人物・対象。重複回避の材料にする。"""
     place_ids = _nearby_place_ids(session, born_place)
     if not place_ids:
         return []
@@ -169,26 +227,15 @@ def _nearby_characters(session: Session, born_place: Location | None, time: Stam
     return session.scalars(select(Character).where(Character.id.in_(ids))).all()
 
 
-def _nearby_objects(session: Session, born_place: Location | None, time: Stamp) -> list[Object]:
-    """`born_place` かその祖先に、`time` 時点で居る個体(群)。重複回避の材料にする。"""
-    place_ids = _nearby_place_ids(session, born_place)
-    if not place_ids:
-        return []
-    ids = session.scalars(common_query.resident_object_ids_select(place_ids, time)).all()
-    if not ids:
-        return []
-    return session.scalars(select(Object).where(Object.id.in_(ids))).all()
-
-
-def _record_context(records: list) -> str:
-    """人物・個体のリストを、名前と説明の箇条書きにする。"""
+def _record_context(records: list[Character]) -> str:
+    """人物・対象のリストを、名前(種別)と説明の箇条書きにする。"""
     if not records:
         return "(無し)"
-    return "\n".join(f"- {r.name}: {r.text or '(説明なし)'}" for r in records)
+    return "\n".join(f"- {r.name}({r.kind}): {r.text or '(説明なし)'}" for r in records)
 
 
 def _character_names(characters: list[Character]) -> str:
-    """人物のリストを、名前(読み)の一覧にする。命名時の重複回避に使う。"""
+    """人物・対象のリストを、名前(読み)の一覧にする。命名時の重複回避に使う。"""
     if not characters:
         return "(無し)"
     return "、".join(f"{c.name}({c.read})" if c.read else c.name for c in characters)
@@ -218,9 +265,13 @@ def _location_context(place: Location | None) -> str:
 
 def _generate_one(
     session: Session, born_place: Location | None, time: Stamp, rng: random.Random,
+    person: bool = True,
 ) -> Character:
-    """**人物を一件、db へ確定して返す。** ロール判定(当たり外れ)は呼び出し側の責任。"""
+    """**人物(`person=False` なら人物以外の対象)を一件、db へ確定して返す。** ロール判定(当たり外れ)は呼び出し側の責任。"""
     draft = build_character()
+    if not person:
+        for column in _PERSON_ONLY_COLUMNS:
+            draft[column] = None
 
     region_label = _region_label(session, born_place)
     plot_texts = _plot_texts(session, born_place, time)
@@ -228,29 +279,43 @@ def _generate_one(
 
     elements = _plot_elements(plot_texts)
     chosen_element = rng.choice(elements) if elements else None
+    subject = "人物" if person else "対象"
     element_line = (
-        f"この人物が体現する要素(必ずこれに基づいて生活・仕事を決める): {chosen_element}\n"
+        f"この{subject}が体現する要素(必ずこれに基づいて決める): {chosen_element}\n"
         if chosen_element else ""
     )
 
     nearby_characters = _nearby_characters(session, born_place, time)
-    nearby_objects = _nearby_objects(session, born_place, time)
+    person_line = (
+        f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
+        if person else ""
+    )
 
     content_prompt = (
         f"出身: {born_place.name if born_place else '不明'}\n"
         f"出身地の特徴:\n{_location_context(born_place)}\n"
         f"地域: {region_label}\n"
-        f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
+        f"{person_line}"
         f"現在の時刻: {time}\n"
-        f"年齢は{constants.CHARACTER_AGE_RANGE[0]}〜{constants.CHARACTER_AGE_RANGE[1]}歳の範囲で、text の人物説明に"
-        "似合う歳を選んでください。\n"
+        f"年齢は{constants.CHARACTER_AGE_RANGE[0]}〜{constants.CHARACTER_AGE_RANGE[1]}の範囲で、text の説明に"
+        "似合う値を選んでください。\n"
         f"この場所・時刻に関連する筋書き:\n{plot_label}\n"
         f"{element_line}"
-        f"既にいる人物:\n{_record_context(nearby_characters)}\n"
-        f"既にある個体:\n{_record_context(nearby_objects)}\n"
-        "この場所に自然な人物を1件、決めてください。"
+        f"既にいる人物・対象:\n{_record_context(nearby_characters)}\n"
+        f"この場所に自然な{subject}を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(content_prompt, _CONTENT_SCHEMA, system=_CONTENT_SYSTEM_PROMPT)
+    if person:
+        decided = ai_client.try_generate_json(
+            content_prompt, _CONTENT_SCHEMA, system=_CONTENT_SYSTEM_PROMPT)
+    else:
+        decided = ai_client.try_generate_json(
+            content_prompt, _NON_PERSON_CONTENT_SCHEMA, system=_NON_PERSON_CONTENT_SYSTEM_PROMPT)
+        kind = decided.get("kind")
+        draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
+        scale = decided.get("scale")
+        if scale not in constants.SCALE_INFLUENCE:
+            scale = constants.DEFAULT_SCALE
+        draft["world_influence"] = constants.SCALE_INFLUENCE[scale]
 
     draft["text"] = decided.get("text") or draft["text"]
     try:
@@ -265,19 +330,22 @@ def _generate_one(
     draft["end"] = Stamp(time.year - age + dead_age)
     plot_text = (decided.get("plot") or "").strip() or draft["text"]
 
-    # 名前は、人物説明・年齢・筋書きなど中身が決まったあとに、その内容から連想して決める。
+    # 名前は、説明・年齢・筋書きなど中身が決まったあとに、その内容から連想して決める。
     name_prompt = (
-        f"人物説明: {draft['text']}\n"
+        f"種別: {draft['kind']}\n"
+        f"説明: {draft['text']}\n"
         f"年齢: {age}\n"
         f"筋書き: {plot_text}\n"
-        f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
+        f"{person_line}"
         f"居場所: {born_place.name if born_place else '不明'}\n"
         f"場所の特徴:\n{_location_context(born_place)}\n"
         f"所属する地域: {region_label}\n"
-        f"既にいる人物の名: {_character_names(nearby_characters)}\n"
-        "この人物に似合う名前と読みを決めてください。"
+        f"既にいる人物・対象の名: {_character_names(nearby_characters)}\n"
+        f"この{subject}に似合う名前と読みを決めてください。"
     )
-    named = ai_client.try_generate_json(name_prompt, _NAME_SCHEMA, system=_NAME_SYSTEM_PROMPT)
+    named = ai_client.try_generate_json(
+        name_prompt, _NAME_SCHEMA,
+        system=_NAME_SYSTEM_PROMPT if person else _NON_PERSON_NAME_SYSTEM_PROMPT)
     draft["name"] = named.get("name") or draft["name"]
     draft["read"] = named.get("read") or draft["read"]
 
@@ -290,16 +358,17 @@ def _generate_one(
             character_id=record.id, location_id=born_place.id,
             start=record.start, end=record.end))
 
-    # 生んだ人物には必ず一件、専用の筋書き(CharacterPlot)を添える。
+    # 生んだ一件には必ず一件、専用の筋書き(CharacterPlot)を添える。
     session.add(CharacterPlot(character_id=record.id, text=plot_text, start=time))
 
     session.commit()
     when = format_time(time)
     place_label = f"{born_place.name}(id={born_place.id})" if born_place else "不明"
     print(f"[time_keepr/character] {when} 生成: {record.name}({record.read})"
-          f" id={record.id} 出自={place_label} 年齢={age}\n"
-          f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
-          f"    筋書きの要素: {chosen_element or '(無し)'}\n"
+          f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
+          + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
+             if person else f"    world_influence={record.world_influence}\n")
+          + f"    筋書きの要素: {chosen_element or '(無し)'}\n"
           f"    筋書き: {plot_text}\n"
           f"    説明: {record.text or '(説明なし)'}")
     return record
@@ -321,10 +390,13 @@ def get_usable_location_q(time: Stamp):
             CharacterPlot, Character.id == CharacterPlot.character_id
         )
         .where(
-            or_(Location.start.is_(None), Location.start <= time),
-            or_(Location.end.is_(None), Location.end > time),
+            Location.start <= time,
+            Location.end > time,
             plot_time_condition(time),
-            character_time_condition(time),
+            or_(
+                character_time_condition(time),
+                CharacterPlot.id == None
+            )
         )
         .group_by(Location.id)
         .having(
@@ -334,7 +406,7 @@ def get_usable_location_q(time: Stamp):
 
 
 def generate_random(session: Session, time: Stamp) -> Character | None:
-    """ロールに当たったら、人物を一件 db へ確定して返す。当たらなければ None。"""
+    """ロールに当たったら、人物か人物以外の対象を一件 db へ確定して返す。当たらなければ None。"""
     if not _should_roll(time):
         return None
 
@@ -358,4 +430,8 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
         return None
     born_place = rng.choice(eligible_places)
 
-    return _generate_one(session, born_place, time, rng)
+    # 人物か、人物以外の対象か。数の偏りは AI に任せずサイコロで決める。
+    person = rng.random() >= constants.NON_PERSON_PROBABILITY
+    print(f"[time_keepr/character] {when} 種別判定: {'人物' if person else '人物以外の対象'}")
+
+    return _generate_one(session, born_place, time, rng, person=person)

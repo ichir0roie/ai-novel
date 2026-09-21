@@ -17,19 +17,6 @@ def character_time_condition(time: Stamp):
     )
 
 
-def object_time_condition(time: Stamp):
-    return or_(
-        and_(
-            ObjectPlace.start <= time,
-            ObjectPlace.end > time
-        ),
-        and_(
-            ObjectPlace.start <= time,
-            ObjectPlace.end == None
-        )
-    )
-
-
 def plot_time_condition(time: Stamp):
     """`time` の時点でまだ有効な筋書き(`start`〜`end` が空なら期間を問わない)。"""
     return and_(

@@ -3,7 +3,7 @@ from DEM.data_access_logic.query.base import *
 
 def character_around_event(
     s: Session, character_id: int, time: Stamp, reach: int = 60,
-) -> tuple[Sequence[Character], Sequence[Object], Sequence[Event]]:
+) -> tuple[Sequence[Character], Sequence[Event]]:
     character_location_ids = select(CharacterPlace.location_id).where(
         CharacterPlace.character_id == character_id, character_time_condition(time))
 
@@ -22,13 +22,6 @@ def character_around_event(
             CharacterPlace.location_id.in_(location_ids),
             character_time_condition(time)))
     ).all()
-    objects = s.scalars(
-        select(Object).join(ObjectPlace, and_(
-            ObjectPlace.object_id == Object.id,
-            ObjectPlace.location_id.in_(location_ids),
-            object_time_condition(time)))
-    ).all()
-
     since = Stamp(max(1, time.year - reach))
     events = s.scalars(
         select(Event)
@@ -37,4 +30,4 @@ def character_around_event(
         .order_by(Event.time.desc(), Event.id.desc())
     ).all()
 
-    return characters, objects, events
+    return characters, events

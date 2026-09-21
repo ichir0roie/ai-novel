@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import factory
 
+from DEM.db.schema import CHARACTER_KIND_PERSON
+
 _SEX_CHOICES = ("男", "女", "不定")
 _BUILD_CHOICES = ("細身", "小柄", "がっしり", "長身", "ふくよか", "痩身")
 _TONE_CHOICES = ("丁寧", "ぶっきらぼう", "早口", "のんびり", "無口", "高圧的")
@@ -24,6 +26,7 @@ class CharacterFactory(factory.DictFactory):
     name = factory.Sequence(lambda n: f"仮名{n}")
     read = ""
     text = ""
+    kind = CHARACTER_KIND_PERSON
 
     sex = factory.Faker("random_element", elements=_SEX_CHOICES)
     height = factory.Faker("pyfloat", min_value=140, max_value=195, right_digits=1, positive=True)
@@ -49,8 +52,6 @@ class CharacterFactory(factory.DictFactory):
 
     world_influence = factory.Faker("random_int", min=0, max=2)
 
-    # 実在レコードを指す欄。呼び出し側が上書きする前提で None のまま。
-    belong_id = None
     start = None
     end = None
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """その話に出せる顔ぶれを取る、claude が呼ぶ入口。
 
-作品の立つ場所から `levels` 段のぼった場所を基準に、配下に居る人物・個体を集める。
+作品の立つ場所から `levels` 段のぼった場所を基準に、配下に居る人物を集める。
 `time` を省くと作品の立つ年。
 """
 from __future__ import annotations
