@@ -13,7 +13,7 @@ from sqlalchemy import (
     update,
     or_,
     and_,
-    delete
+    delete,
 )
 from sqlalchemy.orm import (
     Session,
@@ -25,6 +25,8 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship,
 )
+
+from sqlalchemy import func
 
 from DEM.db.stamp import Stamp
 

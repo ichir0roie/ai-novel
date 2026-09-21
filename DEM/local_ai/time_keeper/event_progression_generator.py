@@ -26,24 +26,10 @@ from DEM.db.schema import (
     EventObject, Location, Object, ObjectPlace, Session, Stamp,
 )
 from DEM.local_ai import ai_client
+from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import add_days, format_time
-from DEM.local_ai.time_keeper.random_object_generator import (
-    _DEFAULT_SCALE, _SCALE_INFLUENCE,
-)
 from DEM.randomizer.random_location_generator import build_location
 from DEM.randomizer.random_object_generator import build_object
-
-PLACE_PROBABILITY = 0.75
-
-# 遠隔候補(`_reach_objects`)をどこまで拾うか。`read_cast` の既定
-# (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
-_REACH_LEVELS = 1
-_REACH_OBJECT_LIMIT = 10
-_MOVE_DESTINATION_LIMIT = 20
-
-# event_duration_days の取りうる範囲。範囲外の値は丸める。
-_EVENT_DURATION_RANGE_DAYS = (1, 90)
-_DEFAULT_EVENT_DURATION_DAYS = 1
 
 _EVENT_TEXT_INSTRUCTION = (
     "選ばれた出来事の候補(name と summary)を、当事者ごとの思考・感情・"
@@ -79,7 +65,7 @@ _OBJECT_FOUND_INSTRUCTION = (
     "させてよい。埋めるなら {name, read, text, scale}(name は固有名詞、"
     "read は読み、text はこの個体が何であって、何を決められて誰に対して"
     "力を持つのかが伝わる説明、scale はこの個体の力がどこまで届くか。"
-    + " / ".join(_SCALE_INFLUENCE) + " のいずれか一つ)。既にある個体・"
+    + " / ".join(constants.SCALE_INFLUENCE) + " のいずれか一つ)。既にある個体・"
     "候補で足りるなら object_founded は null のままにする。"
     + TERM_NAMING_INSTRUCTION
 )
@@ -171,16 +157,12 @@ _JUDGEMENT_SCHEMA = {
     "additionalProperties": False,
 }
 
-# サイコロで選ぶ候補の件数。少ないと交渉型の無難な候補だけで埋まり、
-# 多いと本文を書く段で候補の要約が薄くなる。
-_CANDIDATE_COUNT = 6
-
 _CANDIDATE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起こりうる出来事を列挙する"
     "設定作家です。渡す場所・居合わせる人物と個体・当事者ごとの思考・感情・"
     "望み・恐れ・行動・直近の出来事・筋書きを踏まえ、これらの行動が同じ場で"
     "重なった結果として、この時点で起こりうる出来事の候補を"
-    f"{_CANDIDATE_COUNT}件挙げてください。"
+    f"{constants.CANDIDATE_COUNT}件挙げてください。"
     "どれが起きるかはあとでサイコロで決めるので、候補どうしは性質を"
     "ばらけさせる。日常の小さな出来事、感情がぶつかる出来事、偶発的な"
     "出来事(事故・天候・病・思いがけない出会い)、居場所が変わる出来事"
@@ -251,7 +233,7 @@ _OBJECT_FOUND_SCHEMA = {
         "name": {"type": "string"},
         "read": {"type": "string"},
         "text": {"type": "string"},
-        "scale": {"type": "string", "enum": list(_SCALE_INFLUENCE)},
+        "scale": {"type": "string", "enum": list(constants.SCALE_INFLUENCE)},
     },
     "required": ["name", "read", "text", "scale"],
     "additionalProperties": False,
@@ -330,8 +312,8 @@ _PLACE_SCHEMA = {
         "location_founded": _LOCATION_FOUND_SCHEMA,
         "event_duration_days": {
             "type": "integer",
-            "minimum": _EVENT_DURATION_RANGE_DAYS[0],
-            "maximum": _EVENT_DURATION_RANGE_DAYS[1],
+            "minimum": constants.EVENT_DURATION_RANGE_DAYS[0],
+            "maximum": constants.EVENT_DURATION_RANGE_DAYS[1],
         },
     },
     "required": [
@@ -411,7 +393,7 @@ def _reach_objects(
     exclude_ids: set[int],
 ) -> list[Object]:
     """その場に今いなくても、一つ上の圏内から遠隔で出来事に関与できる個体の候補。追加の select は要らない。"""
-    root_id = common_query.place_up(session, place_id, _REACH_LEVELS)
+    root_id = common_query.place_up(session, place_id, constants.REACH_LEVELS)
     nearby_ids = common_query.descendant_place_ids(session, root_id)
     found: list[Object] = []
     seen = set(exclude_ids)
@@ -423,9 +405,50 @@ def _reach_objects(
                 continue
             seen.add(obj.id)
             found.append(obj)
-            if len(found) >= _REACH_OBJECT_LIMIT:
+            if len(found) >= constants.REACH_OBJECT_LIMIT:
                 return found
     return found
+
+
+_PLOT_COMPLETION_SYSTEM_PROMPT = (
+    "あなたは物語の進行を見届ける編集者です。人物一人の筋書き(起・承・転・結)と、"
+    "その人物が関わった直近の出来事、そしていま起きたばかりの出来事を渡します。"
+    "いま起きた出来事によって、筋書きの「結」に相当する到達点まで至ったかどうかを"
+    "判定してください。転機(転)を迎えただけ、結へ向かう途中、という段階では"
+    "完了と見なさない。結に書かれた行き着き先(成功・失敗・変質など)が、"
+    "出来事の記録として実際に起きたときだけ完了とする。"
+    "JSON で答えてください。キーは completed(bool)と reason(一〜二文の根拠)の二つ。"
+)
+
+_PLOT_COMPLETION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "completed": {"type": "boolean"},
+        "reason": {"type": "string"},
+    },
+    "required": ["completed", "reason"],
+    "additionalProperties": False,
+}
+
+
+def _judge_plot_completed(
+    session: Session, plot: CharacterPlot, character: Character,
+    event: Event, time: Stamp,
+) -> bool:
+    recent = session.scalars(
+        common_query.events_of_select(character.id, until=time, limit=RECENT_EVENT_LIMIT)
+    ).all()
+    prompt = (
+        f"人物: {character.name}\n"
+        f"人物の説明: {character.text}\n"
+        f"筋書き:\n{plot.text}\n"
+        f"この人物が関わった直近の出来事(名前): {[e.name for e in recent]}\n"
+        f"いま起きた出来事: {event.name}\n{event.text}\n"
+        "この出来事で筋書きは完了したか判定してください。"
+    )
+    decided = ai_client.try_generate_json(
+        prompt, _PLOT_COMPLETION_SCHEMA, system=_PLOT_COMPLETION_SYSTEM_PROMPT)
+    return bool(decided.get("completed"))
 
 
 def _object_recent_event_names(
@@ -494,7 +517,7 @@ def _roll_candidate(
     prompt = (
         f"当事者ごとの思考・感情・望み・恐れ・行動: {judgements or '(無し)'}\n"
         f"{situation}"
-        f"この場所にこの時点で起こりうる出来事の候補を{_CANDIDATE_COUNT}件挙げてください。"
+        f"この場所にこの時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。"
     )
     decided = ai_client.try_generate_json(
         prompt, _CANDIDATE_SCHEMA, system=_CANDIDATE_SYSTEM_PROMPT)
@@ -513,7 +536,7 @@ def _move_destinations(
     session: Session, place_id: int, time: Stamp,
 ) -> list[dict]:
     """人物が移れる先。`_reach_objects` と同じく一つ上の圏内にある、いま存在する場所。"""
-    root_id = common_query.place_up(session, place_id, _REACH_LEVELS)
+    root_id = common_query.place_up(session, place_id, constants.REACH_LEVELS)
     nearby_ids = set(common_query.descendant_place_ids(session, root_id))
     nearby_ids -= {place_id, root_id}
     places = session.scalars(
@@ -521,14 +544,7 @@ def _move_destinations(
         .where(Location.id.in_(nearby_ids))
     ).all()
     return [{"location_id": p.id, "name": p.name, "kind": p.kind}
-            for p in places[:_MOVE_DESTINATION_LIMIT]]
-
-
-_TRAIT_COLUMNS = (
-    "sincerity", "curiosity", "proactivity", "cooperativeness", "sociability",
-    "emotional_expression", "self_esteem", "self_efficacy", "stress_resilience",
-    "flexibility_of_values", "sensitivity", "imagination",
-)
+            for p in places[:constants.MOVE_DESTINATION_LIMIT]]
 
 
 def _progress_place(
@@ -546,13 +562,13 @@ def _progress_place(
         for p in plots
     ]
     character_plots = {
-        c.id: [p.text for p in story_createion_query.load_character_plot(session, c.id, time)]
+        c.id: story_createion_query.load_character_plot(session, c.id, time)
         for c in characters[:20]
     }
     characters_payload = [
         {"character_id": c.id, "name": c.name, "tone": c.tone, "text": c.text,
-         "traits": {column: getattr(c, column) for column in _TRAIT_COLUMNS},
-         "plot": character_plots.get(c.id) or "(指定なし)"}
+         "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
+         "plot": [p.text for p in character_plots.get(c.id, [])] or "(指定なし)"}
         for c in characters[:20]
     ]
     destinations = _move_destinations(session, place_id, time)
@@ -667,13 +683,13 @@ def _progress_place(
             and int(session.scalar(world_createion_query.object_count_at_place_select(
                 place_id, time)) or 0) < world_createion_query.MAX_OBJECTS_PER_LOCATION):
         scale = founded_object.get("scale")
-        if scale not in _SCALE_INFLUENCE:
-            scale = _DEFAULT_SCALE
+        if scale not in constants.SCALE_INFLUENCE:
+            scale = constants.DEFAULT_SCALE
         draft = build_object()
         draft["name"] = founded_object.get("name") or draft["name"]
         draft["read"] = founded_object.get("read") or draft["read"]
         draft["text"] = founded_object.get("text") or draft["text"]
-        draft["world_influence"] = _SCALE_INFLUENCE[scale]
+        draft["world_influence"] = constants.SCALE_INFLUENCE[scale]
         draft["start"] = time
         new_object = Object(**draft)
         session.add(new_object)
@@ -689,9 +705,9 @@ def _progress_place(
     try:
         duration_days = int(decided.get("event_duration_days"))
     except (TypeError, ValueError):
-        duration_days = _DEFAULT_EVENT_DURATION_DAYS
-    duration_days = min(max(duration_days, _EVENT_DURATION_RANGE_DAYS[0]),
-                        _EVENT_DURATION_RANGE_DAYS[1])
+        duration_days = constants.DEFAULT_EVENT_DURATION_DAYS
+    duration_days = min(max(duration_days, constants.EVENT_DURATION_RANGE_DAYS[0]),
+                        constants.EVENT_DURATION_RANGE_DAYS[1])
     end = add_days(time, duration_days)
 
     record = Event(
@@ -709,6 +725,15 @@ def _progress_place(
         EventObject(object_id=oid) for oid in involved_object_ids
     ]
     session.add(record)
+
+    plot_done_notes = []
+    for cid in involved_character_ids:
+        for plot in character_plots.get(cid, []):
+            if plot.end is not None:
+                continue
+            if _judge_plot_completed(session, plot, character_ids[cid], record, time):
+                plot.end = record.time
+                plot_done_notes.append(f"{character_ids[cid].name}: id={plot.id} 完了")
 
     plot_notes = []
     for item in decided.get("character_plots") or []:
@@ -797,6 +822,7 @@ def _progress_place(
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + f" / 候補 {candidate['rolled']}: {candidate['name']}"
           + (f" / 移動: {'; '.join(move_notes)}" if move_notes else "")
+          + (f" / 筋書き完了: {'; '.join(plot_done_notes)}" if plot_done_notes else "")
           + (f" / 人物の筋書き: {'; '.join(plot_notes)}" if plot_notes else "")
           + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")
@@ -818,7 +844,7 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
     for i, (place_id, (characters, objects)) in enumerate(grouped.items(), start=1):
         print(f"[time_keepr/event] 場所 {i}/{total_places} id={place_id}: "
               f"人物{len(characters)}人 個体{len(objects)}件")
-        if rng.random() < PLACE_PROBABILITY:
+        if rng.random() < constants.PLACE_PROBABILITY:
             reach_objects = _reach_objects(
                 session, grouped, place_id, {o.id for o in objects})
             event = _progress_place(

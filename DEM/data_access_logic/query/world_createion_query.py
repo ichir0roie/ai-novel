@@ -2,18 +2,16 @@
 """世界観構成で確定する前に確かめる、数の整合。`DEM/claude_interface/randomizer/` と `DEM/local_ai/` から使う。"""
 from __future__ import annotations
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 
 from DEM.data_access_logic.query import common_query
-from DEM.data_access_logic.query.base import character_time_condition, object_time_condition
+from DEM.data_access_logic.query.base import (
+    character_time_condition, object_time_condition, plot_time_condition,
+)
 from DEM.db.schema import (
     Character, CharacterPlace, Event, EventCharacter, Location, Object,
     ObjectPlace, Plot, Session, Stamp,
 )
-
-# 一つの場所につき作れる人物・個体の上限。
-MAX_CHARACTERS_PER_LOCATION = 5
-MAX_OBJECTS_PER_LOCATION = 3
 
 
 def character_count_at_place_select(place_id: int, stamp: Stamp) -> Select:
@@ -48,11 +46,12 @@ def busy_character_ids_select(time) -> Select:
 
 def alive_locations_select(time) -> Select:
     """時刻 `time` にまだ存在している場所だけ(`start` 以後・`end` より前。無指定側は素通し)。"""
-    return (select(Location)
-            .where(
-                or_(Location.start.is_(None), Location.start <= time),
-                or_(Location.end.is_(None), Location.end > time))
-            )
+    return (
+        select(Location)
+        .where(
+            or_(Location.start.is_(None), Location.start <= time),
+            or_(Location.end.is_(None), Location.end > time))
+    )
 
 
 def alive_characters_select(time) -> Select:

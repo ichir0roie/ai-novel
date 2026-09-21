@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """世界の側の個体(国・組織・商会などの群)を、時の流れの中で自動的に増やす。
 
-年初に確率 `PROBABILITY` で、人物が居てプロットのある場所を選び、個体を一件生んで db へ確定する(既定では毎年一つ)。
+年初に確率 `constants.OBJECT_PROBABILITY` で、人物が居てプロットのある場所を選び、個体を一件生んで db へ確定する(既定では毎年一つ)。
 """
 from __future__ import annotations
 
@@ -12,20 +12,9 @@ from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.db.schema import Location, Object, ObjectPlace, Session, Stamp
 from DEM.local_ai import ai_client
+from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_object_generator import build_object
-
-PROBABILITY = 1.0  # 1年に1度、必ず一つ
-
-# AI に選ばせる「どこまで届く群か」と、それを落とす world_influence の値。
-# 数そのものを AI に決めさせない(尺度が決まっていないため)。
-_SCALE_INFLUENCE = {
-    "集落内": 0,
-    "地域": 1,
-    "国": 2,
-    "大陸": 3,
-}
-_DEFAULT_SCALE = "地域"
 
 _SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
@@ -42,7 +31,7 @@ _SYSTEM_PROMPT = (
     "伝わる2〜3文の説明。渡した場所の産業・地形・人間関係のうち少なくとも"
     "一つを具体的に使う。「由緒ある」「謎めいた」のような、どの群にも"
     "当てはまる形容だけで済ませない), "
-    "scale(この群の力がどこまで届くか。" + " / ".join(_SCALE_INFLUENCE) +
+    "scale(この群の力がどこまで届くか。" + " / ".join(constants.SCALE_INFLUENCE) +
     " のいずれか一つ)の四つだけ。"
 )
 
@@ -52,7 +41,7 @@ _SCHEMA = {
         "name": {"type": "string"},
         "read": {"type": "string"},
         "text": {"type": "string"},
-        "scale": {"type": "string", "enum": list(_SCALE_INFLUENCE)},
+        "scale": {"type": "string", "enum": list(constants.SCALE_INFLUENCE)},
     },
     "required": ["name", "read", "text", "scale"],
     "additionalProperties": False,
@@ -106,12 +95,12 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
     rng = random.Random(seed)
     roll = rng.random()
     when = format_time(time)
-    if roll >= PROBABILITY:
+    if roll >= constants.OBJECT_PROBABILITY:
         print(f"[time_keepr/object] {when} 年初判定: "
-              f"seed={seed} roll={roll:.4f} >= {PROBABILITY} → 見送り")
+              f"seed={seed} roll={roll:.4f} >= {constants.OBJECT_PROBABILITY} → 見送り")
         return None
     print(f"[time_keepr/object] {when} 年初判定: "
-          f"seed={seed} roll={roll:.4f} < {PROBABILITY} → 生成")
+          f"seed={seed} roll={roll:.4f} < {constants.OBJECT_PROBABILITY} → 生成")
 
     places = session.scalars(
         world_createion_query.alive_locations_select(time)).all()
@@ -152,9 +141,9 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
     draft["read"] = decided.get("read") or draft["read"]
     draft["text"] = decided.get("text") or draft["text"]
     scale = decided.get("scale")
-    if scale not in _SCALE_INFLUENCE:
-        scale = _DEFAULT_SCALE
-    draft["world_influence"] = _SCALE_INFLUENCE[scale]
+    if scale not in constants.SCALE_INFLUENCE:
+        scale = constants.DEFAULT_SCALE
+    draft["world_influence"] = constants.SCALE_INFLUENCE[scale]
     draft["start"] = time
 
     record = Object(**draft)
