@@ -98,19 +98,28 @@ EVENT_DURATION_INSTRUCTION = (
     "ものなら30〜90程度など、内容に見合う値を1〜90の範囲で決める)"
 )
 
-CHARACTER_TEXT_UPDATE_INSTRUCTION = (
-    "text は、この出来事を通して見えた、その人物の性格・信念・人となり"
-    "(パーソナリティ)についてだけ短く一言で書く。状況の要約や現在の状態"
-    "(場所・立場・置かれている状況など)は書かない。この出来事でその人物の"
-    "パーソナリティについて新しく分かったことが無ければ、この人物自体を"
-    "character_updates に含めない。書いた内容は既存の text の続きに積み"
-    "足されるので、それだけで意味が通る一文にする。"
+def _text_update_instruction(subject: str, focus: str, updates_field: str) -> str:
+    """人物・個体で共通する `text` 追記指示の型。焦点(性格 or 性質)と
+    差し戻し先の欄(character_updates / object_updates)だけが違うので、
+    文面を二重に持たずここから作る。
+    """
+    return (
+        f"text は、この出来事を通して見えた、その{subject}の{focus}についてだけ"
+        "短く一言で書く。状況の要約や、その場の立場・置かれている状態は書かない。"
+        f"この出来事で{focus}について新しく分かったことが無ければ、この{subject}"
+        f"自体を {updates_field} に含めない。書いた内容は既存の text の続きに"
+        "積み足されるので、それだけで意味が通る一文にする。"
+    )
+
+
+CHARACTER_TEXT_UPDATE_INSTRUCTION = _text_update_instruction(
+    subject="人物",
+    focus="性格・信念・人となり(パーソナリティ)",
+    updates_field="character_updates",
 )
 
-OBJECT_TEXT_UPDATE_INSTRUCTION = (
-    "text は、この出来事を通して見えた、その個体(国・組織・集団・物)の"
-    "性質・方針・立場についてだけ短く一言で書く。その場の状況の要約は"
-    "書かない。この出来事でその個体について新しく分かったことが無ければ、"
-    "この個体自体を object_updates に含めない。書いた内容は既存の text の"
-    "続きに積み足されるので、それだけで意味が通る一文にする。"
+OBJECT_TEXT_UPDATE_INSTRUCTION = _text_update_instruction(
+    subject="個体(国・組織・集団・物)",
+    focus="性質・方針・立場",
+    updates_field="object_updates",
 )

@@ -30,6 +30,7 @@ IHG/
   characters.md       キャラ造形のテクニック
   dialogue.md         会話文のテクニック
   checklist.md        書き上げたあとの推敲チェックリスト
+  ai_instructions/    常駐ループのプロンプトに埋め込む基準の定数(Python)
 
 DEM/
   db/                 **記録の形(SQLAlchemy)。列はここ一か所で決まる**
@@ -39,7 +40,6 @@ DEM/
   data_access_logic/  引き方(Select の組み立て)。SQL 文字列は組まない
   randomizer/         db に触れない下書き作り(factory)と乱数
   local_ai/           ローカル AI。常駐ループ(time_keeper/)が世界を進める
-  ai_instructions/    常駐ループのプロンプトに埋め込む基準の定数
   tool/               md への書き出し・読み戻し、危険操作
 ```
 
