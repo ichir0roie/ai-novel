@@ -3,10 +3,12 @@
 このリポジトリはラノベの執筆用。コードではなく文章を書く。
 ローカル環境での実行の場合、現在のブランチ上で直接作業してよい。
 
-**このファイルはリストラクチャ中の状態を反映している。** `core/` → `IHG/`、
-`tools/novel.py` → `DEM/claude_interface/*`、`novels/` の md 群 → `novel.db`
-(`DEM/db/schema.py` の SQLAlchemy モデル)という移行の途中にあり、
-`DEM/claude_interface/` にはまだ全ての入口が揃っていない。無いものを
+**移行は終わっている。** 方針・テクニックは `IHG/`、仕組みは `DEM/`、
+記録と本文は `novel.db`(`DEM/db/schema.py` の SQLAlchemy モデル)にある。
+旧 `core/` `tools/novel.py` `novels/` の md 群はもう無い。
+
+**ただし `DEM/claude_interface/` にはまだ全ての入口が揃っていない**
+(個体 `object` と語 `term` を確定する入口が無い、など)。無いものを
 あるかのように書かない。足りない入口が要るときは、その場で作者に相談するか、
 下の「入口の作り方」に沿って `DEM/claude_interface/` に足す。
 
@@ -75,6 +77,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 本文を db へ確定する(2-4)            | `DEM.claude_interface.story.commit_episode.CommitEpisode(<辞書かJSON>).run()`(字数を数えて入れる。`synced` は必ず下りる)                                                                                                                                         |
 | 同期フラグを立てる(3-3)              | `DEM.claude_interface.story.set_episode_synced.SetEpisodeSynced(<作品id>, <話数>).run()`                                                                                                                                                                         |
 | db の本文を md へ書き出す            | `DEM.claude_interface.sync.export_db.ExportDb().run()`(`worlds/` をまるごと作り直す。読む専用の写しであって、md を直しても db には戻らない)                                                                                                                      |
+| md を db へ読み戻す                  | `DEM.claude_interface.sync.import_db.ImportDb().run()`(`export_db` の逆向き。**db が本体**なので、通常は使わない。手で直した md を戻したいときだけ)                                                                                                             |
 | 場所を一覧で見る                     | `DEM.claude_interface.world.list_places.ListPlaces(kind=None).run()`(`kind="村"` のように絞れる。db には触れない)                                                                                                                                                |
 | ランダムな場所の下書きを作る         | `DEM.claude_interface.randomizer.create_random_place.CreateRandomPlace(kind="大陸", ...).run()`(db には触れない。`name` は仮の値のまま返る。固有名詞は `IHG/naming.md` の「固有名詞の作り方」に沿って手順で決めてから `CommitPlace` に渡す)                      |
 | 作った場所の下書きを db へ確定する   | `DEM.claude_interface.randomizer.commit_place.CommitPlace(<辞書かJSON>).run()`(`parent_id` の実在確認をしてから書き込む)                                                                                                                                         |
@@ -91,14 +94,15 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 筋書きを一覧で見る                   | `DEM.claude_interface.world.list_plots.ListPlots().run()`(`location_id` が空の行は場所を問わない筋書き。db には触れない)                                                                                                                                        |
 | 既にある筋書きの欄を後から直す       | `DEM.claude_interface.randomizer.update_plot.UpdatePlot(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`text` の書き直しなどに使う)                                                                                                                      |
 
-上の表にない操作(旧 `tools/novel.py` が持っていた `check` `index` `template`
-など)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の「入口の作り方」に
-沿って足す。**無いものを推測で呼び出そうとしない。**
+上の表にない操作(個体 `object` と語 `term` の確定、整合チェック、用語索引の
+書き出しなど)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の
+「入口の作り方」に沿って足す。**無いものを推測で呼び出そうとしない。**
 
 読む側の入口(`read_*` `list_*` `start_story`)の中身は
-`DEM/data_access_logic/query.py` にある。引く条件は**時刻とレコードの id
-だけ**で表し、**SQL は組み立てない。** 引き方が足りなければ `query.py` に
-関数を足して、`DEM/claude_interface/story/` に一つ入口を被せる。
+`DEM/data_access_logic/query/`(パッケージ)にある。引く条件は**時刻とレコードの
+id だけ**で表し、**SQL は組み立てない。** 引き方が足りなければ、そこへ関数を
+足して `DEM/claude_interface/` に一つ入口を被せる
+(どのモジュールが何のためにあるかは `DEM/claude_interface/readme.md` の表)。
 
 ## まず、どのモードかを決める
 
@@ -123,6 +127,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 - `IHG/naming.md` — 用語と名づけの基準
 - `IHG/structure.md` / `IHG/characters.md` / `IHG/dialogue.md` / `IHG/checklist.md`
   — 構成・キャラ造形・会話文のテクニックと、書き上げたあとのチェックリスト
+- `IHG/README.md` — IHG の索引と、IHG / DEM / `DEM/ai_instructions/` の分担
 - 対象作品の直前の話・企画・その作品が立つ世界線の断面
   (`DEM.claude_interface.story.start_story.StartStory(<作品id>).run()` で一度に出る)
 
