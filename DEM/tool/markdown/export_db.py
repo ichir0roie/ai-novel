@@ -6,15 +6,23 @@
 
 置き場所は
 
-    worlds/{table_name}/{directory_path}/{id}.md
+    worlds/{table_name}/{directory_path}/{id}_{filename}.md
 
 `directory_path` は各行が持つ列で、`worlds/{table_name}/` からの相対
 ディレクトリパス。空ならテーブル直下にそのまま置く。**ディレクトリ構成は
-`directory_path` の値だけで決まる。** `parent_id` `parent_event_id`
+`directory_path` の値だけで決まる**(作者が整理のために使う欄で、ツール側が
+自動で組み立てることはしない)。`parent_id` `parent_event_id`
 `parent_term_id` のような自己参照 FK は他の列と同じデータとして
 `data` の json に出すだけで、置き場所には使わない
 (`{name}/{name}.md` のように自分自身を表す特別なファイルを
 ディレクトリ内に置く、という特殊パターンは無い)。
+
+ファイル名の `{filename}` は各行が持つ `filename` 列の値(`MarkdownBase`
+にある。**テーブルが持つ `name` 列などとは別物**——見やすさのためだけに
+人が付ける飾りで、db 上の意味は持たない)。空なら `{id}.md`(`_{filename}`
+を付けない)。**id を読み違えないよう、`filename` 自体に `_` が混ざっていても
+構わない**(読み込み側は最初の `_` の手前だけを id として読む)。ファイル名に
+使えない `/` は読める形に置き換える。
 
 **毎回 `worlds/` をまるごと消してから書き直す。**
 
@@ -29,8 +37,9 @@
     {text}
 
 `text` 列だけ本文側に出し、それ以外の列は `data` の json に入れる。ただし
-`id` `directory_path` は、ファイル名・置き場所そのものが情報を持つので
-`data` には出さない。`Stamp` 型の値は `y/mm/dd HH:MM:SS` の文字列にして出す。
+`id` `directory_path` `filename` は、ファイル名・置き場所そのものが情報を
+持つので `data` には出さない。`Stamp` 型の値は `y/mm/dd HH:MM:SS` の文字列に
+して出す。
 """
 from __future__ import annotations
 
@@ -79,6 +88,12 @@ def _row_data(model: type, row, ignore_columns: set[str]) -> dict:
     }
 
 
+def _filename(row) -> str:
+    if not row.filename:
+        return f"{row.id}.md"
+    return f"{row.id}_{row.filename.replace('/', '／')}.md"
+
+
 def _write(path: str, data: dict, text: str) -> None:
     if os.path.exists(path):
         raise ExportError(f"ファイル名が重複した: {path}")
@@ -101,13 +116,13 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
             table_dir = os.path.join(root, table_name)
             os.makedirs(table_dir, exist_ok=True)
 
-            ignore_columns = {"text", "directory_path", "id"}
+            ignore_columns = {"text", "directory_path", "filename", "id"}
 
             for row in rows:
                 dir_path = os.path.join(table_dir, row.directory_path) if row.directory_path else table_dir
                 data = _row_data(model, row, ignore_columns)
                 text = row.text or ""
-                _write(os.path.join(dir_path, f"{row.id}.md"), data, text)
+                _write(os.path.join(dir_path, _filename(row)), data, text)
 
             counts[table_name] = len(rows)
 

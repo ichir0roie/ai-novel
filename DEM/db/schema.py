@@ -98,6 +98,10 @@ class MarkdownBase(Base):
         String, nullable=True, default=None, sort_order=20000,
         comment="import,export時の配置先。worlds/{table}/ からの相対ディレクトリパス。"
                 "空ならテーブル直下に置く")
+    filename: Mapped[str | None] = mapped_column(
+        String, nullable=True, default=None, sort_order=20010,
+        comment="import,export時のファイル名(id・拡張子を除いた部分)。"
+                "空なら {id}.md。テーブルが持つ name 等の列とは別物")
 
 
 class Location(MarkdownBase):
