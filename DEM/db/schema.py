@@ -117,18 +117,9 @@ class Location(MarkdownBase):
     # **どこを原点とするかは星ごとに決めて、その星の md に書く**。
     location_world: Mapped[float | None] = mapped_column(DECIMAL, comment="世界線番号 W", sort_order=230)
     location_planet: Mapped[int | None] = mapped_column(Integer, comment="惑星番号 P", sort_order=240)
-    location_longitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="経度。基準の子午線から東へ何度(西は負)", sort_order=250)
-    location_latitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="緯度。赤道から北へ何度(南は負)", sort_order=260)
-    location_altitude: Mapped[float | None] = mapped_column(
-        DECIMAL, comment="高度。基準面から上へ何 m", sort_order=270)
-
-    location_key: Mapped[str | None] = mapped_column(
-        String, unique=True, index=True,
-        comment="場所の一意テキスト。`w/p/lon/lat/alt` を並べて文字列にしたもの。"
-                "md には書かない。読み込みのときに組み立てる(location_text)",
-        sort_order=280)
+    location_longitude: Mapped[float | None] = mapped_column(DECIMAL, comment="経度。基準の子午線から東へ何度(西は負)", sort_order=250)
+    location_latitude: Mapped[float | None] = mapped_column(DECIMAL, comment="緯度。赤道から北へ何度(南は負)", sort_order=260)
+    location_altitude: Mapped[float | None] = mapped_column(DECIMAL, comment="高度。基準面から上へ何 m", sort_order=270)
 
     area: Mapped[float | None] = mapped_column(
         DECIMAL, comment="広さ。単位は決めていないが、親と子で揃える。"
