@@ -44,10 +44,10 @@ class CommitCharacter(CommitDraft):
             return
         count = session.scalar(
             world_createion_query.character_count_at_place_select(place_id, stamp))
-        if count >= world_createion_query.MAX_PER_LOCATION:
+        if count >= world_createion_query.MAX_CHARACTERS_PER_LOCATION:
             raise ValueError(
                 f"place_id={place_id} には既に人物が "
-                f"{world_createion_query.MAX_PER_LOCATION} 件あり、これ以上作れない")
+                f"{world_createion_query.MAX_CHARACTERS_PER_LOCATION} 件あり、これ以上作れない")
 
     @staticmethod
     def _check_span(session, place_id: int | None, data: dict) -> None:

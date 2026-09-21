@@ -14,7 +14,6 @@ from DEM.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
-    EVENT_RELATION_INSTRUCTION, OBJECT_ACTION_INSTRUCTION,
     OBJECT_TEXT_UPDATE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
 from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
@@ -23,7 +22,7 @@ from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
 from DEM.db.schema import (
-    Character, CharacterPlot, Event, EventCharacter,
+    Character, CharacterPlace, CharacterPlot, Event, EventCharacter,
     EventObject, Location, Object, ObjectPlace, Session, Stamp,
 )
 from DEM.local_ai import ai_client
@@ -34,24 +33,22 @@ from DEM.local_ai.time_keeper.random_object_generator import (
 from DEM.randomizer.random_location_generator import build_location
 from DEM.randomizer.random_object_generator import build_object
 
-PLACE_PROBABILITY = 0.60
+PLACE_PROBABILITY = 0.75
 
 # 遠隔候補(`_reach_objects`)をどこまで拾うか。`read_cast` の既定
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
 _REACH_LEVELS = 1
 _REACH_OBJECT_LIMIT = 10
+_MOVE_DESTINATION_LIMIT = 20
 
 # event_duration_days の取りうる範囲。範囲外の値は丸める。
 _EVENT_DURATION_RANGE_DAYS = (1, 90)
 _DEFAULT_EVENT_DURATION_DAYS = 1
 
 _EVENT_TEXT_INSTRUCTION = (
-    "直近のeventのリストから、状況を把握する。年齢、性別、性格、emotion、"
-    "textをベースに人物像を推測し、個体(国・組織・集団・物)はその text と"
-    "世界線への影響度からいまの立場・方針を推測する。状況と、そこに居合わせる"
-    "もの同士の関係に基づいて、人物と個体それぞれの行動を決定する。人物も"
-    "個体も、自分や他の人物・個体・場所に影響を与える。"
-    + EVENT_PROGRESSION_INSTRUCTION + EVENT_RECORD_INSTRUCTION
+    "選ばれた出来事の候補(name と summary)を、当事者ごとの思考・感情・"
+    "望み・恐れ・行動を土台にして記録に起こす。候補の筋から外れない。"
+    + EVENT_RECORD_INSTRUCTION
 )
 
 
@@ -62,12 +59,17 @@ _PLOT_TEXT_INSTRUCTION = (
 )
 
 _INVOLVEMENT_INSTRUCTION = (
-    EVENT_RELATION_INSTRUCTION + OBJECT_ACTION_INSTRUCTION +
     "関わった人物・個体があれば、その id を渡した一覧の中からだけ選んで "
     "character_ids / object_ids に入れる(複数可)。object_ids には、"
     "居合わせる個体だけでなく「一つ上の圏内の個体」の中から遠隔で"
-    "働きかけてきた候補を選んでもよい。居合わせる個体があるのに "
-    "object_ids が空になるのは、その個体が本当に何一つ関わらなかったときだけ。"
+    "働きかけてきた候補を選んでもよい。"
+)
+
+_CHARACTER_MOVE_INSTRUCTION = (
+    "character_moves は、この出来事で居場所が変わった人物だけのリスト"
+    "(旅立ち・移住・避難・帰還など)。各要素は character_id(渡した"
+    "「居合わせる人物」の id)と location_id(渡した「移動先の候補」の id)の"
+    "二つ。誰も動いていなければ空リストにする。"
 )
 
 _OBJECT_FOUND_INSTRUCTION = (
@@ -145,56 +147,88 @@ def _check_typos(
     )
 
 
+_JUDGEMENT_KEYS = ("thought", "emotion", "wish", "fear", "action")
+
 _JUDGEMENT_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある一人の人物、または一つの個体"
     "(国・組織・集団・物)の立場に立って考える設定作家です。"
-    "渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」が"
-    "いまの状況をどう受け止め、何を望み、何を恐れ、どう動こうと判断するかを、"
-    "その text・口調・立場・世界線への影響度から推測してください。"
-    "人物なら性格と人間関係から、個体なら方針と力の及ぶ範囲から判断する。"
-    "他の当事者の判断は決めない。この当事者自身の判断だけを書く。"
-    "JSON で答えてください。キーは judgement(この当事者の判断。2〜3文)だけ。"
+    "渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」の"
+    "いまを、その text・口調・性格の数値・立場・世界線への影響度から推測して"
+    "ください。人物なら性格と人間関係から、個体なら方針と力の及ぶ範囲から。"
+    "他の当事者のことは決めない。この当事者自身のことだけを書く。"
+    "JSON で答えてください。キーは thought(思考。いまの状況をどう受け止め、"
+    "何を考えているか), emotion(感情。何に対して怒り・喜び・悲しみ・退屈・"
+    "不安などを抱いているか。感情の名前を含める), wish(望み。何を手に入れ"
+    "たい・何をしたいか), fear(恐れ。何を失いたくない・何が起きてほしく"
+    "ないか), action(行動。この時点で実際に何をするか。話す・動く・作る・"
+    "出かける・黙るなど具体的な動作で)の五つ。各1〜2文。"
 )
 
 _JUDGEMENT_SCHEMA = {
     "type": "object",
-    "properties": {"judgement": {"type": "string"}},
-    "required": ["judgement"],
+    "properties": {key: {"type": "string"} for key in _JUDGEMENT_KEYS},
+    "required": list(_JUDGEMENT_KEYS),
     "additionalProperties": False,
 }
 
-_INTERACTION_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、複数の当事者の判断が同じ場でぶつかったとき"
-    "何が起きるかを考える設定作家です。"
-    "渡す当事者ごとの判断を見比べ、誰の判断が誰の判断と噛み合う・ぶつかる・"
-    "利用される・無視されるか、その結果どの判断が通り、どの判断が曲げられ、"
-    "誰が誰に働きかけて相手がどう応じるかを推測してください。"
-    "全員が満足する結末に寄せず、判断どうしの食い違いから生じる摩擦を残す。"
-    "JSON で答えてください。キーは interaction(相互作用の推測。3〜5文)だけ。"
+# サイコロで選ぶ候補の件数。少ないと交渉型の無難な候補だけで埋まり、
+# 多いと本文を書く段で候補の要約が薄くなる。
+_CANDIDATE_COUNT = 6
+
+_CANDIDATE_SYSTEM_PROMPT = (
+    "あなたは架空の世界観の中で、ある場所に起こりうる出来事を列挙する"
+    "設定作家です。渡す場所・居合わせる人物と個体・当事者ごとの思考・感情・"
+    "望み・恐れ・行動・直近の出来事・筋書きを踏まえ、これらの行動が同じ場で"
+    "重なった結果として、この時点で起こりうる出来事の候補を"
+    f"{_CANDIDATE_COUNT}件挙げてください。"
+    "どれが起きるかはあとでサイコロで決めるので、候補どうしは性質を"
+    "ばらけさせる。日常の小さな出来事、感情がぶつかる出来事、偶発的な"
+    "出来事(事故・天候・病・思いがけない出会い)、居場所が変わる出来事"
+    "(旅立ち・帰還・避難)、笑いや祝いの出来事、取り決めや対立が動く出来事"
+    "など、種類の違うものを混ぜ、交渉・要求・合意の型に寄せない。"
+    "各候補は当事者の action と矛盾しない範囲で立てる。"
+    + EVENT_PROGRESSION_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
+    "JSON で答えてください。キーは candidates(候補のリスト。各要素は "
+    "name(出来事の名前)と summary(何が起きて誰が関わるか。2〜3文)の二つ)だけ。"
 )
 
-_INTERACTION_SCHEMA = {
+_CANDIDATE_SCHEMA = {
     "type": "object",
-    "properties": {"interaction": {"type": "string"}},
-    "required": ["interaction"],
+    "properties": {
+        "candidates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "summary": {"type": "string"},
+                },
+                "required": ["name", "summary"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["candidates"],
     "additionalProperties": False,
 }
 
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
     "その場所自身の情報、そこに居合わせる人物・個体の一覧、一つ上の圏内で"
-    "拠点を持つ個体の候補、その場所の直近の出来事を渡すので、この時点で"
-    "この場所に起きる出来事を1件だけ考えてください。"
-    "「当事者ごとの判断」「判断どうしの相互作用」が渡されているときは、"
-    "それを出来事の土台にする。相互作用で通った判断・曲げられた判断が、"
-    "行動・感情・変化にそのまま反映されるように書く。"
-    + _INVOLVEMENT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
+    "拠点を持つ個体の候補、その場所の直近の出来事、当事者ごとの思考・感情・"
+    "望み・恐れ・行動、そしてサイコロで選ばれた出来事の候補を渡すので、"
+    "その候補をこの場所にこの時点で起きた出来事として1件、記録に起こして"
+    "ください。候補の name は event_name にそのまま使うか、整えてもよい。"
+    + _INVOLVEMENT_INSTRUCTION + _CHARACTER_MOVE_INSTRUCTION
+    + AVOID_NARO_TEMPLATE_INSTRUCTION +
     "JSON で答えてください。キーは "
     "event_name(出来事の名前), event_text(出来事の内容。"
     + _EVENT_TEXT_INSTRUCTION + "), "
     "character_ids(関わった人物の id のリスト。渡した「居合わせる人物」の "
     "character_id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
     "「居合わせる個体」と「一つ上の圏内の個体」の object_id からだけ選ぶ), "
+    "character_moves(居場所が変わった人物のリスト。各要素は character_id と "
+    "location_id), "
     "character_plots(関わった人物のうち、信念・立場が大きく動いた者だけの"
     "リスト。各要素は character_id(対象の人物 id), text("
     + _PLOT_TEXT_INSTRUCTION + ")の二つ), "
@@ -242,6 +276,18 @@ _PLACE_SCHEMA = {
         "event_text": {"type": "string"},
         "character_ids": {"type": "array", "items": {"type": "integer"}},
         "object_ids": {"type": "array", "items": {"type": "integer"}},
+        "character_moves": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "character_id": {"type": "integer"},
+                    "location_id": {"type": "integer"},
+                },
+                "required": ["character_id", "location_id"],
+                "additionalProperties": False,
+            },
+        },
         "character_plots": {
             "type": "array",
             "items": {
@@ -290,6 +336,7 @@ _PLACE_SCHEMA = {
     },
     "required": [
         "event_name", "event_text", "character_ids", "object_ids",
+        "character_moves",
         "character_plots", "character_updates", "object_updates",
         "object_founded", "location_abolished", "location_founded",
         "event_duration_days",
@@ -392,15 +439,19 @@ def _object_recent_event_names(
     return [e.name for e in events]
 
 
-def _plot_recent_event_names(session: Session, plot, time: Stamp) -> list[str]:
-    """その筋書きが指す範囲(`location_id` の配下)で、場所を問わず直近使われた出来事の名前。
+def _plot_recent_event_names(
+    session: Session, plot, place_id: int, time: Stamp,
+) -> list[str]:
+    """その場所と、そこから筋書きの `location_id` までの上位の場所で直近使われた出来事の名前。
 
-    個体ごとの `_object_recent_event_names` は個体自身の履歴しか見えないため、
-    別々の場所に立つ別々の個体が同じ筋書きの下で同じ型の展開を繰り返していても
-    検知できない(2026-09 に実際に観測)。筋書き単位でも直近の出来事を渡すことで、
-    個体をまたいだ使い回しをモデル自身が見分けられるようにする。
+    横(兄弟の場所)の出来事は含めない。筋書きの配下全体を渡すと、他の国の
+    展開まで持ち込まれて場所ごとの差が消えるため(2026-09 に観測)。
     """
-    place_ids = common_query.descendant_place_ids(session, plot.location_id)
+    place_ids = []
+    for step in reversed(common_query.place_path(session, place_id)):
+        place_ids.append(step["id"])
+        if step["id"] == plot.location_id:
+            break
     events = session.scalars(
         common_query.events_in_locations_select(
             place_ids, until=time, limit=RECENT_EVENT_LIMIT)
@@ -412,8 +463,8 @@ def _think_participants(
     situation: str,
     characters_payload: list[dict], objects_payload: list[dict],
     reach_objects_payload: list[dict],
-) -> tuple[list[dict], str]:
-    """当事者ごとに判断を推測させ、それらの相互作用をもう一度推測させる。出来事の本文はこの二段を土台に書く。"""
+) -> list[dict]:
+    """当事者ごとに思考・感情・望み・恐れ・行動を推測させる。出来事の候補はこれを土台に立てる。"""
     participants = (
         [("人物", p) for p in characters_payload]
         + [("居合わせる個体", p) for p in objects_payload]
@@ -424,33 +475,66 @@ def _think_participants(
         prompt = (
             f"この当事者({kind}): {payload}\n"
             f"{situation}"
-            "この当事者がいまの状況をどう判断するかを推測してください。"
+            "この当事者のいまの思考・感情・望み・恐れ・行動を推測してください。"
         )
         decided = ai_client.try_generate_json(
             prompt, _JUDGEMENT_SCHEMA, system=_JUDGEMENT_SYSTEM_PROMPT)
-        judgement = (decided.get("judgement") or "").strip()
-        if not judgement:
+        fields = {key: (decided.get(key) or "").strip() for key in _JUDGEMENT_KEYS}
+        if not fields["action"]:
             continue
         key = "character_id" if "character_id" in payload else "object_id"
-        judgements.append(
-            {key: payload[key], "name": payload["name"], "judgement": judgement})
+        judgements.append({key: payload[key], "name": payload["name"], **fields})
+    return judgements
 
-    if len(judgements) < 2:
-        return judgements, ""
+
+def _roll_candidate(
+    rng: random.Random, situation: str, judgements: list[dict],
+) -> dict | None:
+    """起こりうる出来事の候補をローカル AI に列挙させ、その中から一件をサイコロで選ぶ。"""
     prompt = (
-        f"当事者ごとの判断: {judgements}\n"
+        f"当事者ごとの思考・感情・望み・恐れ・行動: {judgements or '(無し)'}\n"
         f"{situation}"
-        "これらの判断が同じ場でどう噛み合い、ぶつかるかを推測してください。"
+        f"この場所にこの時点で起こりうる出来事の候補を{_CANDIDATE_COUNT}件挙げてください。"
     )
     decided = ai_client.try_generate_json(
-        prompt, _INTERACTION_SCHEMA, system=_INTERACTION_SYSTEM_PROMPT)
-    return judgements, (decided.get("interaction") or "").strip()
+        prompt, _CANDIDATE_SCHEMA, system=_CANDIDATE_SYSTEM_PROMPT)
+    candidates = [
+        c for c in (decided.get("candidates") or [])
+        if isinstance(c, dict) and c.get("name")
+    ]
+    if not candidates:
+        return None
+    chosen = rng.choice(candidates)
+    return {"name": chosen["name"], "summary": chosen.get("summary") or "",
+            "rolled": f"{candidates.index(chosen) + 1}/{len(candidates)}"}
+
+
+def _move_destinations(
+    session: Session, place_id: int, time: Stamp,
+) -> list[dict]:
+    """人物が移れる先。`_reach_objects` と同じく一つ上の圏内にある、いま存在する場所。"""
+    root_id = common_query.place_up(session, place_id, _REACH_LEVELS)
+    nearby_ids = set(common_query.descendant_place_ids(session, root_id))
+    nearby_ids -= {place_id, root_id}
+    places = session.scalars(
+        world_createion_query.alive_locations_select(time)
+        .where(Location.id.in_(nearby_ids))
+    ).all()
+    return [{"location_id": p.id, "name": p.name, "kind": p.kind}
+            for p in places[:_MOVE_DESTINATION_LIMIT]]
+
+
+_TRAIT_COLUMNS = (
+    "sincerity", "curiosity", "proactivity", "cooperativeness", "sociability",
+    "emotional_expression", "self_esteem", "self_efficacy", "stress_resilience",
+    "flexibility_of_values", "sensitivity", "imagination",
+)
 
 
 def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], objects: list[Object],
-    reach_objects: list[Object], time: Stamp,
+    reach_objects: list[Object], time: Stamp, rng: random.Random,
 ) -> Event | None:
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
@@ -458,7 +542,7 @@ def _progress_place(
     place = session.get(Location, place_id)
     plots = story_createion_query.load_location_plot(session, place_id, time)
     plots_payload = [
-        {"plot": p.text, "recent_events": _plot_recent_event_names(session, p, time)}
+        {"plot": p.text, "recent_events": _plot_recent_event_names(session, p, place_id, time)}
         for p in plots
     ]
     character_plots = {
@@ -467,9 +551,11 @@ def _progress_place(
     }
     characters_payload = [
         {"character_id": c.id, "name": c.name, "tone": c.tone, "text": c.text,
+         "traits": {column: getattr(c, column) for column in _TRAIT_COLUMNS},
          "plot": character_plots.get(c.id) or "(指定なし)"}
         for c in characters[:20]
     ]
+    destinations = _move_destinations(session, place_id, time)
     objects_payload = [
         {"object_id": o.id, "name": o.name, "text": o.text,
          "world_influence": o.world_influence,
@@ -493,20 +579,26 @@ def _progress_place(
         f"働きかけてくる余地がある候補。recent_events は同上): "
         f"{reach_objects_payload or '(無し)'}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
-        f"進めたい筋書き(recent_events はその筋書きの範囲で場所を問わず"
+        f"進めたい筋書き(recent_events はこの場所とその上位の場所で"
         f"直近使われた出来事の名前): {plots_payload or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
     )
-    judgements, interaction = _think_participants(
+    judgements = _think_participants(
         situation, characters_payload, objects_payload, reach_objects_payload)
+    candidate = _roll_candidate(rng, situation, judgements)
+    if candidate is None:
+        return None
 
     prompt = (
         situation
-        + f"当事者ごとの判断(先に推測したもの): {judgements or '(無し)'}\n"
-        f"判断どうしの相互作用(先に推測したもの): {interaction or '(無し)'}\n"
-        "この場所に、この時点で起きる出来事を1件、決めてください。"
-        "居合わせる人物・個体・場所のうち、どれとどれが噛み合って"
-        "この出来事になったのかを踏まえる。人物の character_id と個体の "
+        + f"移動先の候補(character_moves の location_id はここからだけ選ぶ): "
+        f"{destinations or '(無し)'}\n"
+        f"当事者ごとの思考・感情・望み・恐れ・行動(先に推測したもの): "
+        f"{judgements or '(無し)'}\n"
+        f"サイコロで選ばれた出来事の候補: "
+        f"{ {'name': candidate['name'], 'summary': candidate['summary']} }\n"
+        "この候補を、この場所にこの時点で起きた出来事として記録してください。"
+        "人物の character_id と個体の "
         "object_id は別々の番号空間なので、event_text 内で番号に触れるなら "
         "「character_id」「object_id」のどちらの番号かが分かる書き方にする"
         "(迷うなら番号ではなく名前だけで書く)。"
@@ -544,11 +636,36 @@ def _progress_place(
     involved_character_ids = _valid_ids(decided.get("character_ids"), character_ids)
     involved_object_ids = _valid_ids(decided.get("object_ids"), object_ids)
 
+    destination_names = {d["location_id"]: d["name"] for d in destinations}
+    move_notes = []
+    for move in decided.get("character_moves") or []:
+        if not isinstance(move, dict):
+            continue
+        try:
+            character_id = int(move.get("character_id") or 0)
+            location_id = int(move.get("location_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        character = character_ids.get(character_id)
+        if character is None or location_id not in destination_names:
+            continue
+        for current in session.scalars(
+                common_query.character_place_select(character_id, time)).all():
+            current.end = time
+        session.add(CharacterPlace(
+            character_id=character_id, location_id=location_id,
+            start=time, end=character.end))
+        if character_id not in involved_character_ids:
+            involved_character_ids.append(character_id)
+        move_notes.append(f"{character.name} → {destination_names[location_id]}")
+
     object_found_notes = []
     # 噛み合う主体が無いとき、ローカル AI がこの出来事の中で新しい個体を誕生
-    # させてよい。プロットの無い場所には生まない。
+    # させてよい。プロットの無い場所と、個体の枠が埋まった場所には生まない。
     founded_object = decided.get("object_founded")
-    if isinstance(founded_object, dict) and founded_object.get("name") and plots:
+    if (isinstance(founded_object, dict) and founded_object.get("name") and plots
+            and int(session.scalar(world_createion_query.object_count_at_place_select(
+                place_id, time)) or 0) < world_createion_query.MAX_OBJECTS_PER_LOCATION):
         scale = founded_object.get("scale")
         if scale not in _SCALE_INFLUENCE:
             scale = _DEFAULT_SCALE
@@ -678,10 +795,8 @@ def _progress_place(
           f"{record.name} {record.text}"
           f" / 継続: {duration_days}日({when}〜{format_time(end)})"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
-          + (f"\n    当事者の判断: "
-             + "; ".join(f"{j['name']}: {j['judgement']}" for j in judgements)
-             if judgements else "")
-          + (f"\n    相互作用: {interaction}" if interaction else "")
+          + f" / 候補 {candidate['rolled']}: {candidate['name']}"
+          + (f" / 移動: {'; '.join(move_notes)}" if move_notes else "")
           + (f" / 人物の筋書き: {'; '.join(plot_notes)}" if plot_notes else "")
           + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")
@@ -707,7 +822,7 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
             reach_objects = _reach_objects(
                 session, grouped, place_id, {o.id for o in objects})
             event = _progress_place(
-                session, place_id, characters, objects, reach_objects, time)
+                session, place_id, characters, objects, reach_objects, time, rng)
             if event is not None:
                 created.append(event)
 

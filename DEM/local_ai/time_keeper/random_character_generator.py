@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """世界の側の人物を、時の流れの中で自動的に増やす。
 
-`generate_random`: 月初に確率 `PROBABILITY` で場所を一つ選び、人物を一件生む。
+`generate_random`: 月初に確率 `PROBABILITY` で場所を一つ選び、人物を一件生む(既定では毎月一人)。
 候補地はプロット(`Plot`)が一件も無い場所を外し、生んだ人物にはその人物専用の
 筋書き(`CharacterPlot`)を一件添えて db へ確定する。
 """
@@ -20,7 +20,7 @@ from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
 
-PROBABILITY = 0.25  # 1月に1度、25%の確率で
+PROBABILITY = 1.0  # 1月に1度、必ず一人
 
 # 生成時点での年齢の幅。0(赤子)ではなく、この範囲でランダムに選んだ年数だけ
 # 過去に生まれたことにする(`character_lifespan._NATURAL_DEATH_MIN_AGE` の
@@ -48,7 +48,15 @@ _CONTENT_SYSTEM_PROMPT = (
     "特徴とは重ならない人物にしてください(同じ立場・同じ能力・同じ関係性の"
     "作り直しをしない)。"
     "plot は、この人物個人について今後たどってほしい筋書き。text の人物説明と"
-    "矛盾せず、この人物が今後どう動く・何に向かうかの方向づけを1〜2文で。"
+    "矛盾しない範囲で、起・承・転・結の四つの段階を、この順に、それぞれ"
+    "一〜二文ずつ改行で区切って書く。"
+    "起は、今の立場と、この人物が抱えている問題・欲求。"
+    "承は、その問題・欲求が誰と何を巡ってどう広がるか。"
+    "転は、それを決定的に動かす転機(対立・裏切り・喪失・選択など)。"
+    "結は、その転機を経てこの人物がどこに行き着くか(成功・失敗・変質、"
+    "どれでもよい)。"
+    "起だけを書いて終わらせず、四つの段階を必ず全部埋める。各段階は、"
+    "誰と・何を巡って、が分かる具体的な内容にする。"
     "出来事生成のたびに読まれ、その人物が関わる出来事の展開の優先材料になる。"
     "キーは text(具体的な生活・仕事・関係が伝わる2〜3文の人物説明。能力・"
     "特技があれば含む。「優しい」「謎めいた」のような、誰にでも当てはまる"
@@ -327,7 +335,7 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     eligible_places = [
         p for p in places
         if int(session.scalar(world_createion_query.character_count_at_place_select(p.id, time)) or 0)
-        < world_createion_query.MAX_PER_LOCATION
+        < world_createion_query.MAX_CHARACTERS_PER_LOCATION
         and world_createion_query.location_has_plot(session, p.id)
     ]
     if places and not eligible_places:

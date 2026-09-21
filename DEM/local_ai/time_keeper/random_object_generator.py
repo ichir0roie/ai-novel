@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """世界の側の個体(国・組織・商会などの群)を、時の流れの中で自動的に増やす。
 
-月初に確率 `PROBABILITY` で、人物が居てプロットのある場所を選び、個体を一件生んで db へ確定する。
+年初に確率 `PROBABILITY` で、人物が居てプロットのある場所を選び、個体を一件生んで db へ確定する(既定では毎年一つ)。
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper._format import format_time
 from DEM.randomizer.random_object_generator import build_object
 
-PROBABILITY = 0.15  # 1月に1度、15%の確率で
+PROBABILITY = 1.0  # 1年に1度、必ず一つ
 
 # AI に選ばせる「どこまで届く群か」と、それを落とす world_influence の値。
 # 数そのものを AI に決めさせない(尺度が決まっていないため)。
@@ -60,8 +60,8 @@ _SCHEMA = {
 
 
 def _should_roll(time: Stamp) -> bool:
-    """月に一度、月初(1日)にだけロールする。"""
-    return time.day == 1
+    """年に一度、年初(1月1日)にだけロールする。"""
+    return time.month == 1 and time.day == 1
 
 
 def _characters_at(session: Session, place_id: int, time: Stamp) -> list:
@@ -107,10 +107,10 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
     roll = rng.random()
     when = format_time(time)
     if roll >= PROBABILITY:
-        print(f"[time_keepr/object] {when} 月初判定: "
+        print(f"[time_keepr/object] {when} 年初判定: "
               f"seed={seed} roll={roll:.4f} >= {PROBABILITY} → 見送り")
         return None
-    print(f"[time_keepr/object] {when} 月初判定: "
+    print(f"[time_keepr/object] {when} 年初判定: "
           f"seed={seed} roll={roll:.4f} < {PROBABILITY} → 生成")
 
     places = session.scalars(
@@ -122,7 +122,7 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
             world_createion_query.character_count_at_place_select(p.id, time)) or 0) > 0
         and int(session.scalar(
             world_createion_query.object_count_at_place_select(p.id, time)) or 0)
-        < world_createion_query.MAX_PER_LOCATION
+        < world_createion_query.MAX_OBJECTS_PER_LOCATION
         and world_createion_query.location_has_plot(session, p.id)
     ]
     if not eligible:
