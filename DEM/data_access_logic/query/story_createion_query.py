@@ -2,7 +2,6 @@ from DEM.data_access_logic.query.base import *
 
 
 def load_location_plot(s: Session, location_id: int, time: Stamp):
-    """その場所・祖先に紐づく筋書きに加え、`location_id` を問わない(場所を問わず全体に効く)筋書きも拾う。"""
     location = s.get(Location, location_id)
     if location is None:
         raise ValueError()
@@ -16,7 +15,7 @@ def load_location_plot(s: Session, location_id: int, time: Stamp):
 
     return s.scalars(
         select(Plot).where(
-            or_(Plot.location_id.in_(location_ids), Plot.location_id.is_(None)),
+            Plot.location_id.in_(location_ids),
             plot_time_condition(time),
         )
     ).all()

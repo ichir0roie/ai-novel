@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import random
 
-from IHG.ai_instructions.naming import TERM_NAMING_INSTRUCTION
-from IHG.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
+from DEM.ai_instructions.naming import TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.db.schema import Location, Object, ObjectPlace, Session, Stamp
 from DEM.local_ai import ai_client

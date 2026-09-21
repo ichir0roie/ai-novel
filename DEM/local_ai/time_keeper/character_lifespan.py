@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 
-from IHG.ai_instructions.event_writing import EVENT_RECORD_INSTRUCTION
+from DEM.ai_instructions.event_writing import EVENT_RECORD_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import Character, Event, EventCharacter, Session, Stamp
 from DEM.local_ai import ai_client

@@ -215,13 +215,13 @@ class EventObject(Base):
 
 
 class Plot(MarkdownBase):
-    """その場所の出来事生成に指示したい筋書き。`location_id` が無ければ場所を問わず渡る。"""
+    """その場所の出来事生成に指示したい筋書き。"""
 
     __tablename__ = "plot"
 
     location_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("location.id"), index=True,
-        comment="この筋書きが掛かる場所。空なら場所を問わない", sort_order=100)
+        comment="この筋書きが掛かる場所", sort_order=100)
     location: Mapped["Location | None"] = relationship(lazy="noload")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)

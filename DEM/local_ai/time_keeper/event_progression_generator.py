@@ -10,15 +10,15 @@ import random
 from collections import defaultdict
 from typing import Mapping
 
-from IHG.ai_instructions.event_writing import (
+from DEM.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
     EVENT_RELATION_INSTRUCTION, OBJECT_ACTION_INSTRUCTION,
     OBJECT_TEXT_UPDATE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
-from IHG.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
-from IHG.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
+from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
@@ -355,18 +355,14 @@ def _object_recent_event_names(
 
 
 def _plot_recent_event_names(session: Session, plot, time: Stamp) -> list[str]:
-    """その筋書きが指す範囲(`location_id` の配下、無指定なら世界全体)で、
-    場所を問わず直近使われた出来事の名前。
+    """その筋書きが指す範囲(`location_id` の配下)で、場所を問わず直近使われた出来事の名前。
 
     個体ごとの `_object_recent_event_names` は個体自身の履歴しか見えないため、
     別々の場所に立つ別々の個体が同じ筋書きの下で同じ型の展開を繰り返していても
     検知できない(2026-09 に実際に観測)。筋書き単位でも直近の出来事を渡すことで、
     個体をまたいだ使い回しをモデル自身が見分けられるようにする。
     """
-    place_ids = (
-        common_query.descendant_place_ids(session, plot.location_id)
-        if plot.location_id is not None else None
-    )
+    place_ids = common_query.descendant_place_ids(session, plot.location_id)
     events = session.scalars(
         common_query.events_in_locations_select(
             place_ids, until=time, limit=RECENT_EVENT_LIMIT)
