@@ -6,11 +6,10 @@ claude が呼ぶ入口。
 その写し。** 写しを手で書き換えても db には戻らないので、直したいときは
 db の側(`commit_*` の入口)を直してから、ここを呼び直す。
 
-置き場所は `worlds/{table_name}/{id or ""}_{tag or ""}.md` の一段だけ。
-ただし `Location.parent_id` `Event.parent_event_id` `Term.parent_term_id`
-のような自己参照 FK を持つテーブルは、`tag`(無ければ `id`)をディレクトリ名
-にして親から子へ再帰的に入れ子にする(子を持つ行は、自分のディレクトリの
-中に自分自身の md を置く)。
+置き場所は `worlds/{table_name}/{directory_path}/{id}.md`。`directory_path`
+は各行が持つ列(`worlds/{table_name}/` からの相対ディレクトリパス)で、
+空ならテーブル直下にそのまま置く。`parent_id` のような自己参照 FK は
+他の列と同じデータとして書き出すだけで、置き場所には使わない。
 
 **毎回 `worlds/` をまるごと消してから書き直す。** 中途半端に古い md が
 残っているほうが紛らわしいため。ファイル名が重複するレコードがあれば

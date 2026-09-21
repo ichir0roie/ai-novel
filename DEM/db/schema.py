@@ -94,9 +94,10 @@ class MarkdownBase(Base):
 
     text: Mapped[str] = mapped_column(String,  nullable=False, sort_order=10000)
 
-    # filepath: Mapped[str | None] = mapped_column(String, nullable=True, default=None, sort_order=20000)
-
-    tag: Mapped[str | None] = mapped_column(String, nullable=True, default=None, sort_order=20000, comment="import,export時のファイル名用")
+    directory_path: Mapped[str | None] = mapped_column(
+        String, nullable=True, default=None, sort_order=20000,
+        comment="import,export時の配置先。worlds/{table}/ からの相対ディレクトリパス。"
+                "空ならテーブル直下に置く")
 
 
 class Location(MarkdownBase):

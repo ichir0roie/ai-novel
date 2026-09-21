@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
 """`worlds/` の md を db へ読み戻す。`export_db.py` の逆。
 
-自己参照 FK(`parent_id` `parent_event_id` `parent_term_id` のような、自分の
-テーブルを指す外部キー)を持つテーブルは、`export_db` と同じ規則で**階層を
-再帰的にたどって**読み戻す。ディレクトリは、その中にある「自分自身」の md
-(ディレクトリ名と同じ `tag`、`tag` が無ければ同じ `id` を持つファイル)を
-まず読み、それ以外のファイル・サブディレクトリはその子として親の列
-(`parent_id` など)に自分の id を書き込む。自己参照 FK を持たないテーブルは
-これまで通り一段だけを読む。
-
-置き場所(`worlds/{table_name}/...`)からテーブル名を読み、`tag`・階層上の
-親は置き場所そのものから読む。ファイル名の `id` が db に無ければ(あるいは
-`id` も `tag` も無ければ)、**新規レコードとして自動採番して作る。**
-`id` があって既存なら上書きする。`text` は `# text` 見出し以降の本文を
-そのまま使う。`Stamp` 型の列は `y/mm/dd HH:MM:SS` 形式の文字列として読み、
-`Stamp.parse` で戻す。
+`worlds/{table_name}/` の下を再帰的に歩いて `.md` を全て拾う。
+`table_name` からテーブルが決まり、`table_name/` からの相対ディレクトリパスが
+そのまま `directory_path` 列に入る(直下に置かれていれば空)。ファイル名の
+拡張子抜きの部分が数字なら db 上の `id` として読み、その行を上書きする。
+数字でなければ(あるいは `id` が db に無ければ)**新規レコードとして
+自動採番して作る。** `text` は `# text` 見出し以降の本文をそのまま使う。
+`Stamp` 型の列は `y/mm/dd HH:MM:SS` 形式の文字列として読み、`Stamp.parse`
+で戻す。
 
 作者が手で置いた素の md(`export_db` 形式に従っていないもの)も新規レコード
-として取り込む。ファイル名に `_` が無ければ、`id` 無しでファイル名の
-拡張子抜きの部分をそのまま `tag` にする。本文に `# data` ブロックが無ければ
-列はすべて空のまま、ファイル全体をそのまま `text` として扱う。
+として取り込む。本文に `# data` ブロックが無ければ列はすべて空のまま、
+ファイル全体をそのまま `text` として扱う。置き場所(ディレクトリ)だけは
+`directory_path` として読む。
 """
 from __future__ import annotations
 
@@ -31,7 +25,6 @@ import shutil
 
 from DEM.db.schema import Base, MarkdownBase, StampType, get_session
 from DEM.db.stamp import Stamp
-from DEM.tool.markdown.export_db import self_ref_column
 
 WORLDS_ROOT = "worlds"
 
@@ -64,29 +57,19 @@ def _parse(content: str, path: str) -> tuple[dict, str]:
     return data, text
 
 
-def _parse_stem(stem: str) -> tuple[int | None, str | None]:
-    id_part, sep, tag_part = stem.partition("_")
-    if not (sep and id_part.isdigit()):
-        id_part, tag_part = "", stem
-    row_id = int(id_part) if id_part else None
-    return row_id, (tag_part or None)
-
-
 def _upsert(
-    session, model: type, columns: set[str], stamp_columns: set[str], path: str,
-    parent_column: str | None, parent_value,
+    session, model: type, columns: set[str], stamp_columns: set[str],
+    path: str, directory_path: str | None,
 ):
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
-    filename = os.path.basename(path)
-    row_id, tag = _parse_stem(filename[: -len(".md")])
+    stem = os.path.basename(path)[: -len(".md")]
+    row_id = int(stem) if stem.isdigit() else None
 
     data, text = _parse(content, path)
     data.pop("id", None)
-    data["tag"] = tag
-    if parent_column:
-        data.pop(parent_column, None)
+    data["directory_path"] = directory_path
 
     unknown = set(data) - columns
     if unknown:
@@ -98,8 +81,6 @@ def _upsert(
             value = Stamp.parse(value)
         values[key] = value
     values["text"] = text
-    if parent_column:
-        values[parent_column] = parent_value
 
     row = session.get(model, row_id) if row_id is not None else None
     if row is None:
@@ -112,60 +93,19 @@ def _upsert(
     return row
 
 
-def _self_file(dir_path: str, dirname: str) -> str | None:
-    """`dir_path` の直下から、ディレクトリ自身を表す md(`dirname` と同じ
-    `tag`、無ければ同じ `id` を持つファイル)を一つだけ探す。"""
-    found = None
-    for entry in sorted(os.listdir(dir_path)):
-        full = os.path.join(dir_path, entry)
-        if os.path.isdir(full) or not entry.endswith(".md"):
-            continue
-        row_id, tag = _parse_stem(entry[: -len(".md")])
-        matches = tag == dirname or (tag is None and row_id is not None and str(row_id) == dirname)
-        if matches:
-            if found is not None:
-                raise ImportDbError(f"{dir_path}: 自身を表す md が複数ある({found}, {full})")
-            found = full
-    return found
-
-
-def _process_node_dir(
-    session, model: type, columns: set[str], stamp_columns: set[str],
-    dir_path: str, dirname: str, parent_column: str, parent_value, counter: list[int],
-) -> None:
-    self_path = _self_file(dir_path, dirname)
-    if self_path is None:
-        raise ImportDbError(
-            f"{dir_path}: 自身を表す md が見当たらない"
-            f"(ディレクトリ名 {dirname!r} と同じ tag か id のファイルが要る)")
-
-    self_row = _upsert(session, model, columns, stamp_columns, self_path, parent_column, parent_value)
-    counter[0] += 1
-
-    for entry in sorted(os.listdir(dir_path)):
-        full = os.path.join(dir_path, entry)
-        if full == self_path:
-            continue
-        if os.path.isdir(full):
-            _process_node_dir(session, model, columns, stamp_columns, full, entry, parent_column, self_row.id, counter)
-        elif entry.endswith(".md"):
-            _upsert(session, model, columns, stamp_columns, full, parent_column, self_row.id)
-            counter[0] += 1
-
-
 def _process_table_dir(
-    session, model: type, columns: set[str], stamp_columns: set[str],
-    table_dir: str, parent_column: str,
+    session, model: type, columns: set[str], stamp_columns: set[str], table_dir: str,
 ) -> int:
-    counter = [0]
-    for entry in sorted(os.listdir(table_dir)):
-        full = os.path.join(table_dir, entry)
-        if os.path.isdir(full):
-            _process_node_dir(session, model, columns, stamp_columns, full, entry, parent_column, None, counter)
-        elif entry.endswith(".md"):
-            _upsert(session, model, columns, stamp_columns, full, parent_column, None)
-            counter[0] += 1
-    return counter[0]
+    count = 0
+    for dirpath, _dirnames, filenames in os.walk(table_dir):
+        relative = os.path.relpath(dirpath, table_dir)
+        directory_path = None if relative == "." else relative.replace(os.sep, "/")
+        for filename in sorted(filenames):
+            if not filename.endswith(".md"):
+                continue
+            _upsert(session, model, columns, stamp_columns, os.path.join(dirpath, filename), directory_path)
+            count += 1
+    return count
 
 
 def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
@@ -189,20 +129,8 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                 column.key for column in model.__table__.columns
                 if isinstance(column.type, StampType)
             }
-            parent_column = self_ref_column(model)
 
-            if parent_column:
-                counts[table_name] = _process_table_dir(
-                    session, model, columns, stamp_columns, table_dir, parent_column)
-            else:
-                count = 0
-                for filename in sorted(os.listdir(table_dir)):
-                    if not filename.endswith(".md"):
-                        continue
-                    _upsert(session, model, columns, stamp_columns,
-                            os.path.join(table_dir, filename), None, None)
-                    count += 1
-                counts[table_name] = count
+            counts[table_name] = _process_table_dir(session, model, columns, stamp_columns, table_dir)
 
         session.commit()
 
