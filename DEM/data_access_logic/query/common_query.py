@@ -212,10 +212,10 @@ def open_events_select(place_ids, until: Stamp) -> Select:
     """
     return (select(Event)
             .options(*EVENT_LOAD_OPTIONS)
-            .where(Event.location_id.in_(list(place_ids)))
-            .where(Event.time <= until)
-            .where(or_(Event.end.is_(None), Event.end > until))
-            .where(~Event.event_characters.any(), ~Event.event_objects.any())
+            .where(Event.location_id.in_(list(place_ids)),
+                   Event.time <= until,
+                   or_(Event.end.is_(None), Event.end > until),
+                   ~Event.event_characters.any(), ~Event.event_objects.any())
             .order_by(Event.time.desc(), Event.id.desc()))
 
 
@@ -224,8 +224,7 @@ def open_events_select(place_ids, until: Stamp) -> Select:
 def emotions_select(character_id: int, until: Stamp) -> Select:
     """その時点で生きている情動(欲・恐れ・嘘・必要)。"""
     return (select(CharacterDrive)
-            .where(CharacterDrive.character_id == character_id)
-            .where(*_alive(CharacterDrive, until))
+            .where(CharacterDrive.character_id == character_id, *_alive(CharacterDrive, until))
             .order_by(CharacterDrive.start.desc(), CharacterDrive.id.desc()))
 
 
@@ -233,8 +232,7 @@ def character_place_select(character_id: int, until: Stamp) -> Select:
     """その時点の居場所(`character_place` の生きている行、新しい順)。"""
     return (select(CharacterPlace)
             .options(selectinload(CharacterPlace.place))
-            .where(CharacterPlace.character_id == character_id)
-            .where(*_alive(CharacterPlace, until))
+            .where(CharacterPlace.character_id == character_id, *_alive(CharacterPlace, until))
             .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc()))
 
 
@@ -242,37 +240,33 @@ def object_place_select(object_id: int, until: Stamp) -> Select:
     """その時点の居場所(`object_place` の生きている行、新しい順)。"""
     return (select(ObjectPlace)
             .options(selectinload(ObjectPlace.place))
-            .where(ObjectPlace.object_id == object_id)
-            .where(*_alive(ObjectPlace, until))
+            .where(ObjectPlace.object_id == object_id, *_alive(ObjectPlace, until))
             .order_by(ObjectPlace.start.desc(), ObjectPlace.id.desc()))
 
 
 def resident_character_ids_select(place_ids, until: Stamp) -> Select:
     """その時点でその場所(群)に居る人物の id。"""
     return (select(CharacterPlace.character_id).distinct()
-            .where(CharacterPlace.location_id.in_(list(place_ids)))
-            .where(*_alive(CharacterPlace, until)))
+            .where(CharacterPlace.location_id.in_(list(place_ids)), *_alive(CharacterPlace, until)))
 
 
 def resident_object_ids_select(place_ids, until: Stamp) -> Select:
     """その時点でその場所(群)に居る個体(群)の id。"""
     return (select(ObjectPlace.object_id).distinct()
-            .where(ObjectPlace.location_id.in_(list(place_ids)))
-            .where(*_alive(ObjectPlace, until)))
+            .where(ObjectPlace.location_id.in_(list(place_ids)), *_alive(ObjectPlace, until)))
 
 
 def character_select(character_id: int) -> Select:
-    """人物一件。口調・性格の列に加え、所属・出自の関連を積んでおく。"""
+    """人物一件。口調・性格の列に加え、所属の関連を積んでおく。"""
     return (select(Character)
-            .options(selectinload(Character.belong),
-                     selectinload(Character.born_place))
+            .options(selectinload(Character.belong))
             .where(Character.id == character_id))
 
 
 def characters_select() -> Select:
     """人物の一覧。既存キャラクターを一括で見渡すのに使う。"""
     return (select(Character)
-            .options(selectinload(Character.emotions))
+            .options(selectinload(Character.emotions), selectinload(Character.places))
             .order_by(Character.id.asc()))
 
 

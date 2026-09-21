@@ -47,8 +47,7 @@ class UpdatePlace(CommitDraft):
 
         siblings_area = session.scalar(
             select(func.coalesce(func.sum(Location.area), 0))
-            .where(Location.parent_id == record.parent_id)
-            .where(Location.id != record.id))
+            .where(Location.parent_id == record.parent_id, Location.id != record.id))
         if siblings_area + area > parent.area:
             raise ValueError(
                 f"area={area} を足すと、親(id={record.parent_id})の広さ "

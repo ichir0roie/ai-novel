@@ -50,8 +50,6 @@ class CharacterFactory(factory.DictFactory):
     world_influence = factory.Faker("random_int", min=0, max=2)
 
     # 実在レコードを指す欄。呼び出し側が上書きする前提で None のまま。
-    root_place_name = None
-    born_place_id = None
     belong_id = None
     start = None
     end = None

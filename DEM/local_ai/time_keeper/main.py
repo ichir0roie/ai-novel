@@ -54,12 +54,8 @@ def loop_time(start_time: Stamp | None = None):
 def time_process(
     s: Session, time: Stamp
 ):
-    random_location_generator.generate_random(s, time)
+    # random_location_generator.generate_random(s, time)
 
-    # フラグを立てた場所へ、まだ誰も居なければまとめて人物を生む(月初)。
-    # 月一件だけの generate_random より先に呼び、同じ月内に両方当たっても
-    # 二重に生まれない(seed 側は「まだ誰も居ない」場所だけを対象にする)。
-    random_character_generator.seed_initial_characters(s, time)
     random_character_generator.generate_random(s, time)
 
     # 個体(国・組織など)は、人物が居る場所にだけ生む。人物を生む側より

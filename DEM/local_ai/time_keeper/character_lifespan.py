@@ -46,7 +46,7 @@ def _natural_death_probability(age: int) -> float:
 def _current_place_id(session: Session, character: Character, time: Stamp) -> int | None:
     place = session.scalars(
         common_query.character_place_select(character.id, time)).first()
-    return place.location_id if place else character.born_place_id
+    return place.location_id if place else None
 
 
 def _kill(

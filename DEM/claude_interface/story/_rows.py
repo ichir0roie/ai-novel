@@ -70,7 +70,7 @@ def character_sheet(session: Session, character_id: int, *, until=None,
     at = common_query.span(until)[1] if until is not None else Stamp(99999, 12, 31, 23, 59, 59)
 
     sheet = to_dict_with(character, relations={
-        "kind": "kind_name", "belong": "belong_name", "born_place": "born_place_name"},
+        "kind": "kind_name", "belong": "belong_name"},
         text=text)
     sheet["place"] = _place_at(session, common_query.character_place_select, character_id, at)
     sheet["emotions"] = [to_dict_with(row) for row in
@@ -148,9 +148,9 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
 
     recent_query = (select(Event)
                     .options(*common_query.EVENT_LOAD_OPTIONS)
-                    .where(Event.location_id.in_(place_ids))
-                    .where(Event.time <= until)
-                    .where(Event.time >= Stamp(max(1, since.year - reach)))
+                    .where(Event.location_id.in_(place_ids),
+                           Event.time <= until,
+                           Event.time >= Stamp(max(1, since.year - reach)))
                     .order_by(Event.time.desc(), Event.id.desc()))
     recent = [event_row(row) for row in session.scalars(recent_query).all()]
 

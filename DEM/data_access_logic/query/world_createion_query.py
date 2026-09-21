@@ -6,8 +6,8 @@ from sqlalchemy import Select, func, or_, select
 
 from DEM.data_access_logic.query import common_query
 from DEM.db.schema import (
-    Character, Event, EventCharacter, Location, Object,
-    Plot, Session,
+    Character, CharacterPlace, Event, EventCharacter, Location, Object,
+    ObjectPlace, Plot, Session,
 )
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
@@ -15,13 +15,15 @@ MAX_PER_LOCATION = 10
 
 
 def character_count_at_place_select(place_id: int) -> Select:
-    """その場所(`born_place_id`)を出自に持つ人物の数。"""
-    return select(func.count(Character.id)).where(Character.born_place_id == place_id)
+    """その場所(`CharacterPlace`)を出自に持つ人物の数。"""
+    return (select(func.count(CharacterPlace.character_id.distinct()))
+            .where(CharacterPlace.location_id == place_id))
 
 
 def object_count_at_place_select(place_id: int) -> Select:
-    """その場所(`root_place_name`)を出自に持つ個体(群)の数。"""
-    return select(func.count(Object.id)).where(Object.root_place_name == place_id)
+    """その場所(`ObjectPlace`)を出自に持つ個体(群)の数。"""
+    return (select(func.count(ObjectPlace.object_id.distinct()))
+            .where(ObjectPlace.location_id == place_id))
 
 
 def siblings_area_sum_select(parent_id: int) -> Select:
@@ -41,38 +43,41 @@ def busy_character_ids_select(time) -> Select:
     return (
         select(EventCharacter.character_id).distinct()
         .join(Event, Event.id == EventCharacter.event_id)
-        .where(Event.start.is_not(None))
-        .where(Event.start <= time)
-        .where(or_(Event.end.is_(None), Event.end > time))
+        .where(
+            Event.start.is_not(None),
+            Event.start <= time,
+            or_(Event.end.is_(None), Event.end > time))
     )
 
 
 def alive_locations_select(time) -> Select:
     """時刻 `time` にまだ存在している場所だけ(`start` 以後・`end` より前。無指定側は素通し)。"""
     return (select(Location)
-            .where(or_(Location.start.is_(None), Location.start <= time))
-            .where(or_(Location.end.is_(None), Location.end > time)))
+            .where(
+                or_(Location.start.is_(None), Location.start <= time),
+                or_(Location.end.is_(None), Location.end > time))
+            )
 
 
 def alive_characters_select(time) -> Select:
     """時刻 `time` にまだ生きている人物だけ(`start` 以後・`end` より前。居場所は見ない)。"""
     return (select(Character)
-            .where(or_(Character.start.is_(None), Character.start <= time))
-            .where(or_(Character.end.is_(None), Character.end > time)))
+            .where(or_(Character.start.is_(None), Character.start <= time),
+                   or_(Character.end.is_(None), Character.end > time)))
 
 
 def alive_objects_select(time) -> Select:
     """時刻 `time` にまだ存在している個体(群)だけ(`start` 以後・`end` より前)。"""
     return (select(Object)
-            .where(or_(Object.start.is_(None), Object.start <= time))
-            .where(or_(Object.end.is_(None), Object.end > time)))
+            .where(or_(Object.start.is_(None), Object.start <= time),
+                   or_(Object.end.is_(None), Object.end > time)))
 
 
 def active_plot_count_select(time) -> Select:
     """時刻 `time` をカバーしている筋書き(`Plot`)の件数(`location_id` は問わない)。"""
     return (select(func.count(Plot.id))
-            .where(or_(Plot.start.is_(None), Plot.start <= time))
-            .where(or_(Plot.end.is_(None), Plot.end > time)))
+            .where(or_(Plot.start.is_(None), Plot.start <= time),
+                   or_(Plot.end.is_(None), Plot.end > time)))
 
 
 def check_within_parent_span(parent: Location, child_start, child_end, label: str) -> None:

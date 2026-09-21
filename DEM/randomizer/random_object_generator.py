@@ -15,7 +15,6 @@ class ObjectFactory(factory.DictFactory):
     world_influence = factory.Faker(
         "random_int", min=_INFLUENCE_RANGE[0], max=_INFLUENCE_RANGE[1])
 
-    root_place_name = None
     start = None
     end = None
 

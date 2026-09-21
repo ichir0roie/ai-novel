@@ -6,6 +6,7 @@ delete_tables = [
     Event,
     EventCharacter,
     EventObject,
+    Object,
     ObjectPlace,
     Character,
     CharacterPlace,

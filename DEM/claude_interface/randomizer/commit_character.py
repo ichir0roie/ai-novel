@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
 from DEM.data_access_logic.query import world_createion_query
-from DEM.db.schema import Character, Location, Object
+from DEM.db.schema import Character, CharacterPlace, Location, Object
 from DEM.db.schema_pydantic import to_dict
 
 
 class CommitCharacter(CommitDraft):
+    """`place_id` は列ではなく、出自を表す `CharacterPlace` の一件として書き込む。"""
+
     model = Character
 
     def __init__(self, character: str | dict):
@@ -17,44 +19,46 @@ class CommitCharacter(CommitDraft):
     def execute(self, session) -> dict:
         data = self.parse(self.character)
         data.pop("id", None)
+        place_id = data.pop("place_id", None)
         self.check_columns(data)
 
-        self.check_exists(session, Location, data.get("root_place_name"), "root_place_name")
-        self.check_exists(session, Location, data.get("born_place_id"), "born_place_id")
+        self.check_exists(session, Location, place_id, "place_id")
         self.check_exists(session, Object, data.get("belong_id"), "belong_id")
-        self._check_capacity(session, data)
-        self._check_span(session, data)
-        self._check_plot(session, data)
+        self._check_capacity(session, place_id)
+        self._check_span(session, place_id, data)
+        self._check_plot(session, place_id)
 
         record = Character(**data)
         session.add(record)
+        session.flush()
+        if place_id is not None:
+            session.add(CharacterPlace(
+                character_id=record.id, location_id=place_id,
+                start=data.get("start"), end=data.get("end")))
         session.commit()
         return to_dict(record)
 
     @staticmethod
-    def _check_capacity(session, data: dict) -> None:
-        born_place_id = data.get("born_place_id")
-        if born_place_id is None:
+    def _check_capacity(session, place_id: int | None) -> None:
+        if place_id is None:
             return
         count = session.scalar(
-            world_createion_query.character_count_at_place_select(born_place_id))
+            world_createion_query.character_count_at_place_select(place_id))
         if count >= world_createion_query.MAX_PER_LOCATION:
             raise ValueError(
-                f"born_place_id={born_place_id} には既に人物が "
+                f"place_id={place_id} には既に人物が "
                 f"{world_createion_query.MAX_PER_LOCATION} 件あり、これ以上作れない")
 
     @staticmethod
-    def _check_span(session, data: dict) -> None:
-        born_place_id = data.get("born_place_id")
-        if born_place_id is None:
+    def _check_span(session, place_id: int | None, data: dict) -> None:
+        if place_id is None:
             return
-        born_place = session.get(Location, born_place_id)
+        place = session.get(Location, place_id)
         world_createion_query.check_within_parent_span(
-            born_place, data.get("start"), data.get("end"), "character")
+            place, data.get("start"), data.get("end"), "character")
 
     @staticmethod
-    def _check_plot(session, data: dict) -> None:
-        born_place_id = data.get("born_place_id")
-        if born_place_id is None:
+    def _check_plot(session, place_id: int | None) -> None:
+        if place_id is None:
             return
-        world_createion_query.check_has_plot(session, born_place_id, "character")
+        world_createion_query.check_has_plot(session, place_id, "character")
