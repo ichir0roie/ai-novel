@@ -17,7 +17,9 @@ from DEM.ai_instructions.event_writing import (
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
     RECENT_EVENT_LIMIT,
 )
-from DEM.ai_instructions.naming import NAME_PLACEHOLDER, PLACE_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import (
+    NAME_PLACEHOLDER, PLACE_NAMING_INSTRUCTION, fill_name_placeholder,
+)
 from DEM.ai_instructions.plot_writing import (
     CHARACTER_PLOT_INSTRUCTION, PLOT_PACING_INSTRUCTION, plot_span_instruction,
 )
@@ -568,7 +570,7 @@ def _progress_place(
         text = item.get("text")
         if character_id not in character_ids or not text:
             continue
-        text = text.replace(NAME_PLACEHOLDER, character_ids[character_id].name)
+        text = fill_name_placeholder(text, character_ids[character_id].name)
         plot_end = Stamp(time.year + plot_years, time.month, time.day)
         session.add(CharacterPlot(character_id=character_id, text=text, start=time, end=plot_end))
         plot_notes.append(f"{character_ids[character_id].name}({plot_years}年、〜{format_time(plot_end)}): {text}")
@@ -586,7 +588,7 @@ def _progress_place(
             continue
         applied = []
         if update.get("text"):
-            note = update["text"].replace(NAME_PLACEHOLDER, character.name)
+            note = fill_name_placeholder(update["text"], character.name)
             _append_note(character, note)
             applied.append(f"text+={note}")
         if applied:
