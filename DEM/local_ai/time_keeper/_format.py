@@ -11,30 +11,45 @@ def is_leap_year(year: int) -> bool:
     return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
 
 
-def next_day(time: Stamp) -> Stamp:
-    """時刻を1日ぶん進める。"""
-    year, month, day = time.year, time.month, time.day
-    days_in_month = constants.MONTH_DAYS[month - 1]
+_DAYS_IN_400_YEARS = 146097
+
+
+def _days_in_month(year: int, month: int) -> int:
     if month == 2 and is_leap_year(year):
-        days_in_month = 29
+        return 29
+    return constants.MONTH_DAYS[month - 1]
 
-    day += random.randint(1, 60)
-    if day > days_in_month:
-        day = 1
+
+def _days_before_year(year: int) -> int:
+    y = year - 1
+    return 365 * y + y // 4 - y // 100 + y // 400
+
+
+def _to_ordinal(time: Stamp) -> int:
+    """1年1月1日を 1 とする通日。"""
+    days = _days_before_year(time.year)
+    days += sum(_days_in_month(time.year, m) for m in range(1, time.month))
+    return days + time.day
+
+
+def _from_ordinal(ordinal: int, hour: int, minute: int, second: int) -> Stamp:
+    year = ordinal * 400 // _DAYS_IN_400_YEARS + 1
+    while _days_before_year(year) >= ordinal:
+        year -= 1
+    while _days_before_year(year + 1) < ordinal:
+        year += 1
+    day = ordinal - _days_before_year(year)
+    month = 1
+    while day > _days_in_month(year, month):
+        day -= _days_in_month(year, month)
         month += 1
-        if month > 12:
-            month = 1
-            year += 1
-
-    return Stamp(year, month, day, time.hour, time.minute, time.second)
+    return Stamp(year, month, day, hour, minute, second)
 
 
 def add_days(time: Stamp, days: int) -> Stamp:
-    """時刻を `days` 日ぶん進める。`next_day` を `days` 回繰り返すだけの素朴な実装。"""
-    result = time
-    for _ in range(max(days, 0)):
-        result = next_day(result)
-    return result
+    """時刻を `days` 日ぶん進める(負なら戻す)。通日に直して足し、暦に戻す。"""
+    return _from_ordinal(_to_ordinal(time) + days,
+                         time.hour, time.minute, time.second)
 
 
 def format_time(time: Stamp) -> str:

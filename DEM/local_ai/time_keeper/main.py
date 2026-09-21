@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import random
 import traceback
 
 from DEM.db.schema import Session, Stamp, get_session
@@ -20,7 +21,7 @@ from DEM.local_ai.time_keeper import (
     random_character_generator,
     random_location_generator,
 )
-from DEM.local_ai.time_keeper._format import format_time, next_day
+from DEM.local_ai.time_keeper._format import add_days, format_time
 
 
 def loop_time(start_time: Stamp | None = None, max_days: int | None = None) -> Stamp:
@@ -60,37 +61,16 @@ def loop_time(start_time: Stamp | None = None, max_days: int | None = None) -> S
                   "この日はスキップして続行する")
             traceback.print_exc()
 
-        current_time = next_day(current_time)
+        next_process_day = random.randint(1, 5)
+        current_time = add_days(current_time, next_process_day)
         days_done += 1
 
 
 def time_process(
     s: Session, time: Stamp
 ):
-    # random_location_generator.generate_random(s, time)
-
     random_character_generator.generate_random(s, time)
-
     event_progression_generator.generate_random(s, time)
-
-
-def claude_main(start_time: str | None = None, max_days: int | None = 30) -> str:
-    """claude code から常駐ループを起動するための入口。**対話入力を持たない。**
-
-    `start_time` を省くと、db に記録済みの最新時刻から続きを進める
-    (`Stamp.parse` が読める形式ならなんでもよい。例: `"4360"` `"4360/07/12"`)。
-
-    `max_days` は一回の呼び出しで進める日数の上限(既定 30 日)。ローカル AI の
-    生成を挟むため一日あたりに時間がかかり、Bash 呼び出しのタイムアウトに
-    収まるよう区切って返す。続きを進めるには、戻り値の時刻を次の
-    `start_time` に渡してもう一度呼ぶ。`None` を渡すと、対話実行と同じく
-    プロットが尽きるまで止まらずに進め続ける。
-
-    戻り値は、最後に処理した時刻(`y/mm/dd hh:mm:ss` 形式の文字列)。
-    """
-    stamp = Stamp.parse(start_time) if start_time else None
-    result = loop_time(stamp, max_days=max_days)
-    return str(result)
 
 
 if __name__ == "__main__":

@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import random
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, union, union_all
+from sqlalchemy.orm import aliased
 
 from DEM.ai_instructions.naming import CHARACTER_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
-from DEM.data_access_logic.query.base import character_time_condition, plot_time_condition
+from DEM.data_access_logic.query.base import *
 from DEM.db.schema import *
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
@@ -39,7 +40,7 @@ _CONTENT_SYSTEM_PROMPT = (
     "あなたは架空の世界観を構築する設定作家です。"
     "新しく生まれる人物1件について、人物説明・年齢・今後の筋書きを、"
     "自然な日本語で JSON で答えてください。"
-    f"年齢(age)は{constants.CHARACTER_AGE_RANGE[0]}〜{constants.CHARACTER_AGE_RANGE[1]}歳の範囲で、"
+    f"年齢(age)は{constants.GENERATION_CHARACTER_AGE_RANGE[0]}〜{constants.GENERATION_CHARACTER_AGE_RANGE[1]}歳の範囲で、"
     "text の人物説明と矛盾しないように、あなた自身で決めてください"
     "(例えば老成した説明なら年長めに、幼さの残る説明なら年少めに)。"
     "この人物が目立った能力・特技を持つのが自然なら、その内容を text の"
@@ -66,7 +67,7 @@ _CONTENT_SCHEMA = {
     "type": "object",
     "properties": {
         "text": {"type": "string"},
-        "age": {"type": "integer", "minimum": constants.CHARACTER_AGE_RANGE[0], "maximum": constants.CHARACTER_AGE_RANGE[1]},
+        "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
         "plot": {"type": "string"},
     },
     "required": ["text", "age", "plot"],
@@ -87,8 +88,8 @@ _NON_PERSON_CONTENT_SYSTEM_PROMPT = (
     "キーは kind(種別。" + " / ".join(constants.NON_PERSON_KINDS) + " のいずれか一つ), "
     "text(この対象が何であって、何を決められて、誰に対して力を持つのかが"
     "伝わる2〜3文の説明), "
-    f"age(成り立ってからの年数, 整数。{constants.CHARACTER_AGE_RANGE[0]}〜"
-    f"{constants.CHARACTER_AGE_RANGE[1]}の範囲), "
+    f"age(成り立ってからの年数, 整数。{constants.GENERATION_CHARACTER_AGE_RANGE[0]}〜"
+    f"{constants.GENERATION_CHARACTER_AGE_RANGE[1]}の範囲), "
     "plot(今後の筋書き), "
     "scale(この対象の力がどこまで届くか。" + " / ".join(constants.SCALE_INFLUENCE) +
     " のいずれか一つ)の五つだけ。"
@@ -99,7 +100,7 @@ _NON_PERSON_CONTENT_SCHEMA = {
     "properties": {
         "kind": {"type": "string", "enum": list(constants.NON_PERSON_KINDS)},
         "text": {"type": "string"},
-        "age": {"type": "integer", "minimum": constants.CHARACTER_AGE_RANGE[0], "maximum": constants.CHARACTER_AGE_RANGE[1]},
+        "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
         "plot": {"type": "string"},
         "scale": {"type": "string", "enum": list(constants.SCALE_INFLUENCE)},
     },
@@ -166,12 +167,11 @@ def _region_label(session: Session, born_place: Location | None) -> str:
     return f"{parent.name}({parent.kind})"
 
 
-def _plot_texts(session: Session, born_place: Location | None, time: Stamp) -> list[str]:
-    """`born_place` とその祖先、`time` に関連する筋書きの本文。"""
+def _plot_text(session: Session, born_place: Location | None, time: Stamp) -> str:
+    """`born_place` とその祖先、`time` に関連する筋書きの本文を、上位の場所から順につなげたもの。"""
     if born_place is None:
-        return []
-    plots = story_createion_query.load_location_plot(session, born_place.id, time)
-    return [plot.text for plot in plots if plot.text]
+        return ""
+    return story_createion_query.load_location_plot_text(session, born_place.id, time)
 
 
 _ELEMENT_SYSTEM_PROMPT = (
@@ -193,20 +193,18 @@ _ELEMENT_SCHEMA = {
 }
 
 
-def _plot_elements(plot_texts: list[str]) -> list[str]:
-    """`plot_texts` それぞれから、体現しうる人物像の要素を抜き出して集める。
+def _plot_elements(plot_text: str) -> list[str]:
+    """`plot_text` から、体現しうる人物像の要素を抜き出して集める。
 
     抜き出し(この関数)と選択(呼び出し側の `rng.choice`)を分けることで、
     複数の立場を持つ筋書きでも生成のたびランダムに割り振られるようにし、
     モデルが生成時に自由選択して同じ立場へ偏るのを防ぐ。
     """
-    elements: list[str] = []
-    for text in plot_texts:
-        decided = ai_client.try_generate_json(
-            text, _ELEMENT_SCHEMA, system=_ELEMENT_SYSTEM_PROMPT)
-        elements.extend(
-            e.strip() for e in decided.get("elements", []) if e and e.strip())
-    return elements
+    if not plot_text:
+        return []
+    decided = ai_client.try_generate_json(
+        plot_text, _ELEMENT_SCHEMA, system=_ELEMENT_SYSTEM_PROMPT)
+    return [e.strip() for e in decided.get("elements", []) if e and e.strip()]
 
 
 def _nearby_place_ids(session: Session, born_place: Location | None) -> list[int]:
@@ -274,10 +272,10 @@ def _generate_one(
             draft[column] = None
 
     region_label = _region_label(session, born_place)
-    plot_texts = _plot_texts(session, born_place, time)
-    plot_label = "\n".join(f"- {text}" for text in plot_texts) or "(無し)"
+    plot_text = _plot_text(session, born_place, time)
+    plot_label = plot_text or "(無し)"
 
-    elements = _plot_elements(plot_texts)
+    elements = _plot_elements(plot_text)
     chosen_element = rng.choice(elements) if elements else None
     subject = "人物" if person else "対象"
     element_line = (
@@ -297,7 +295,7 @@ def _generate_one(
         f"地域: {region_label}\n"
         f"{person_line}"
         f"現在の時刻: {time}\n"
-        f"年齢は{constants.CHARACTER_AGE_RANGE[0]}〜{constants.CHARACTER_AGE_RANGE[1]}の範囲で、text の説明に"
+        f"年齢は{constants.GENERATION_CHARACTER_AGE_RANGE[0]}〜{constants.GENERATION_CHARACTER_AGE_RANGE[1]}の範囲で、text の説明に"
         "似合う値を選んでください。\n"
         f"この場所・時刻に関連する筋書き:\n{plot_label}\n"
         f"{element_line}"
@@ -321,8 +319,8 @@ def _generate_one(
     try:
         age = int(decided.get("age", 0))
     except (TypeError, ValueError):
-        age = rng.randint(*constants.CHARACTER_AGE_RANGE)
-    age = min(max(age, constants.CHARACTER_AGE_RANGE[0]), constants.CHARACTER_AGE_RANGE[1])
+        age = rng.randint(*constants.GENERATION_CHARACTER_AGE_RANGE)
+    age = min(max(age, constants.GENERATION_CHARACTER_AGE_RANGE[0]), constants.GENERATION_CHARACTER_AGE_RANGE[1])
 
     dead_age = age + rng.randint(10, 100)
 
@@ -376,12 +374,12 @@ def _generate_one(
 
 def get_usable_location_q(time: Stamp):
     """`time` の時点で有効なプロットを持ち、居る人物数がまだ許容範囲未満の場所の id。"""
-    return (
+
+    base_q = (
         select(Location.id)
-        .join(Plot, Plot.location_id == Location.id)
         .outerjoin(
             CharacterPlace,
-            and_(CharacterPlace.location_id == Location.id, character_time_condition(time)),
+            and_(CharacterPlace.location_id == Location.id),
         )
         .outerjoin(
             Character, Character.id == CharacterPlace.character_id
@@ -390,13 +388,14 @@ def get_usable_location_q(time: Stamp):
             CharacterPlot, Character.id == CharacterPlot.character_id
         )
         .where(
-            Location.start <= time,
-            Location.end > time,
-            plot_time_condition(time),
-            or_(
-                character_time_condition(time),
-                CharacterPlot.id == None
-            )
+            CharacterPlot.id == None
+        )
+    )
+
+    add_q = (
+        base_q
+        .where(
+            location_time_condition(time),
         )
         .group_by(Location.id)
         .having(
@@ -404,9 +403,29 @@ def get_usable_location_q(time: Stamp):
         )
     )
 
+    return union_all(base_q, add_q)
+
 
 def generate_random(session: Session, time: Stamp) -> Character | None:
     """ロールに当たったら、人物か人物以外の対象を一件 db へ確定して返す。当たらなければ None。"""
+
+    usable_location_q = get_usable_location_q(time)
+    eligible_places = session.scalars(select(Location).where(Location.id.in_(usable_location_q))).all()
+    if not eligible_places:
+        print(f"[time_keepr/character] 空きのある場所が無いため見送り")
+        return None
+
+    for location in eligible_places:
+        try_generate_character(
+            session, time, location
+        )
+
+
+def try_generate_character(
+    session: Session,
+    time: Stamp,
+    location: Location,
+):
     if not _should_roll(time):
         return None
 
@@ -414,24 +433,16 @@ def generate_random(session: Session, time: Stamp) -> Character | None:
     rng = random.Random(seed)
     roll = rng.random()
     when = format_time(time)
-    if roll >= constants.CHARACTER_PROBABILITY:
-        print(f"[time_keepr/character] {when} 月初判定: "
-              f"seed={seed} roll={roll:.4f} >= {constants.CHARACTER_PROBABILITY} → 見送り")
-        return None
-    print(f"[time_keepr/character] {when} 月初判定: "
-          f"seed={seed} roll={roll:.4f} < {constants.CHARACTER_PROBABILITY} → 生成")
 
-    # born_place も、この時刻にまだ存在している場所だけを候補にする。
-    # プロットが無い場所・人物数が既に上限に達している場所は選ばない。
-    usable_location_q = get_usable_location_q(time)
-    eligible_places = session.scalars(select(Location).where(Location.id.in_(usable_location_q))).all()
-    if not eligible_places:
-        print(f"[time_keepr/character] {when} 空きのある場所が無いため見送り")
+    if roll >= constants.GENERATION_CHARACTER_PROBABILITY:
+        print(f"[time_keepr/character] {when} 判定: "
+              f"seed={seed} roll={roll:.4f} >= {constants.GENERATION_CHARACTER_PROBABILITY} → 見送り")
         return None
-    born_place = rng.choice(eligible_places)
+    print(f"[time_keepr/character] {when} 判定: "
+          f"seed={seed} roll={roll:.4f} < {constants.GENERATION_CHARACTER_PROBABILITY} → 生成")
 
     # 人物か、人物以外の対象か。数の偏りは AI に任せずサイコロで決める。
     person = rng.random() >= constants.NON_PERSON_PROBABILITY
     print(f"[time_keepr/character] {when} 種別判定: {'人物' if person else '人物以外の対象'}")
 
-    return _generate_one(session, born_place, time, rng, person=person)
+    return _generate_one(session, location, time, rng, person=person)

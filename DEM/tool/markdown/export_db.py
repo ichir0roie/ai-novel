@@ -1,45 +1,5 @@
 #!/usr/bin/env python3
 """db の `MarkdownBase` を継ぐ全テーブルを `worlds/` の下へ md として書き出す。
-
-`schema.py` に列挙されたテーブルだけを対象にする(継承関係で自動的に拾う。
-テーブルが増えても、ここを直す必要はない)。
-
-置き場所は
-
-    worlds/{table_name}/{directory_path}/{id}_{filename}.md
-
-`directory_path` は各行が持つ列で、`worlds/{table_name}/` からの相対
-ディレクトリパス。空ならテーブル直下にそのまま置く。**ディレクトリ構成は
-`directory_path` の値だけで決まる**(作者が整理のために使う欄で、ツール側が
-自動で組み立てることはしない)。`parent_id` `parent_event_id`
-`parent_term_id` のような自己参照 FK は他の列と同じデータとして
-`data` の json に出すだけで、置き場所には使わない
-(`{name}/{name}.md` のように自分自身を表す特別なファイルを
-ディレクトリ内に置く、という特殊パターンは無い)。
-
-ファイル名の `{filename}` は各行が持つ `filename` 列の値(`MarkdownBase`
-にある。**テーブルが持つ `name` 列などとは別物**——見やすさのためだけに
-人が付ける飾りで、db 上の意味は持たない)。空なら `{id}.md`(`_{filename}`
-を付けない)。**id を読み違えないよう、`filename` 自体に `_` が混ざっていても
-構わない**(読み込み側は最初の `_` の手前だけを id として読む)。ファイル名に
-使えない `/` は読める形に置き換える。
-
-**毎回 `worlds/` をまるごと消してから書き直す。**
-
-内容は
-
-    # data
-    ```json
-    {列名: 値, ...}
-    ```
-
-    # text
-    {text}
-
-`text` 列だけ本文側に出し、それ以外の列は `data` の json に入れる。ただし
-`id` `directory_path` `filename` は、ファイル名・置き場所そのものが情報を
-持つので `data` には出さない。`Stamp` 型の値は `y/mm/dd HH:MM:SS` の文字列に
-して出す。
 """
 from __future__ import annotations
 

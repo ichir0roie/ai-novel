@@ -362,9 +362,9 @@ def _character_recent_event_names(
 
 
 def _plot_recent_event_names(
-    session: Session, plot, place_id: int, time: Stamp,
+    session: Session, top_location_id: int | None, place_id: int, time: Stamp,
 ) -> list[str]:
-    """その場所と、そこから筋書きの `location_id` までの上位の場所で直近使われた出来事の名前。
+    """その場所と、そこから筋書きの掛かる最上位の場所 `top_location_id` までの上位の場所で直近使われた出来事の名前。
 
     横(兄弟の場所)の出来事は含めない。筋書きの配下全体を渡すと、他の国の
     展開まで持ち込まれて場所ごとの差が消えるため(2026-09 に観測)。
@@ -372,7 +372,7 @@ def _plot_recent_event_names(
     place_ids = []
     for step in reversed(common_query.place_path(session, place_id)):
         place_ids.append(step["id"])
-        if step["id"] == plot.location_id:
+        if step["id"] == top_location_id:
             break
     events = session.scalars(
         common_query.events_in_locations_select(
@@ -447,10 +447,11 @@ def _progress_place(
     ).all()
     place = session.get(Location, place_id)
     plots = story_createion_query.load_location_plot(session, place_id, time)
-    plots_payload = [
-        {"plot": p.text, "recent_events": _plot_recent_event_names(session, p, place_id, time)}
-        for p in plots
-    ]
+    plot_text = story_createion_query.join_plot_text(plots)
+    plot_recent_events = (
+        _plot_recent_event_names(session, plots[0].location_id, place_id, time)
+        if plots else []
+    )
     character_plots = {
         c.id: story_createion_query.load_character_plot(session, c.id, time)
         for c in characters[:20]
@@ -472,8 +473,9 @@ def _progress_place(
         f"recent_events はその者自身が場所を問わず関わった直近の出来事): "
         f"{characters_payload}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
-        f"進めたい筋書き(recent_events はこの場所とその上位の場所で"
-        f"直近使われた出来事の名前): {plots_payload or '(指定なし)'}\n"
+        f"進めたい筋書き(上位の場所のものから順につなげた本文):\n{plot_text or '(指定なし)'}\n"
+        f"筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): "
+        f"{plot_recent_events or '(無し)'}\n"
         f"現在の時刻: {time}\n"
     )
     judgements = _think_participants(situation, characters_payload)
