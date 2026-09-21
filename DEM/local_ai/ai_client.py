@@ -65,7 +65,7 @@ def generate(
         payload["system"] = system
     if format is not None:
         payload["format"] = format
-        payload["think"] = True
+        payload["think"] = False
 
     url = f"{_host().rstrip('/')}/api/generate"
     body = json.dumps(payload).encode("utf-8")
