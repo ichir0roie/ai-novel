@@ -14,6 +14,16 @@ AI が決める `event_duration_days`(`EVENT_DURATION_INSTRUCTION`)を `start`
 個体の `text` も、人物と同じように `object_updates` で積み足す
 (`OBJECT_TEXT_UPDATE_INSTRUCTION`)。
 
+**その場に今いる顔ぶれだけでは、内輪の合意・対立で閉じ続けて動かなく
+なることがある。** そこで候補を二段構えにする。(1) `_reach_objects` が、
+「一つ上の圏内」(`read_cast` と同じ考え方。`common_query.place_up` /
+`descendant_place_ids`)に拠点を持つ個体を、今は居合わせなくても遠隔で
+働きかけてくる候補として渡す。(2) それでも噛み合う主体が無いときは、
+`object_founded` でローカル AI 自身に新しい個体を出来事の中で誕生させて
+よい(`_OBJECT_FOUND_INSTRUCTION`)。どちらも
+`EVENT_PROGRESSION_INSTRUCTION` が「同じ内輪の顔ぶれだけで何度も閉じない」
+の受け皿として使う。
+
 `text` は小説ではなく**情報整理のための記録**として書かせる
 (`EVENT_RECORD_INSTRUCTION`)。文体・セリフは本文(話)の側で決める。
 """
@@ -32,7 +42,7 @@ from DEM.ai_instructions.event_writing import (
     EVENT_RELATION_INSTRUCTION, OBJECT_ACTION_INSTRUCTION,
     OBJECT_TEXT_UPDATE_INSTRUCTION, RECENT_EVENT_LIMIT,
 )
-from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
@@ -44,13 +54,22 @@ from DEM.db.schema import (
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import random_location_resource_generator
 from DEM.local_ai.time_keeper._format import add_days, format_time
+from DEM.local_ai.time_keeper.random_object_generator import (
+    _DEFAULT_SCALE, _SCALE_INFLUENCE,
+)
 from DEM.randomizer.random_location_generator import build_location
 from DEM.randomizer.random_location_resource_generator import (
     build_location_resource,
 )
+from DEM.randomizer.random_object_generator import build_object
 
 EVENT_ROLL_INTERVAL_DAYS = 3  # 3日毎に、人物・個体が居る場所それぞれでロールする
 PLACE_PROBABILITY = 0.10  # ロールのたび、場所1件につき10%の確率で出来事を起こす
+
+# 遠隔候補(`_reach_objects`)をどこまで拾うか。`read_cast` の既定
+# (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
+_REACH_LEVELS = 1
+_REACH_OBJECT_LIMIT = 10
 
 # event_duration_days の取りうる範囲。範囲外の値は丸める。
 _EVENT_DURATION_RANGE_DAYS = (1, 90)
@@ -74,8 +93,22 @@ _DRIVE_TEXT_INSTRUCTION = (
 _INVOLVEMENT_INSTRUCTION = (
     EVENT_RELATION_INSTRUCTION + OBJECT_ACTION_INSTRUCTION +
     "関わった人物・個体があれば、その id を渡した一覧の中からだけ選んで "
-    "character_ids / object_ids に入れる(複数可)。居合わせる個体があるのに "
+    "character_ids / object_ids に入れる(複数可)。object_ids には、"
+    "居合わせる個体だけでなく「一つ上の圏内の個体」の中から遠隔で"
+    "働きかけてきた候補を選んでもよい。居合わせる個体があるのに "
     "object_ids が空になるのは、その個体が本当に何一つ関わらなかったときだけ。"
+)
+
+_OBJECT_FOUND_INSTRUCTION = (
+    "居合わせる個体にも一つ上の圏内の候補にも、この出来事を起こすのに"
+    "ふさわしい主体が見当たらないときに限り、object_founded を埋めて"
+    "新しい個体(国・組織・商会・氏族・徒党など)をこの出来事の中で誕生"
+    "させてよい。埋めるなら {name, read, text, scale}(name は固有名詞、"
+    "read は読み、text はこの個体が何であって、何を決められて誰に対して"
+    "力を持つのかが伝わる説明、scale はこの個体の力がどこまで届くか。"
+    + " / ".join(_SCALE_INFLUENCE) + " のいずれか一つ)。既にある個体・"
+    "候補で足りるなら object_founded は null のままにする。"
+    + TERM_NAMING_INSTRUCTION
 )
 
 _CHARACTER_UPDATE_INSTRUCTION = (
@@ -95,16 +128,16 @@ _LOCATION_CHANGE_INSTRUCTION = (
 
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
-    "その場所自身の情報、そこに居合わせる人物・個体の一覧、その場所の"
-    "直近の出来事を渡すので、この時点でこの場所に起きる出来事を1件だけ"
-    "考えてください。"
+    "その場所自身の情報、そこに居合わせる人物・個体の一覧、一つ上の圏内で"
+    "拠点を持つ個体の候補、その場所の直近の出来事を渡すので、この時点で"
+    "この場所に起きる出来事を1件だけ考えてください。"
     + _INVOLVEMENT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
     "JSON で答えてください。キーは "
     "event_name(出来事の名前), event_text(出来事の内容。"
     + _EVENT_TEXT_INSTRUCTION + "), "
     "character_ids(関わった人物の id のリスト。渡した「居合わせる人物」の "
     "id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
-    "「居合わせる個体」の id からだけ選ぶ), "
+    "「居合わせる個体」と「一つ上の圏内の個体」の id からだけ選ぶ), "
     "character_drives(関わった人物のうち、情動・欲求が動いた者だけのリスト。"
     "各要素は character_id(対象の人物 id), text(" + _DRIVE_TEXT_INSTRUCTION +
     "), level(その情動の強さ。1〜10の整数)の三つ), "
@@ -114,6 +147,7 @@ _PLACE_SYSTEM_PROMPT = (
     "object_updates(関わった個体のうち、この出来事で個体レコード自体が"
     "変わったものだけのリスト。各要素は object_id(対象の個体 id)と、"
     + OBJECT_TEXT_UPDATE_INSTRUCTION + "), "
+    "object_founded(" + _OBJECT_FOUND_INSTRUCTION + "。無ければ null), "
     "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
     "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
     "{name, kind, text, environment}。無ければ null), "
@@ -200,9 +234,46 @@ def _group_by_place(
     return grouped
 
 
+def _reach_objects(
+    session: Session,
+    grouped: dict[int, tuple[list[Character], list[Object]]],
+    place_id: int,
+    exclude_ids: set[int],
+) -> list[Object]:
+    """**その場に今いなくても、遠隔から出来事に関与できる個体の候補。**
+
+    `read_cast`(`DEM/claude_interface/story/_rows.py` の `cast`)と同じ
+    「一つ上の圏内」(`common_query.place_up` で一段のぼり、
+    `descendant_place_ids` でその配下をまるごと拾う)を、`_group_by_place`
+    が既に組んだ `grouped` から引く。追加の select は要らない。
+
+    これが無いと、`event_progression_generator` はその場所に**今いる**
+    人物・個体からしか出来事を組み立てられず、IP管理団体・規制当局・
+    競合のような「今はまだこの場に居ない外部の利害関係者」を出来事に
+    巻き込む手段が無い。結果、同じ内輪の顔ぶれだけで「議論して合意する/
+    対立する」を繰り返す一因になる(`EVENT_PROGRESSION_INSTRUCTION`)。
+    """
+    root_id = common_query.place_up(session, place_id, _REACH_LEVELS)
+    nearby_ids = common_query.descendant_place_ids(session, root_id)
+    found: list[Object] = []
+    seen = set(exclude_ids)
+    for nearby_id in nearby_ids:
+        if nearby_id == place_id:
+            continue
+        for obj in grouped.get(nearby_id, ([], []))[1]:
+            if obj.id in seen:
+                continue
+            seen.add(obj.id)
+            found.append(obj)
+            if len(found) >= _REACH_OBJECT_LIMIT:
+                return found
+    return found
+
+
 def _progress_place(
     session: Session, place_id: int,
-    characters: list[Character], objects: list[Object], time: Stamp,
+    characters: list[Character], objects: list[Object],
+    reach_objects: list[Object], time: Stamp,
 ) -> Event | None:
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
@@ -216,6 +287,9 @@ def _progress_place(
         f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
         f"居合わせる個体(国・組織・集団・物): "
         f"{[(o.id, o.name, o.text, o.world_influence) for o in objects[:20]]}\n"
+        f"一つ上の圏内で拠点を持つ個体(今はここに居ないが、遠隔で"
+        f"働きかけてくる余地がある候補): "
+        f"{[(o.id, o.name, o.text, o.world_influence) for o in reach_objects] or '(無し)'}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
@@ -232,6 +306,7 @@ def _progress_place(
 
     character_ids = {c.id: c for c in characters}
     object_ids = {o.id: o for o in objects}
+    object_ids.update({o.id: o for o in reach_objects})
 
     def _valid_ids(raw, pool: Mapping[int, object]) -> list[int]:
         result: list[int] = []
@@ -246,6 +321,31 @@ def _progress_place(
 
     involved_character_ids = _valid_ids(decided.get("character_ids"), character_ids)
     involved_object_ids = _valid_ids(decided.get("object_ids"), object_ids)
+
+    object_found_notes = []
+    # 居合わせる個体にも一つ上の圏内の候補にも噛み合う主体が無いとき、
+    # ローカル AI がこの出来事の中で新しい個体を誕生させてよい
+    # (`_OBJECT_FOUND_INSTRUCTION`)。`random_object_generator.py` と同じ
+    # `_SCALE_INFLUENCE` を使い、プロットの無い場所には生まない
+    # (`IHG/workflow.md`「プロットの無いエリアに個体を増やさない」)。
+    founded_object = decided.get("object_founded")
+    if isinstance(founded_object, dict) and founded_object.get("name") and plots:
+        scale = founded_object.get("scale")
+        if scale not in _SCALE_INFLUENCE:
+            scale = _DEFAULT_SCALE
+        draft = build_object(root_place_name=place_id)
+        draft["name"] = founded_object.get("name") or draft["name"]
+        draft["read"] = founded_object.get("read") or draft["read"]
+        draft["text"] = founded_object.get("text") or draft["text"]
+        draft["world_influence"] = _SCALE_INFLUENCE[scale]
+        draft["start"] = time
+        new_object = Object(**draft)
+        session.add(new_object)
+        session.flush()
+        object_ids[new_object.id] = new_object
+        involved_object_ids.append(new_object.id)
+        object_found_notes.append(
+            f"{new_object.name}(id={new_object.id}, 規模={scale}): 新規誕生")
 
     try:
         duration_days = int(decided.get("event_duration_days"))
@@ -400,6 +500,7 @@ def _progress_place(
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")
           + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
+          + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")
           + (f" / 場所: {'; '.join(location_notes)}" if location_notes else "")
           + (f" / 資源: {'; '.join(resource_notes)}" if resource_notes else ""))
     return record
@@ -420,7 +521,10 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
         print(f"[time_keepr/event] 場所 {i}/{total_places} id={place_id}: "
               f"人物{len(characters)}人 個体{len(objects)}件")
         if rng.random() < PLACE_PROBABILITY:
-            event = _progress_place(session, place_id, characters, objects, time)
+            reach_objects = _reach_objects(
+                session, grouped, place_id, {o.id for o in objects})
+            event = _progress_place(
+                session, place_id, characters, objects, reach_objects, time)
             if event is not None:
                 created.append(event)
 
