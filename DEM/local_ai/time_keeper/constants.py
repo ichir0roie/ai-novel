@@ -14,12 +14,9 @@ NATURAL_DEATH_MAX_AGE = 150
 ACCIDENT_PROBABILITY_PER_YEAR = 0.003
 
 # random_character_generator
-CHARACTER_PROBABILITY = 0.1  # 1月に1度、必ず一人
-# 生成時点での年齢の幅。0(赤子)ではなく、この範囲でランダムに選んだ年数だけ
-# 過去に生まれたことにする(NATURAL_DEATH_MIN_AGE の50歳より十分若い範囲に
-# 収め、生成直後に老衰死しないようにする)。
-CHARACTER_AGE_RANGE = (0, 40)
-# 生成する一件が人物以外の対象(国・組織など)になる確率。当たったら種別は AI に選ばせる。
+GENERATION_CHARACTER_PROBABILITY = 0.3
+GENERATION_CHARACTER_AGE_RANGE = (0, 40)
+
 NON_PERSON_PROBABILITY = 0.3
 NON_PERSON_KINDS = ("国", "組織", "商会", "氏族", "集団", "物")
 # 人物以外の対象に AI へ選ばせる「どこまで届くか」と、それを落とす world_influence の値。

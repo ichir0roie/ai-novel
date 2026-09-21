@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 """`worlds/` の md を db へ読み戻す。`export_db.py` の逆。
 
-`worlds/{table_name}/` の下を再帰的に歩いて `.md` を全て拾う。
-`table_name` からテーブルが決まり、`table_name/` からの相対ディレクトリパスが
-そのまま `directory_path` 列に入る(直下に置かれていれば空)。ファイル名は
-`{id}.md` か `{id}_{filename}.md`。最初の `_` の手前(無ければ拡張子抜き
-全体)が数字なら db 上の `id` として読み、その行を上書きする。数字でなければ
-(あるいは `id` が db に無ければ)**新規レコードとして自動採番して作る。**
-id を数字として読めたときだけ、`_` の後ろをそのまま `filename` 列に入れる
-(無ければ空)。`text` は `# text` 見出し以降の本文をそのまま使う。`Stamp`
-型の列は `y/mm/dd HH:MM:SS` 形式の文字列として読み、`Stamp.parse` で戻す。
-
-作者が手で置いた素の md(`export_db` 形式に従っていないもの)も新規レコード
-として取り込む。本文に `# data` ブロックが無ければ列はすべて空のまま、
-ファイル全体をそのまま `text` として扱う。置き場所(ディレクトリ)だけは
-`directory_path` として読む。
 """
 from __future__ import annotations
 
@@ -67,12 +53,17 @@ def _upsert(
 
     stem = os.path.basename(path)[: -len(".md")]
     id_part, _, filename_part = stem.partition("_")
-    row_id = int(id_part) if id_part.isdigit() else None
+    if id_part.isdigit():
+        row_id = int(id_part)
+        filename = filename_part or None
+    else:
+        row_id = None
+        filename = stem
 
     data, text = _parse(content, path)
     data.pop("id", None)
     data["directory_path"] = directory_path
-    data["filename"] = filename_part if row_id is not None and filename_part else None
+    data["filename"] = filename
 
     unknown = set(data) - columns
     if unknown:
