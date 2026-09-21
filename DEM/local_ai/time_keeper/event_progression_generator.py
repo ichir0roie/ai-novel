@@ -345,6 +345,17 @@ def _reach_objects(
     return found
 
 
+def _object_recent_event_names(
+    session: Session, object_id: int, time: Stamp,
+) -> list[str]:
+    """その個体自身が、場所を問わず関わった直近の出来事の名前。
+    """
+    events = session.scalars(
+        common_query.events_of_select(object_id, until=time, limit=RECENT_EVENT_LIMIT)
+    ).all()
+    return [e.name for e in events]
+
+
 def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], objects: list[Object],
@@ -364,16 +375,28 @@ def _progress_place(
          "plot": character_plots.get(c.id) or "(指定なし)"}
         for c in characters[:20]
     ]
+    objects_payload = [
+        {"object_id": o.id, "name": o.name, "text": o.text,
+         "world_influence": o.world_influence,
+         "recent_events": _object_recent_event_names(session, o.id, time)}
+        for o in objects[:20]
+    ]
+    reach_objects_payload = [
+        {"object_id": o.id, "name": o.name, "text": o.text,
+         "world_influence": o.world_influence,
+         "recent_events": _object_recent_event_names(session, o.id, time)}
+        for o in reach_objects
+    ]
 
     prompt = (
         f"場所id: {place_id}\n"
         f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
         f"居合わせる人物: {characters_payload}\n"
-        f"居合わせる個体(国・組織・集団・物): "
-        f"{[{'object_id': o.id, 'name': o.name, 'text': o.text, 'world_influence': o.world_influence} for o in objects[:20]]}\n"
+        f"居合わせる個体(国・組織・集団・物。recent_events はこの個体自身が"
+        f"場所を問わず関わった直近の出来事): {objects_payload}\n"
         f"一つ上の圏内で拠点を持つ個体(今はここに居ないが、遠隔で"
-        f"働きかけてくる余地がある候補): "
-        f"{[{'object_id': o.id, 'name': o.name, 'text': o.text, 'world_influence': o.world_influence} for o in reach_objects] or '(無し)'}\n"
+        f"働きかけてくる余地がある候補。recent_events は同上): "
+        f"{reach_objects_payload or '(無し)'}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
@@ -447,7 +470,7 @@ def _progress_place(
     except (TypeError, ValueError):
         duration_days = _DEFAULT_EVENT_DURATION_DAYS
     duration_days = min(max(duration_days, _EVENT_DURATION_RANGE_DAYS[0]),
-                         _EVENT_DURATION_RANGE_DAYS[1])
+                        _EVENT_DURATION_RANGE_DAYS[1])
     end = add_days(time, duration_days)
 
     record = Event(
