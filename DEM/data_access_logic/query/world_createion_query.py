@@ -5,37 +5,32 @@ from __future__ import annotations
 from sqlalchemy import Select, func, or_, select
 
 from DEM.data_access_logic.query import common_query
+from DEM.data_access_logic.query.base import character_time_condition, object_time_condition
 from DEM.db.schema import (
     Character, CharacterPlace, Event, EventCharacter, Location, Object,
-    ObjectPlace, Plot, Session,
+    ObjectPlace, Plot, Session, Stamp,
 )
 
 # 一つの場所につき作れる人物・個体は、それぞれ最大でこの件数まで。
 MAX_PER_LOCATION = 10
 
 
-def character_count_at_place_select(place_id: int) -> Select:
-    """その場所(`CharacterPlace`)を出自に持つ人物の数。"""
+def character_count_at_place_select(place_id: int, stamp: Stamp) -> Select:
+    """その場所に、`stamp` の時点で居る人物の数(`CharacterPlace`。`start <= stamp < end`)。"""
     return (select(func.count(CharacterPlace.character_id.distinct()))
-            .where(CharacterPlace.location_id == place_id))
+            .where(CharacterPlace.location_id == place_id, character_time_condition(stamp)))
 
 
-def object_count_at_place_select(place_id: int) -> Select:
-    """その場所(`ObjectPlace`)を出自に持つ個体(群)の数。"""
+def object_count_at_place_select(place_id: int, stamp: Stamp) -> Select:
+    """その場所に、`stamp` の時点で居る個体(群)の数(`ObjectPlace`。`start <= stamp < end`)。"""
     return (select(func.count(ObjectPlace.object_id.distinct()))
-            .where(ObjectPlace.location_id == place_id))
+            .where(ObjectPlace.location_id == place_id, object_time_condition(stamp)))
 
 
 def siblings_area_sum_select(parent_id: int) -> Select:
     """同じ親(`parent_id`)を持つ場所の、広さ(`area`)の合計。"""
     return (select(func.coalesce(func.sum(Location.area), 0))
             .where(Location.parent_id == parent_id))
-
-
-def flagged_character_source_locations_select(time) -> Select:
-    """`random_character_source` がオンで、時刻 `time` に生きている場所。"""
-    return alive_locations_select(time).where(
-        Location.random_character_source.is_(True))
 
 
 def busy_character_ids_select(time) -> Select:

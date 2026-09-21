@@ -29,7 +29,7 @@ class CommitObject(CommitDraft):
                 "IHG/naming.md に沿って名を決めてから確定する")
 
         self.check_exists(session, Location, place_id, "place_id")
-        self._check_capacity(session, place_id)
+        self._check_capacity(session, place_id, data.get("start"))
         self._check_span(session, place_id, data)
         self._check_plot(session, place_id)
 
@@ -44,11 +44,11 @@ class CommitObject(CommitDraft):
         return to_dict(record)
 
     @staticmethod
-    def _check_capacity(session, place_id: int | None) -> None:
-        if place_id is None:
+    def _check_capacity(session, place_id: int | None, stamp) -> None:
+        if place_id is None or stamp is None:
             return
         count = session.scalar(
-            world_createion_query.object_count_at_place_select(place_id))
+            world_createion_query.object_count_at_place_select(place_id, stamp))
         if count >= world_createion_query.MAX_PER_LOCATION:
             raise ValueError(
                 f"place_id={place_id} には既に個体が "

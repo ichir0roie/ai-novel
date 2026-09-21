@@ -107,9 +107,9 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
     eligible = [
         p for p in places
         if int(session.scalar(
-            world_createion_query.character_count_at_place_select(p.id)) or 0) > 0
+            world_createion_query.character_count_at_place_select(p.id, time)) or 0) > 0
         and int(session.scalar(
-            world_createion_query.object_count_at_place_select(p.id)) or 0)
+            world_createion_query.object_count_at_place_select(p.id, time)) or 0)
         < world_createion_query.MAX_PER_LOCATION
         and world_createion_query.location_has_plot(session, p.id)
     ]
