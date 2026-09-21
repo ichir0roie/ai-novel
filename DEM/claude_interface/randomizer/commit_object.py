@@ -16,6 +16,9 @@ id が db に実在するかをここで確かめてから書き込む。`name` 
   (10)件あれば止める
 - `start`〜`end` がその場所の `start`〜`end` に収まっているか(その場所が
   まだ無い時刻・既に終わった時刻に生まれていないか)
+- その場所(か祖先、か場所を問わない筋書き)にプロットが一件も無ければ止める
+  (`world_createion_query.check_has_plot`)。プロットの無いエリアに展開の
+  当てが無いまま個体だけが増えるのを防ぐ
 """
 from __future__ import annotations
 
@@ -51,6 +54,7 @@ class CommitObject(CommitDraft):
         self.check_exists(session, Location, data.get("root_place_name"), "root_place_name")
         self._check_capacity(session, data)
         self._check_span(session, data)
+        self._check_plot(session, data)
 
         record = Object(**data)
         session.add(record)
@@ -77,3 +81,10 @@ class CommitObject(CommitDraft):
         place = session.get(Location, place_id)
         world_createion_query.check_within_parent_span(
             place, data.get("start"), data.get("end"), "object")
+
+    @staticmethod
+    def _check_plot(session, data: dict) -> None:
+        place_id = data.get("root_place_name")
+        if place_id is None:
+            return
+        world_createion_query.check_has_plot(session, place_id, "object")
