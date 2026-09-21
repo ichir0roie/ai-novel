@@ -4,18 +4,19 @@
 `schema.py` に列挙されたテーブルだけを対象にする(継承関係で自動的に拾う。
 テーブルが増えても、ここを直す必要はない)。
 
-**自分のテーブルを指す外部キー列(`parent_id` `parent_event_id`
-`parent_term_id` のような自己参照 FK)を持つテーブルは、階層化して書き出す。**
-親から子へ、木の上から順に再帰的にたどり、`tag` をディレクトリ名にして
-入れ子にする(`tag` が無い行は `id` を数字のままディレクトリ名に使う)。
-子を持つ行は、自分のディレクトリの**中に**自分自身の md を置く
-(`term/魔力/13_魔力.md` が「魔力」自身、`term/魔力/魔力灯り/14_魔力灯り.md`
-がその子)。子を持たない行はそのまま親のディレクトリ直下に置く。
-自己参照 FK を持たないテーブルは、これまで通り
+置き場所は
 
-    worlds/{table_name}/{id or ""}_{tag or ""}.md
+    worlds/{table_name}/{directory_path}/{id}.md
 
-の一段だけで並べる。**毎回 `worlds/` をまるごと消してから書き直す。**
+`directory_path` は各行が持つ列で、`worlds/{table_name}/` からの相対
+ディレクトリパス。空ならテーブル直下にそのまま置く。**ディレクトリ構成は
+`directory_path` の値だけで決まる。** `parent_id` `parent_event_id`
+`parent_term_id` のような自己参照 FK は他の列と同じデータとして
+`data` の json に出すだけで、置き場所には使わない
+(`{name}/{name}.md` のように自分自身を表す特別なファイルを
+ディレクトリ内に置く、という特殊パターンは無い)。
+
+**毎回 `worlds/` をまるごと消してから書き直す。**
 
 内容は
 
@@ -28,9 +29,8 @@
     {text}
 
 `text` 列だけ本文側に出し、それ以外の列は `data` の json に入れる。ただし
-`id` `tag`、および階層化テーブルの自己参照 FK 列は、ファイル名・置き場所
-そのものが情報を持つので `data` には出さない。`Stamp` 型の値は
-`y/mm/dd HH:MM:SS` の文字列にして出す。
+`id` `directory_path` は、ファイル名・置き場所そのものが情報を持つので
+`data` には出さない。`Stamp` 型の値は `y/mm/dd HH:MM:SS` の文字列にして出す。
 """
 from __future__ import annotations
 
@@ -58,20 +58,6 @@ def _markdown_models() -> list[type]:
     ]
 
 
-def self_ref_column(model: type) -> str | None:
-    """`model` が自分のテーブルを指す外部キー列を持っていれば、その列名を返す。
-
-    `Location.parent_id` `Event.parent_event_id` `Term.parent_term_id` の
-    ように、schema.py に列挙された自己参照 FK を汎用に検出する
-    (テーブルごとに列名をハードコードしない)。
-    """
-    for column in model.__table__.columns:
-        for fk in column.foreign_keys:
-            if fk.column.table is model.__table__:
-                return column.key
-    return None
-
-
 def _serialize(value):
     if isinstance(value, Stamp):
         return str(value)
@@ -96,30 +82,9 @@ def _row_data(model: type, row, ignore_columns: set[str]) -> dict:
 def _write(path: str, data: dict, text: str) -> None:
     if os.path.exists(path):
         raise ExportError(f"ファイル名が重複した: {path}")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(_render(data, text))
-
-
-def _dir_name(row) -> str:
-    return row.tag if row.tag else str(row.id)
-
-
-def _write_tree(
-    dir_path: str, nodes: list, children_by_parent: dict, model: type, ignore_columns: set[str],
-) -> None:
-    for row in nodes:
-        filename = f"{row.id or ''}_{row.tag or ''}.md"
-        data = _row_data(model, row, ignore_columns)
-        text = row.text or ""
-
-        kids = children_by_parent.get(row.id, [])
-        if kids:
-            node_dir = os.path.join(dir_path, _dir_name(row))
-            os.makedirs(node_dir, exist_ok=True)
-            _write(os.path.join(node_dir, filename), data, text)
-            _write_tree(node_dir, kids, children_by_parent, model, ignore_columns)
-        else:
-            _write(os.path.join(dir_path, filename), data, text)
 
 
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
@@ -136,22 +101,13 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
             table_dir = os.path.join(root, table_name)
             os.makedirs(table_dir, exist_ok=True)
 
-            parent_column = self_ref_column(model)
-            ignore_columns = {"text", "tag", "id"}
-            if parent_column:
-                ignore_columns.add(parent_column)
+            ignore_columns = {"text", "directory_path", "id"}
 
-            if parent_column:
-                children_by_parent: dict[int | None, list] = {}
-                for row in rows:
-                    children_by_parent.setdefault(getattr(row, parent_column), []).append(row)
-                _write_tree(table_dir, children_by_parent.get(None, []), children_by_parent, model, ignore_columns)
-            else:
-                for row in rows:
-                    filename = f"{row.id or ''}_{row.tag or ''}.md"
-                    data = _row_data(model, row, ignore_columns)
-                    text = row.text or ""
-                    _write(os.path.join(table_dir, filename), data, text)
+            for row in rows:
+                dir_path = os.path.join(table_dir, row.directory_path) if row.directory_path else table_dir
+                data = _row_data(model, row, ignore_columns)
+                text = row.text or ""
+                _write(os.path.join(dir_path, f"{row.id}.md"), data, text)
 
             counts[table_name] = len(rows)
 
