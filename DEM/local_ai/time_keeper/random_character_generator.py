@@ -389,7 +389,8 @@ def get_usable_location_q(time: Stamp):
             CharacterPlot, Character.id == CharacterPlot.character_id
         )
         .where(
-            CharacterPlot.id == None
+            CharacterPlot.id == None,
+            location_active_condition(),
         )
     )
 

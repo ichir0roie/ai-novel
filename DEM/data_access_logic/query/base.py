@@ -13,6 +13,10 @@ def location_time_condition(time: Stamp):
     )
 
 
+def location_active_condition():
+    return Location.active_random_generation.is_(True)
+
+
 def character_time_condition(time: Stamp):
     return and_(
         CharacterPlace.start <= time,
