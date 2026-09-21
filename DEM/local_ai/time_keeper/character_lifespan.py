@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""**人物に寿命を持たせ、老いと事故で `Character.end` を下ろす。**
-
-`DEM.local_ai.time_keeper.main` の常駐ループから毎日呼ばれる。
-
-人物を作る時点(`random_character_generator`)では `end` を決めない。代わりに
-ここで、生きている人物一人ひとりについて年齢に応じた確率を毎年ロールし、
-当たったら寿命(老衰)で `end` を下ろす。老衰とは別に、ごく低い確率で
-年齢によらない事故死もロールする。
-
-死んだ人物には、老衰・事故それぞれの死を記録として整理した `Event` を一件
-起こす(`_progress_place` と同じ基準。小説ではなく、何がどう変わったかの
-記録として書く)。
-"""
+"""人物に寿命を持たせ、老いと事故で `Character.end` を下ろす。年初に確率をロールし、死んだ人物には `Event` を一件起こす。"""
 from __future__ import annotations
 
 import random
@@ -46,9 +34,7 @@ def _should_roll(time: Stamp) -> bool:
 
 
 def _natural_death_probability(age: int) -> float:
-    """老衰の年間確率。`_NATURAL_DEATH_MIN_AGE` 未満は 0、
-    `_NATURAL_DEATH_MAX_AGE` 以上は必ず死ぬよう 1 まで線形に上げる。
-    """
+    """老衰の年間確率。`_NATURAL_DEATH_MIN_AGE` 未満は 0、`_NATURAL_DEATH_MAX_AGE` 以上は 1。"""
     if age < _NATURAL_DEATH_MIN_AGE:
         return 0.0
     if age >= _NATURAL_DEATH_MAX_AGE:

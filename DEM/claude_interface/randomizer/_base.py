@@ -6,11 +6,7 @@ from DEM.claude_interface._base import CommitEntrypoint, Entrypoint
 
 
 class RandomDraft(Entrypoint):
-    """**ランダムな下書きを一件、db に触れずに作る、共通の基底。**
-
-    サブクラスは `builder` に `DEM.randomizer.*` の生成関数を指す。
-    `overrides` はその関数へそのまま渡る。
-    """
+    """サブクラスは `builder` に生成関数を指す。`overrides` はそのまま渡る。"""
 
     builder: staticmethod
 

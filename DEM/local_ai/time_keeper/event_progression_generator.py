@@ -1,31 +1,8 @@
 #!/usr/bin/env python3
-"""**場所・時刻ごとに、その場に居合わせる人物・個体を巻き込んだ出来事を起こす。**
+"""場所・時刻ごとに、その場に居合わせる人物・個体(`Object` も含む)を巻き込んだ出来事を起こす。
 
-出来事には `start`〜`end`(進行中と見なす幅)を持たせる。`end` はローカル
-AI が決める `event_duration_days`(`EVENT_DURATION_INSTRUCTION`)を `start`
-に足して組む。**進行中の出来事がある人物は、`end` を過ぎるまで次の出来事の
-対象にしない**(`_group_by_place` が `world_createion_query.busy_character_ids_select`
-で除く)。これが無いと、同じ人物が3日おきのロールのたび毎回新しい出来事に
-巻き込まれ、前の出来事がまだ続いているはずの間にも次々と話が進んでしまう。
-
-**人物だけでなく、国・組織のような個体(`Object`)も行為の主体として扱う。**
-出来事は、その時その場に居合わせるもの(人物・個体・場所・資源)同士の
-相互関係から立てる(`EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION`)。
-個体の `text` も、人物と同じように `object_updates` で積み足す
-(`OBJECT_TEXT_UPDATE_INSTRUCTION`)。
-
-**その場に今いる顔ぶれだけでは、内輪の合意・対立で閉じ続けて動かなく
-なることがある。** そこで候補を二段構えにする。(1) `_reach_objects` が、
-「一つ上の圏内」(`read_cast` と同じ考え方。`common_query.place_up` /
-`descendant_place_ids`)に拠点を持つ個体を、今は居合わせなくても遠隔で
-働きかけてくる候補として渡す。(2) それでも噛み合う主体が無いときは、
-`object_founded` でローカル AI 自身に新しい個体を出来事の中で誕生させて
-よい(`_OBJECT_FOUND_INSTRUCTION`)。どちらも
-`EVENT_PROGRESSION_INSTRUCTION` が「同じ内輪の顔ぶれだけで何度も閉じない」
-の受け皿として使う。
-
-`text` は小説ではなく**情報整理のための記録**として書かせる
-(`EVENT_RECORD_INSTRUCTION`)。文体・セリフは本文(話)の側で決める。
+出来事には `start`〜`end`(進行中と見なす幅)を持たせ、進行中の人物は次の出来事の対象にしない。
+候補は居合わせるものに加え、一つ上の圏内の個体(`_reach_objects`)や、新規に誕生する個体も含める。
 """
 from __future__ import annotations
 
@@ -166,14 +143,7 @@ def _end_after_years(start: Stamp, years: int) -> Stamp:
 
 
 def _append_note(record: Character | Object, note: str) -> None:
-    """人物・個体の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す。
-
-    上限が無いと、一度紛れ込んだ比喩・語彙が消えずにその人物・個体が関わる
-    全ての将来の生成へ永久に持ち込まれ続ける(`CHARACTER_NOTE_LIMIT` の
-    コメント参照)。先頭の一段(基礎説明)は常に残し、追記は直近
-    `CHARACTER_NOTE_LIMIT - 1` 件までに切り詰める。人物と個体で同じ上限・
-    同じ区切りを使う。
-    """
+    """人物・個体の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す(先頭の一段は常に残す)。"""
     if not record.text:
         record.text = note
         return
@@ -198,15 +168,7 @@ def _current_object_place_id(session: Session, obj: Object, time: Stamp) -> int 
 def _group_by_place(
     session: Session, time: Stamp,
 ) -> dict[int, tuple[list[Character], list[Object]]]:
-    """**その時点で生きている人物・個体を、いま居る場所ごとにまとめる。**
-
-    居場所の記録(`character_place` / `object_place`)が無いものは、
-    出自の場所(`born_place_id` / `root_place_name`)に居るとみなす
-    (`_current_place_id` `_current_object_place_id` と同じ扱い)。
-
-    **進行中の出来事(`start`〜`end` がこの時点を含む)に関わっている人物は
-    外す。** その人物が次の出来事に移るのは、今の出来事の `end` を過ぎてから。
-    """
+    """その時点で生きている人物・個体を、いま居る場所ごとにまとめる。進行中の出来事に関わる人物は外す。"""
     grouped: dict[int, tuple[list[Character], list[Object]]] = defaultdict(
         lambda: ([], []))
 
@@ -240,19 +202,7 @@ def _reach_objects(
     place_id: int,
     exclude_ids: set[int],
 ) -> list[Object]:
-    """**その場に今いなくても、遠隔から出来事に関与できる個体の候補。**
-
-    `read_cast`(`DEM/claude_interface/story/_rows.py` の `cast`)と同じ
-    「一つ上の圏内」(`common_query.place_up` で一段のぼり、
-    `descendant_place_ids` でその配下をまるごと拾う)を、`_group_by_place`
-    が既に組んだ `grouped` から引く。追加の select は要らない。
-
-    これが無いと、`event_progression_generator` はその場所に**今いる**
-    人物・個体からしか出来事を組み立てられず、IP管理団体・規制当局・
-    競合のような「今はまだこの場に居ない外部の利害関係者」を出来事に
-    巻き込む手段が無い。結果、同じ内輪の顔ぶれだけで「議論して合意する/
-    対立する」を繰り返す一因になる(`EVENT_PROGRESSION_INSTRUCTION`)。
-    """
+    """その場に今いなくても、一つ上の圏内から遠隔で出来事に関与できる個体の候補。追加の select は要らない。"""
     root_id = common_query.place_up(session, place_id, _REACH_LEVELS)
     nearby_ids = common_query.descendant_place_ids(session, root_id)
     found: list[Object] = []
@@ -323,11 +273,8 @@ def _progress_place(
     involved_object_ids = _valid_ids(decided.get("object_ids"), object_ids)
 
     object_found_notes = []
-    # 居合わせる個体にも一つ上の圏内の候補にも噛み合う主体が無いとき、
-    # ローカル AI がこの出来事の中で新しい個体を誕生させてよい
-    # (`_OBJECT_FOUND_INSTRUCTION`)。`random_object_generator.py` と同じ
-    # `_SCALE_INFLUENCE` を使い、プロットの無い場所には生まない
-    # (`IHG/workflow.md`「プロットの無いエリアに個体を増やさない」)。
+    # 噛み合う主体が無いとき、ローカル AI がこの出来事の中で新しい個体を誕生
+    # させてよい。プロットの無い場所には生まない。
     founded_object = decided.get("object_founded")
     if isinstance(founded_object, dict) and founded_object.get("name") and plots:
         scale = founded_object.get("scale")

@@ -1,27 +1,5 @@
 #!/usr/bin/env python3
-"""**ストーリー生成(モード 2)のための問い合わせ。** 下地の実装。
-
-claude はここを直接呼ばない。`DEM/claude_interface/story/` の入口越しに使う。
-
-引く条件は**時刻とレコードの id だけ**で表す(`IHG/workflow.md`)。
-呼ぶ側が SQL を組み立てなくて済むように、モード 2 で要る引き方を
-ここに関数として並べる。
-
-**ここでは `session.execute` / `session.scalars(...).all()` のような
-「実行」をしない。** 関数はどれも `Select` を返すだけにとどめ、実行と
-ORM→dict の変換は呼び出し側(`DEM/claude_interface/`)へ渡す。
-そのために、関連名の解決(旧: 追加クエリで引く `_name()`)は
-select 文に `selectinload` で relationship を積んでおき、呼び出し側が
-`DEM.db.schema_pydantic.to_dict_with` でロード済みの関連から読む形にする。
-
-例外は次の二つだけ:
-
-- `_get` / `get_story`: 存在確認のための単発 `session.get()`。
-  一覧でも関連取得でもないので select にする意味が無い
-- `descendant_place_ids` / `place_path`: 場所の木を親へ・子へとたどる処理。
-  何段あるか分からないので、木を一段ずつ select する小さなループを
-  ここに残す(一発の select では表せない)
-"""
+"""ストーリー生成(モード 2)のための問い合わせ。`DEM/claude_interface/story/` から使う。"""
 from __future__ import annotations
 
 import re
@@ -36,13 +14,8 @@ from DEM.db.schema import (
 )
 from DEM.db.stamp import Stamp, StampError
 
-# `_event_row` 相当(claude_interface 側で使う)の relationship 名。
-# `to_dict_with(event, relations=EVENT_RELATIONS)` で place_name が付く。
-# 掛かる人物・個体(多対多)は `event_characters` `event_objects` から別途組む
-# (`_rows.event_row` を見る)。
 EVENT_RELATIONS = {"place": "place_name"}
 
-# 出来事の select に積んでおく関連。人物・個体は中間テーブル越しに二段でロードする。
 EVENT_LOAD_OPTIONS = (
     selectinload(Event.location),
     selectinload(Event.event_characters).selectinload(EventCharacter.character),
@@ -115,11 +88,7 @@ def latest_time_select() -> Select:
 # ---------------------------------------------------------------- 場所の木
 
 def descendant_place_ids(session: Session, place_id: int) -> list[int]:
-    """その場所と、その配下にぶら下がる場所の id を全部返す。
-
-    何段掘るか分からないので、一発の select では表せない
-    (`query.py` に残す数少ない「実行する」関数の一つ)。
-    """
+    """その場所と、その配下にぶら下がる場所の id を全部返す。何段あるか分からないので一段ずつたどる。"""
     _get(session, Location, place_id, "place_id")
     found = [place_id]
     frontier = [place_id]
@@ -133,11 +102,7 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
 
 
 def place_path(session: Session, place_id: int) -> list[dict]:
-    """その場所までの道筋を、上(世界線)から順に返す。
-
-    何段のぼるか分からないので `descendant_place_ids` と同じ理由で
-    ループのまま残す。
-    """
+    """その場所までの道筋を、上(世界線)から順に返す。"""
     chain: list[dict] = []
     seen: set[int] = set()
     current = session.get(Location, place_id)

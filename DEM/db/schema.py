@@ -199,11 +199,7 @@ class Event(MarkdownBase):
     __tablename__ = "event"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
-    # **旧 `kind`(出来事の種別)は廃止した。** 自由記述だと常駐ループが毎回
-    # 新語を作文して氾濫したため、断面(ReadBrief)で伏せる/伏せないの一点だけ
-    # を持つ `hidden` に絞った。`指標` `関係` のような分類は `name`(例:
-    # 「人口 27400000人」「命令を送る側と、拒めない側」)と `text` の書き方の
-    # 慣例として持つ(IHG/chronicle.md)。
+    # 断面(ReadBrief)に出すかどうかだけを持つ。分類は name/text の書き方で表す。
     hidden: Mapped[bool] = mapped_column(Boolean, default=False, sort_order=210)
     time: Mapped[Stamp] = mapped_column(StampType, index=True, sort_order=220)
 
@@ -213,11 +209,9 @@ class Event(MarkdownBase):
         Integer, ForeignKey("location.id"), index=True, sort_order=240)
     location: Mapped[Location | None] = relationship(lazy="noload")
 
-    # **行動もここに入る。** 人物・個体の行動は別表を持たない。
-    # 誰の行動かは `event_character` `event_object`(中間テーブル)が持つ。
-    # 掛かり先の出来事は `parent_event_id`。どちらも空なら、
-    # 誰の行動でもない「ただ起きたこと」。人物・個体は**それぞれ何人・何個体でも**
-    # 掛かれる(多対多)
+    # 行動もここに入る(人物・個体の行動に別表は無い)。誰の行動かは
+    # event_character/event_object(中間テーブル、多対多)が持つ。どちらも空なら
+    # 誰の行動でもない「ただ起きたこと」。
     event_characters: Mapped[list["EventCharacter"]] = relationship(
         back_populates="event", lazy="noload", cascade="all, delete-orphan")
     event_objects: Mapped[list["EventObject"]] = relationship(
@@ -259,13 +253,7 @@ class EventObject(Base):
 
 
 class Plot(MarkdownBase):
-    """**その場所の出来事生成に指示したい筋書き。**
-
-    `event_progression_generator` が場所ごとに出来事を1件決めるとき、
-    プロットを渡さないまま生成を続けると間延びした展開ばかりになる。
-    ここに置いた筋書きを、その場所向けのプロンプトに渡して方向づけに使う。
-    `location_id` が無ければ場所を問わず渡る筋書き(世界全体に関わるもの)。
-    """
+    """その場所の出来事生成に指示したい筋書き。`location_id` が無ければ場所を問わず渡る。"""
 
     __tablename__ = "plot"
 

@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""JSON で受け取った人物を一件、db へ確定する、claude が呼ぶ入口。
-
-`CreateRandomCharacter` が返した辞書を claude が文脈に合わせて書き換えた
-ものを受け取る想定。db に触れるのはこのモジュールだけ——
-`create_random_character` 側は一切 db を見ない。
-
-実在レコードを指す欄(`root_place_name` `born_place_id` `belong_id`)は、
-渡された id が db に実在するかをここで確かめてから書き込む。スキーマに無い欄が
-混じっていたら(`DEM/db/schema.py` の `Character` の列と照らして)そこで止める。
-
-`born_place_id` を持つ場合は、その場所に出自を持つ人物が既に
-`world_createion_query.MAX_PER_LOCATION`(10)件あれば止める。
-また、`start`〜`end` が `born_place_id` の場所の `start`〜`end` に収まって
-いるか(その場所がまだ無い時刻・既に終わった時刻に生まれていないか)も確かめる。
-さらに、その場所(か祖先、か場所を問わない筋書き)にプロットが一件も無ければ
-止める(`world_createion_query.check_has_plot`)。プロットの無いエリアに
-展開の当てが無いまま人物だけが増えるのを防ぐ。
-"""
+"""人物を一件、db へ確定する、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
@@ -26,12 +9,6 @@ from DEM.db.schema_pydantic import to_dict
 
 
 class CommitCharacter(CommitDraft):
-    """人物を一件、db へ確定して、格納後の中身を辞書で返す。
-
-    `character` は JSON 文字列でも辞書でもよい。`id` キーは無視する
-    (採番は db に任せる)。
-    """
-
     model = Character
 
     def __init__(self, character: str | dict):

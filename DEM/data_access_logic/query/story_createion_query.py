@@ -1,38 +1,18 @@
 from DEM.data_access_logic.query.base import *
 
 
-def load_location_plot(
-    s: Session,
-    location_id: int,
-    time: Stamp
-):
-    location_ids = []
-    check_location = s.scalar(
-        select(Location).where(Location.id == location_id)
-    )
-    if check_location is None:
+def load_location_plot(s: Session, location_id: int, time: Stamp):
+    location = s.get(Location, location_id)
+    if location is None:
         raise ValueError()
 
-    location_ids.append(check_location.id)
-    while True:
-        next_location = s.scalar(
-            select(Location).where(Location.id == check_location.parent_id)
-        )
-        if next_location is None:
+    location_ids = [location.id]
+    while location.parent_id is not None:
+        location = s.get(Location, location.parent_id)
+        if location is None:
             break
-        location_ids.append(next_location.id)
-        if next_location.parent_id is None:
-            break
+        location_ids.append(location.id)
 
-        check_location = next_location
-
-    plots = s.scalars(
-        select(
-            Plot
-        )
-        .where(
-            Plot.location_id.in_(location_ids),
-            plot_time_condition(time),
-        )
+    return s.scalars(
+        select(Plot).where(Plot.location_id.in_(location_ids), plot_time_condition(time))
     ).all()
-    return plots

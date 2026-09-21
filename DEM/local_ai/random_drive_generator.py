@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""**人物の情動(`CharacterDrive`)の下書きを、ローカルAI(`ai_client`)にまとめて量産させる。**
-
-`DEM/local_ai/time_keepr/` の常駐系とは違い、呼び出し側が渡す `prompt`
-(どんな情動を量産したいか)と `count`(何件欲しいか)だけを受け取り、
-db には一切触れず辞書のリストを返すだけの量産系。
-
-ここで量産するのは、特定の人物に紐づかない汎用の情動テンプレ
-(`text` `level` だけの辞書)。`CharacterDrive.character_id` は必須列だが、
-どの人物に割り当てるかは呼び出し側(`DEM/claude_interface/randomizer/
-commit_character_drive.CommitCharacterDrive`)が確定する直前に決める
-——ここでは埋めない。
-"""
+"""人物の情動(`CharacterDrive`)の下書きを、ローカル AI にまとめて量産する。db には触れない。"""
 from __future__ import annotations
 
 import random
@@ -38,13 +27,7 @@ def _default_drive(rng: random.Random, n: int) -> dict:
 
 
 def generate_random(prompt: str, count: int) -> list[dict]:
-    """`prompt` のお題に沿う情動の下書きを `count` 件、辞書のリストで返す。
-
-    db には一切触れない。`character_id` はここでは埋めない
-    (呼び出し側が `commit_character_drive` に渡す直前に決める)。
-    一件ごとにローカルAIへ問い合わせ、応答が使えなかった件はそれらしい
-    既定値のまま返す(`ai_client.try_generate_json` の流儀に合わせる)。
-    """
+    """`prompt` のお題に沿う情動の下書きを `count` 件、辞書のリストで返す。応答が使えなかった件は既定値のまま返す。"""
     results: list[dict] = []
     for n in range(1, count + 1):
         seed = random.randrange(10 ** 9)

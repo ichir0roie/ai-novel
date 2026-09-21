@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""**話を一件、db へ確定する**、claude が呼ぶ入口(モード 2-4)。
-
-本文は claude が書くので「作る」側の入口は無い。ここが db に触れる側。
-同じ作品の同じ話数が既にあれば、その行を書き換える(話数を二重に作らない)。
-
-字数(`letters`)は本文から数えて入れる。`synced` は**必ず下りた状態で入る**——
-その話で起きたことを台帳へ戻すのはモード 3 の仕事で、戻し終えてから
-`set_episode_synced` で立てる。
+"""話を一件、db へ確定する、claude が呼ぶ入口。同じ作品の同じ話数があれば上書きする。
 
     CommitEpisode({"story_id": 1, "number": 6, "title": "…", "text": "…"}).run()
 """
@@ -20,8 +13,6 @@ from DEM.db.schema_pydantic import to_dict
 
 
 class CommitEpisode(StoryCommit):
-    """話を一件、db へ確定して、格納後の中身を辞書で返す。"""
-
     model = Episode
 
     def __init__(self, episode: str | dict):

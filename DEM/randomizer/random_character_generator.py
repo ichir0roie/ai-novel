@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""factory_boy でランダムな人物(Character)一件分の下書きを**辞書**として組む。
-
-https://factoryboy.readthedocs.io/en/stable/reference.html#factory.DictFactory
-
-db には一切触れない。`DEM.db.schema.Character` にも依存しない
-(列名を合わせているだけで、import はしていない)。固有名詞(名前・読み)や
-本文(text)は仮の値で埋めるだけにとどめる。実在レコードを指す欄
-(`root_place_name` `born_place_id` `belong_id`)もここでは
-埋めない——存在確認や db への書き込みは呼び出し側
-(`DEM.claude_interface.randomizer.commit_character`)の仕事。
-"""
+"""ランダムな人物(Character)一件分の下書きを辞書として組む。db には触れない。"""
 from __future__ import annotations
 
 import factory
@@ -26,8 +16,6 @@ _PERSONALITY_RANGE = (-5, 5)
 
 
 class CharacterFactory(factory.DictFactory):
-    """人物レコード一件分の下書きを、db に触れずに辞書として組む。"""
-
     class Meta:
         # `build` は Character の列名(体格)と `Factory.build()` が衝突するので、
         # 下の `build_` で宣言して辞書の `build` キーへ流し込む。
@@ -70,5 +58,4 @@ class CharacterFactory(factory.DictFactory):
 
 
 def build_character(**overrides) -> dict:
-    """`CharacterFactory.build` の薄いラッパー。db には一切触れない。"""
     return CharacterFactory.build(**overrides)

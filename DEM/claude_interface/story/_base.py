@@ -6,8 +6,8 @@ from DEM.claude_interface._base import CommitEntrypoint, SessionEntrypoint
 
 
 class StoryQuery(SessionEntrypoint):
-    """モード 2 の材料を読む入口の基底。db には書き込まない。"""
+    pass
 
 
 class StoryCommit(CommitEntrypoint):
-    """話(episode)を db へ確定する系の基底。"""
+    pass

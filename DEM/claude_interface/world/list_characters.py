@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""**人物の一覧**を出す、claude が呼ぶ入口。
-
-既存の人物を db 横断で見渡すのに使う(id 一件を時刻付きで読むのは
-`story.read_character.ReadCharacter` の仕事)。情動を持つかどうかも
-一緒に返すので、まだ付与していない人物を拾い出すのに使える。db には
-書き込まない。能力・特徴は `text` に文章で書かれている。
-"""
+"""人物の一覧を出す、claude が呼ぶ入口。情動を持つかどうかも返す。"""
 from __future__ import annotations
 
 from DEM.claude_interface.world._base import WorldQuery
@@ -13,8 +7,6 @@ from DEM.data_access_logic.query import common_query
 
 
 class ListCharacters(WorldQuery):
-    """人物を一覧で返す。"""
-
     def select(self):
         return common_query.characters_select()
 

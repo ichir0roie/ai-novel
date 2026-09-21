@@ -30,11 +30,7 @@ def next_day(time: Stamp) -> Stamp:
 
 
 def add_days(time: Stamp, days: int) -> Stamp:
-    """時刻を `days` 日ぶん進める。`next_day` を `days` 回繰り返すだけの素朴な
-    実装(`Stamp` は年に上限が無く、大きい年でも月日の繰り上がりを安全に
-    済ませるには、これが一番間違えにくい)。出来事の `end`(進行中と見なす
-    幅)を `start` から日数で組み立てるのに使う。
-    """
+    """時刻を `days` 日ぶん進める。`next_day` を `days` 回繰り返すだけの素朴な実装。"""
     result = time
     for _ in range(max(days, 0)):
         result = next_day(result)
