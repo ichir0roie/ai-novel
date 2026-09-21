@@ -17,7 +17,9 @@ from DEM.ai_instructions.event_writing import (
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
     RECENT_EVENT_LIMIT,
 )
-from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import (
+    NAME_PLACEHOLDER, PLACE_NAMING_INSTRUCTION, fill_name_placeholder,
+)
 from DEM.ai_instructions.plot_writing import (
     CHARACTER_PLOT_INSTRUCTION, PLOT_PACING_INSTRUCTION, plot_span_instruction,
 )
@@ -46,7 +48,8 @@ _PLOT_TEXT_INSTRUCTION = (
     "text はその人物の信念・思考の核になる情報として扱う。日常の細かな"
     "出来事では character_plots 自体を空リストのままにし、信念・立場が"
     "大きく動いたときだけ書く。書くときは一文で済ませず、"
-    + CHARACTER_PLOT_INSTRUCTION
+    + CHARACTER_PLOT_INSTRUCTION +
+    f"この人物自身を指すときは名前を書かず、必ず「{NAME_PLACEHOLDER}」とだけ書く。"
 )
 
 _INVOLVEMENT_INSTRUCTION = (
@@ -68,50 +71,6 @@ _LOCATION_CHANGE_INSTRUCTION = (
     "location_founded の固有名詞は次の基準で名づける。"
     + PLACE_NAMING_INSTRUCTION
 )
-
-_TYPO_CHECK_SYSTEM_PROMPT = (
-    "あなたは、生成された出来事の記録を確認する校正者です。渡す「正しい"
-    "名前の一覧」(character_id を持つ)と、"
-    "出来事の名前・本文を見比べ、本文中に一覧の名前と紛らわしい誤字・"
-    "表記ゆれ(似ているが違う表記、文字の入れ替わり、送り仮名や括弧の"
-    "崩れなど)が無いかを確認してください。見つかったら、一覧にある"
-    "正式な表記に直してください。誤字が無ければ、名前も本文もそのまま"
-    "返す。名前の表記以外(出来事の展開や意味、文体)は書き換えない。"
-    "JSON で答えてください。キーは event_name(直した出来事の名前)、"
-    "event_text(直した出来事の本文)の二つだけ。"
-)
-
-_TYPO_CHECK_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "event_name": {"type": "string"},
-        "event_text": {"type": "string"},
-    },
-    "required": ["event_name", "event_text"],
-    "additionalProperties": False,
-}
-
-
-def _check_typos(
-    event_name: str, event_text: str, characters: list[Character],
-) -> tuple[str, str]:
-    """生成した出来事の名前・本文を、渡した人物・対象の正式名と照らして誤字・表記ゆれが無いか、もう一度ローカルAIに確認させる。"""
-    known_names = [{"character_id": c.id, "name": c.name} for c in characters]
-    if not known_names:
-        return event_name, event_text
-    prompt = (
-        f"正しい名前の一覧: {known_names}\n"
-        f"出来事の名前: {event_name}\n"
-        f"出来事の本文: {event_text}\n"
-        "誤字・表記ゆれが無いか確認し、あれば直してください。"
-    )
-    checked = ai_client.try_generate_json(
-        prompt, _TYPO_CHECK_SCHEMA, system=_TYPO_CHECK_SYSTEM_PROMPT)
-    return (
-        checked.get("event_name") or event_name,
-        checked.get("event_text") or event_text,
-    )
-
 
 _JUDGEMENT_KEYS = ("thought", "emotion", "wish", "fear", "action")
 
@@ -529,8 +488,8 @@ def _progress_place(
     if not decided.get("event_name"):
         return None
 
-    event_name, event_text = _check_typos(
-        decided["event_name"], decided.get("event_text") or "", characters)
+    event_name = decided["event_name"]
+    event_text = decided.get("event_text") or ""
 
     character_ids = {c.id: c for c in characters}
 
@@ -611,6 +570,7 @@ def _progress_place(
         text = item.get("text")
         if character_id not in character_ids or not text:
             continue
+        text = fill_name_placeholder(text, character_ids[character_id].name)
         plot_end = Stamp(time.year + plot_years, time.month, time.day)
         session.add(CharacterPlot(character_id=character_id, text=text, start=time, end=plot_end))
         plot_notes.append(f"{character_ids[character_id].name}({plot_years}年、〜{format_time(plot_end)}): {text}")
@@ -628,8 +588,9 @@ def _progress_place(
             continue
         applied = []
         if update.get("text"):
-            _append_note(character, update["text"])
-            applied.append(f"text+={update['text']}")
+            note = fill_name_placeholder(update["text"], character.name)
+            _append_note(character, note)
+            applied.append(f"text+={note}")
         if applied:
             update_notes.append(f"{character.name}: {', '.join(applied)}")
 

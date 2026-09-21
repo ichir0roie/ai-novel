@@ -64,12 +64,14 @@ def _kill(
         "この人物の最期を1件、決めてください。"
     )
     decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_DEATH_SYSTEM_PROMPT)
+    event_name = decided.get("event_name") or f"{character.name}の死({cause})"
+    event_text = decided.get("event_text") or ""
 
     character.end = time
 
     record = Event(
-        name=decided.get("event_name") or f"{character.name}の死({cause})",
-        text=decided.get("event_text") or "",
+        name=event_name,
+        text=event_text,
         time=time,
         location_id=place_id,
         start=time,
