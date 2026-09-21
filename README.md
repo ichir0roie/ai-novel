@@ -35,6 +35,7 @@ DEM/
   data_access_logic/  引き方(Select の組み立て)。SQL 文字列は組まない
   randomizer/         db に触れない下書き作り(factory)と乱数
   local_ai/           ローカル AI。常駐ループ(time_keeper/)が世界を進める
+  claude_ai/          同じループを Claude Code(`claude -p`)で回す側。本文(episode)もここが書く
   tool/               md への書き出し・読み戻し、危険操作
 ```
 
