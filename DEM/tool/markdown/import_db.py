@@ -7,6 +7,11 @@
 無ければ新規に作る。`text` は `# text` 見出し以降の本文をそのまま使う。
 `Stamp` 型の列は `y/mm/dd HH:MM:SS` 形式の文字列として読み、`Stamp.parse`
 で戻す。
+
+作者が手で置いた素の md(`export_db` 形式に従っていないもの)も新規レコード
+として取り込む。ファイル名に `_` が無ければ、`id` 無しでファイル名の
+拡張子抜きの部分をそのまま `tag` にする。本文に `# data` ブロックが無ければ
+列はすべて空のまま、ファイル全体をそのまま `text` として扱う。
 """
 from __future__ import annotations
 
@@ -43,7 +48,7 @@ def _markdown_models() -> dict[str, type]:
 def _parse(content: str, path: str) -> tuple[dict, str]:
     data_match = _DATA_RE.search(content)
     if not data_match:
-        raise ImportDbError(f"{path}: `# data` の json ブロックが見つからない")
+        return {}, content.rstrip("\n")
     data = json.loads(data_match.group(1))
     text_match = _TEXT_RE.search(content)
     text = text_match.group(1).rstrip("\n") if text_match else ""
@@ -81,7 +86,9 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                     content = f.read()
 
                 stem = filename[: -len(".md")]
-                id_part, _, tag_part = stem.partition("_")
+                id_part, sep, tag_part = stem.partition("_")
+                if not (sep and id_part.isdigit()):
+                    id_part, tag_part = "", stem
                 row_id = int(id_part) if id_part else None
 
                 data, text = _parse(content, path)
