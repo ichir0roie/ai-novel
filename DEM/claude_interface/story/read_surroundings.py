@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""人物一人を軸に、その時刻・その居場所の周辺(居合わせる人物・個体、直近の出来事)を読む、claude が呼ぶ入口。"""
+"""人物一人を軸に、その時刻・その居場所の周辺(居合わせる人物、直近の出来事)を読む、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from DEM.claude_interface.story import _rows
@@ -9,7 +9,7 @@ from DEM.db.schema_pydantic import to_dict_with
 
 
 class ReadSurroundings(StoryQuery):
-    """その人物の周辺の人物・個体・出来事を辞書で返す。"""
+    """その人物の周辺の人物・出来事を辞書で返す。"""
 
     def __init__(self, character_id: int, time, reach: int = 60):
         if time is None:
@@ -20,13 +20,12 @@ class ReadSurroundings(StoryQuery):
 
     def execute(self, session) -> dict:
         _, until = common_query.span(self.time)
-        characters, objects, events = character_simulation_query.character_around_event(
+        characters, events = character_simulation_query.character_around_event(
             session, int(self.character_id), until, reach=int(self.reach))
         return {
             "character_id": int(self.character_id),
             "time": str(until),
             "reach": int(self.reach),
             "characters": [to_dict_with(c, text=False) for c in characters],
-            "objects": [to_dict_with(o, text=False) for o in objects],
             "events": [_rows.event_row(e) for e in events],
         }

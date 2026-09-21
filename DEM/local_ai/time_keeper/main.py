@@ -19,7 +19,6 @@ from DEM.local_ai.time_keeper import (
     event_progression_generator,
     random_character_generator,
     random_location_generator,
-    random_object_generator,
 )
 from DEM.local_ai.time_keeper._format import format_time, next_day
 
@@ -71,7 +70,6 @@ def time_process(
     # random_location_generator.generate_random(s, time)
 
     random_character_generator.generate_random(s, time)
-    random_object_generator.generate_random(s, time)
 
     event_progression_generator.generate_random(s, time)
 

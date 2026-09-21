@@ -6,20 +6,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from DEM.data_access_logic.query import common_query
-from DEM.db.schema import Character, Event, Location, Object, Story
+from DEM.db.schema import Character, Event, Location, Story
 from DEM.db.schema_pydantic import to_dict_with
 from DEM.db.stamp import Stamp
 
 
 def event_row(event, *, text: bool = True) -> dict:
-    """出来事一件を辞書にする。掛かる人物・個体は**何人・何個体でも**並ぶ。"""
+    """出来事一件を辞書にする。掛かる人物は**何人でも**並ぶ。"""
     data = to_dict_with(event, relations=common_query.EVENT_RELATIONS, text=text)
     data["characters"] = [
         {"id": link.character_id, "name": None if link.character is None else link.character.name}
         for link in event.event_characters]
-    data["objects"] = [
-        {"id": link.object_id, "name": None if link.object is None else link.object.name}
-        for link in event.event_objects]
     return data
 
 
@@ -42,14 +39,11 @@ def open_events(session: Session, place_ids, until: Stamp) -> list[dict]:
     return [event_row(row) for row in rows]
 
 
-def residents(session: Session, place_ids, until: Stamp) -> tuple[list[int], list[int]]:
-    """その時点でその場所(群)に居る人物と個体の id。"""
+def residents(session: Session, place_ids, until: Stamp) -> list[int]:
+    """その時点でその場所(群)に居る人物の id。"""
     character_ids = session.scalars(
         common_query.resident_character_ids_select(place_ids, until)).all()
-    object_ids = session.scalars(
-        common_query.resident_object_ids_select(place_ids, until)).all()
-    return ([id_ for id_ in character_ids if id_ is not None],
-            [id_ for id_ in object_ids if id_ is not None])
+    return [id_ for id_ in character_ids if id_ is not None]
 
 
 def _place_at(session: Session, select_fn, owner_id: int, until: Stamp) -> dict | None:
@@ -69,29 +63,13 @@ def character_sheet(session: Session, character_id: int, *, until=None,
         raise common_query.NotFoundError(f"character_id={character_id} という id の character が見つからない")
     at = common_query.span(until)[1] if until is not None else Stamp(99999, 12, 31, 23, 59, 59)
 
-    sheet = to_dict_with(character, relations={
-        "kind": "kind_name", "belong": "belong_name"},
-        text=text)
+    sheet = to_dict_with(character, text=text)
     sheet["place"] = _place_at(session, common_query.character_place_select, character_id, at)
     sheet["plots"] = [to_dict_with(row) for row in
                       session.scalars(common_query.character_plots_at_select(character_id, at)).all()]
     sheet["recent_events"] = events_of(
         session, character_id, until=None if until is None else at,
         limit=count, text=text)
-    return sheet
-
-
-def object_sheet(session: Session, object_id: int, *, until=None,
-                 count: int = 5, text: bool = True) -> dict:
-    """個体(群)一件。人物と同じ形でそろえる。"""
-    obj = session.scalars(common_query.object_select(object_id)).first()
-    if obj is None:
-        raise common_query.NotFoundError(f"object_id={object_id} という id の object が見つからない")
-    at = common_query.span(until)[1] if until is not None else Stamp(99999, 12, 31, 23, 59, 59)
-
-    sheet = to_dict_with(obj, relations={"kind": "kind_name"}, text=text)
-    sheet["place"] = _place_at(session, common_query.object_place_select, object_id, at)
-    sheet["recent_events"] = events_of(session, object_id, until=at, limit=count, text=text)
     return sheet
 
 
@@ -154,11 +132,10 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
                     .order_by(Event.time.desc(), Event.id.desc()))
     recent = [event_row(row) for row in session.scalars(recent_query).all()]
 
-    character_ids, object_ids = residents(session, place_ids, until)
+    character_ids = residents(session, place_ids, until)
     terms = session.scalars(common_query.terms_select(place_ids)).all()
 
     character_names = _names_for(session, character_ids, "Character")
-    object_names = _names_for(session, object_ids, "Object")
 
     return {
         "place": to_dict_with(location),
@@ -171,12 +148,10 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
                    "text": term.text} for term in terms],
         "present_characters": [
             {"id": id_, "name": character_names.get(id_)} for id_ in character_ids],
-        "present_objects": [
-            {"id": id_, "name": object_names.get(id_)} for id_ in object_ids],
     }
 
 
-_NAME_MODELS = {"Character": Character, "Object": Object, "Location": Location}
+_NAME_MODELS = {"Character": Character, "Location": Location}
 
 
 def _names_for(session: Session, ids: list[int], model_name: str) -> dict[int, str | None]:
@@ -190,14 +165,14 @@ def _names_for(session: Session, ids: list[int], model_name: str) -> dict[int, s
 
 def cast(session: Session, story_id: int, when=None, *, count: int = 5,
          levels: int = 1) -> dict:
-    """その話に出せる顔ぶれ。場所から `levels` 段のぼった配下に居る人物・個体を集める。"""
+    """その話に出せる顔ぶれ。場所から `levels` 段のぼった配下に居る人物を集める。"""
     story = common_query._get(session, Story, story_id, "story_id")
     if story.place_id is None:
         raise ValueError(f"作品 {story.name} に立つ場所(place_id)が無い")
     _, until = common_query.resolve_time(session, when, story)
     root_id = common_query.place_up(session, story.place_id, levels)
     place_ids = common_query.descendant_place_ids(session, root_id)
-    character_ids, object_ids = residents(session, place_ids, until)
+    character_ids = residents(session, place_ids, until)
     return {
         "story": {"id": story.id, "name": story.name},
         "time": str(until),
@@ -206,7 +181,4 @@ def cast(session: Session, story_id: int, when=None, *, count: int = 5,
         "characters": [
             character_sheet(session, id_, until=until, count=count, text=False)
             for id_ in character_ids],
-        "objects": [
-            object_sheet(session, id_, until=until, count=count, text=False)
-            for id_ in object_ids],
     }

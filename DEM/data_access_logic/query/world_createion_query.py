@@ -6,11 +6,11 @@ from sqlalchemy import Select, and_, func, or_, select
 
 from DEM.data_access_logic.query import common_query
 from DEM.data_access_logic.query.base import (
-    character_time_condition, object_time_condition, plot_time_condition,
+    character_time_condition, plot_time_condition,
 )
 from DEM.db.schema import (
-    Character, CharacterPlace, Event, EventCharacter, Location, Object,
-    ObjectPlace, Plot, Session, Stamp,
+    Character, CharacterPlace, Event, EventCharacter, Location,
+    Plot, Session, Stamp,
 )
 
 
@@ -18,12 +18,6 @@ def character_count_at_place_select(place_id: int, stamp: Stamp) -> Select:
     """その場所に、`stamp` の時点で居る人物の数(`CharacterPlace`。`start <= stamp < end`)。"""
     return (select(func.count(CharacterPlace.character_id.distinct()))
             .where(CharacterPlace.location_id == place_id, character_time_condition(stamp)))
-
-
-def object_count_at_place_select(place_id: int, stamp: Stamp) -> Select:
-    """その場所に、`stamp` の時点で居る個体(群)の数(`ObjectPlace`。`start <= stamp < end`)。"""
-    return (select(func.count(ObjectPlace.object_id.distinct()))
-            .where(ObjectPlace.location_id == place_id, object_time_condition(stamp)))
 
 
 def siblings_area_sum_select(parent_id: int) -> Select:
@@ -61,13 +55,6 @@ def alive_characters_select(time) -> Select:
                    or_(Character.end.is_(None), Character.end > time)))
 
 
-def alive_objects_select(time) -> Select:
-    """時刻 `time` にまだ存在している個体(群)だけ(`start` 以後・`end` より前)。"""
-    return (select(Object)
-            .where(or_(Object.start.is_(None), Object.start <= time),
-                   or_(Object.end.is_(None), Object.end > time)))
-
-
 def active_plot_count_select(time) -> Select:
     """時刻 `time` をカバーしている筋書き(`Plot`)の件数(`location_id` は問わない)。"""
     return (select(func.count(Plot.id))
@@ -76,7 +63,7 @@ def active_plot_count_select(time) -> Select:
 
 
 def check_within_parent_span(parent: Location, child_start, child_end, label: str) -> None:
-    """子(人物・個体・場所)の `start`〜`end` が、親の場所の `start`〜`end` に収まっているか確かめる。"""
+    """子(人物・場所)の `start`〜`end` が、親の場所の `start`〜`end` に収まっているか確かめる。"""
     if parent.start is not None:
         if child_start is not None and child_start < parent.start:
             raise ValueError(

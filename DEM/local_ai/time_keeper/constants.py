@@ -19,13 +19,10 @@ CHARACTER_PROBABILITY = 0.1  # 1月に1度、必ず一人
 # 過去に生まれたことにする(NATURAL_DEATH_MIN_AGE の50歳より十分若い範囲に
 # 収め、生成直後に老衰死しないようにする)。
 CHARACTER_AGE_RANGE = (0, 40)
-
-# random_location_generator
-LOCATION_PROBABILITY = 0.01  # 1年に1度、1%の確率で
-
-# random_object_generator
-OBJECT_PROBABILITY = 1.0  # 1年に1度、必ず一つ
-# AI に選ばせる「どこまで届く群か」と、それを落とす world_influence の値。
+# 生成する一件が人物以外の対象(国・組織など)になる確率。当たったら種別は AI に選ばせる。
+NON_PERSON_PROBABILITY = 0.3
+NON_PERSON_KINDS = ("国", "組織", "商会", "氏族", "集団", "物")
+# 人物以外の対象に AI へ選ばせる「どこまで届くか」と、それを落とす world_influence の値。
 # 数そのものを AI に決めさせない(尺度が決まっていないため)。
 SCALE_INFLUENCE = {
     "集落内": 0,
@@ -35,12 +32,14 @@ SCALE_INFLUENCE = {
 }
 DEFAULT_SCALE = "地域"
 
+# random_location_generator
+LOCATION_PROBABILITY = 0.01  # 1年に1度、1%の確率で
+
 # event_progression_generator
 PLACE_PROBABILITY = 0.75
-# 遠隔候補(_reach_objects)をどこまで拾うか。read_cast の既定
+# 移動先候補(_move_destinations)をどこまで拾うか。read_cast の既定
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
 REACH_LEVELS = 1
-REACH_OBJECT_LIMIT = 10
 MOVE_DESTINATION_LIMIT = 20
 # event_duration_days の取りうる範囲。範囲外の値は丸める。
 EVENT_DURATION_RANGE_DAYS = (1, 90)
@@ -55,5 +54,4 @@ TRAIT_COLUMNS = (
 )
 
 
-MAX_OBJECTS_PER_LOCATION = 3
 MAX_CHARACTER_PLOT_PER_LOCATION = 5

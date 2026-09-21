@@ -13,8 +13,8 @@ class ListCharacters(WorldQuery):
     def row(self, row) -> dict:
         place = row.places[0] if row.places else None
         return {
-            "id": row.id, "name": row.name, "text": row.text,
+            "id": row.id, "name": row.name, "kind": row.kind, "text": row.text,
             "sex": row.sex, "tone": row.tone,
-            "place_id": place.location_id if place else None, "belong_id": row.belong_id,
+            "place_id": place.location_id if place else None,
             "plot_count": len(row.plots),
         }

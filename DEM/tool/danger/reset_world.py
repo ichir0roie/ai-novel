@@ -5,9 +5,6 @@ from DEM.db.schema import *
 delete_tables = [
     Event,
     EventCharacter,
-    EventObject,
-    Object,
-    ObjectPlace,
     Character,
     CharacterPlace,
     CharacterPlot,

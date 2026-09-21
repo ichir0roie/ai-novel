@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""場所・時刻ごとに、その場に居合わせる人物・個体(`Object` も含む)を巻き込んだ出来事を起こす。
+"""場所・時刻ごとに、その場に居合わせる人物・対象(`Character`。人物以外の国・組織なども含む)を巻き込んだ出来事を起こす。
 
 出来事には `start`〜`end`(進行中と見なす幅)を持たせ、進行中の人物は次の出来事の対象にしない。
-候補は居合わせるものに加え、一つ上の圏内の個体(`_reach_objects`)や、新規に誕生する個体も含める。
 """
 from __future__ import annotations
 
@@ -14,22 +13,21 @@ from DEM.ai_instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
-    OBJECT_TEXT_UPDATE_INSTRUCTION, RECENT_EVENT_LIMIT,
+    RECENT_EVENT_LIMIT,
 )
-from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION, TERM_NAMING_INSTRUCTION
+from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
 from DEM.db.schema import (
     Character, CharacterPlace, CharacterPlot, Event, EventCharacter,
-    EventObject, Location, Object, ObjectPlace, Session, Stamp,
+    Location, Session, Stamp,
 )
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import add_days, format_time
 from DEM.randomizer.random_location_generator import build_location
-from DEM.randomizer.random_object_generator import build_object
 
 _EVENT_TEXT_INSTRUCTION = (
     "選ばれた出来事の候補(name と summary)を、当事者ごとの思考・感情・"
@@ -45,10 +43,8 @@ _PLOT_TEXT_INSTRUCTION = (
 )
 
 _INVOLVEMENT_INSTRUCTION = (
-    "関わった人物・個体があれば、その id を渡した一覧の中からだけ選んで "
-    "character_ids / object_ids に入れる(複数可)。object_ids には、"
-    "居合わせる個体だけでなく「一つ上の圏内の個体」の中から遠隔で"
-    "働きかけてきた候補を選んでもよい。"
+    "関わった人物・対象があれば、その id を渡した一覧の中からだけ選んで "
+    "character_ids に入れる(複数可)。"
 )
 
 _CHARACTER_MOVE_INSTRUCTION = (
@@ -56,24 +52,6 @@ _CHARACTER_MOVE_INSTRUCTION = (
     "(旅立ち・移住・避難・帰還など)。各要素は character_id(渡した"
     "「居合わせる人物」の id)と location_id(渡した「移動先の候補」の id)の"
     "二つ。誰も動いていなければ空リストにする。"
-)
-
-_OBJECT_FOUND_INSTRUCTION = (
-    "居合わせる個体にも一つ上の圏内の候補にも、この出来事を起こすのに"
-    "ふさわしい主体が見当たらないときに限り、object_founded を埋めて"
-    "新しい個体(国・組織・商会・氏族・徒党など)をこの出来事の中で誕生"
-    "させてよい。埋めるなら {name, read, text, scale}(name は固有名詞、"
-    "read は読み、text はこの個体が何であって、何を決められて誰に対して"
-    "力を持つのかが伝わる説明、scale はこの個体の力がどこまで届くか。"
-    + " / ".join(constants.SCALE_INFLUENCE) + " のいずれか一つ)。既にある個体・"
-    "候補で足りるなら object_founded は null のままにする。"
-    + TERM_NAMING_INSTRUCTION
-)
-
-_CHARACTER_UPDATE_INSTRUCTION = (
-    CHARACTER_TEXT_UPDATE_INSTRUCTION + "belong_id はその人物の"
-    "所属がこの出来事で変わったときだけ、渡した「居合わせる個体」の id から"
-    "選ぶ(変わっていなければキー自体を省く)。"
 )
 
 _LOCATION_CHANGE_INSTRUCTION = (
@@ -86,7 +64,7 @@ _LOCATION_CHANGE_INSTRUCTION = (
 
 _TYPO_CHECK_SYSTEM_PROMPT = (
     "あなたは、生成された出来事の記録を確認する校正者です。渡す「正しい"
-    "名前の一覧」(人物は character_id、個体は object_id を持つ)と、"
+    "名前の一覧」(character_id を持つ)と、"
     "出来事の名前・本文を見比べ、本文中に一覧の名前と紛らわしい誤字・"
     "表記ゆれ(似ているが違う表記、文字の入れ替わり、送り仮名や括弧の"
     "崩れなど)が無いかを確認してください。見つかったら、一覧にある"
@@ -108,15 +86,10 @@ _TYPO_CHECK_SCHEMA = {
 
 
 def _check_typos(
-    event_name: str, event_text: str,
-    characters: list[Character], objects: list[Object], reach_objects: list[Object],
+    event_name: str, event_text: str, characters: list[Character],
 ) -> tuple[str, str]:
-    """生成した出来事の名前・本文を、渡した人物・個体の正式名と照らして誤字・表記ゆれが無いか、もう一度ローカルAIに確認させる。"""
-    known_names = (
-        [{"character_id": c.id, "name": c.name} for c in characters]
-        + [{"object_id": o.id, "name": o.name} for o in objects]
-        + [{"object_id": o.id, "name": o.name} for o in reach_objects]
-    )
+    """生成した出来事の名前・本文を、渡した人物・対象の正式名と照らして誤字・表記ゆれが無いか、もう一度ローカルAIに確認させる。"""
+    known_names = [{"character_id": c.id, "name": c.name} for c in characters]
     if not known_names:
         return event_name, event_text
     prompt = (
@@ -136,11 +109,11 @@ def _check_typos(
 _JUDGEMENT_KEYS = ("thought", "emotion", "wish", "fear", "action")
 
 _JUDGEMENT_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある一人の人物、または一つの個体"
+    "あなたは架空の世界観の中で、ある一人の人物、または人物以外の一つの対象"
     "(国・組織・集団・物)の立場に立って考える設定作家です。"
     "渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」の"
-    "いまを、その text・口調・性格の数値・立場・世界線への影響度から推測して"
-    "ください。人物なら性格と人間関係から、個体なら方針と力の及ぶ範囲から。"
+    "いまを、その kind・text・口調・性格の数値・立場・世界線への影響度から推測して"
+    "ください。人物なら性格と人間関係から、人物以外なら方針と力の及ぶ範囲から。"
     "他の当事者のことは決めない。この当事者自身のことだけを書く。"
     "JSON で答えてください。キーは thought(思考。いまの状況をどう受け止め、"
     "何を考えているか), emotion(感情。何に対して怒り・喜び・悲しみ・退屈・"
@@ -159,7 +132,7 @@ _JUDGEMENT_SCHEMA = {
 
 _CANDIDATE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起こりうる出来事を列挙する"
-    "設定作家です。渡す場所・居合わせる人物と個体・当事者ごとの思考・感情・"
+    "設定作家です。渡す場所・居合わせる人物・対象・当事者ごとの思考・感情・"
     "望み・恐れ・行動・直近の出来事・筋書きを踏まえ、これらの行動が同じ場で"
     "重なった結果として、この時点で起こりうる出来事の候補を"
     f"{constants.CANDIDATE_COUNT}件挙げてください。"
@@ -196,8 +169,8 @@ _CANDIDATE_SCHEMA = {
 
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
-    "その場所自身の情報、そこに居合わせる人物・個体の一覧、一つ上の圏内で"
-    "拠点を持つ個体の候補、その場所の直近の出来事、当事者ごとの思考・感情・"
+    "その場所自身の情報、そこに居合わせる人物・対象の一覧、"
+    "その場所の直近の出来事、当事者ごとの思考・感情・"
     "望み・恐れ・行動、そしてサイコロで選ばれた出来事の候補を渡すので、"
     "その候補をこの場所にこの時点で起きた出来事として1件、記録に起こして"
     "ください。候補の name は event_name にそのまま使うか、整えてもよい。"
@@ -206,38 +179,21 @@ _PLACE_SYSTEM_PROMPT = (
     "JSON で答えてください。キーは "
     "event_name(出来事の名前), event_text(出来事の内容。"
     + _EVENT_TEXT_INSTRUCTION + "), "
-    "character_ids(関わった人物の id のリスト。渡した「居合わせる人物」の "
-    "character_id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
-    "「居合わせる個体」と「一つ上の圏内の個体」の object_id からだけ選ぶ), "
+    "character_ids(関わった人物・対象の id のリスト。渡した「居合わせる人物・対象」の "
+    "character_id からだけ選ぶ), "
     "character_moves(居場所が変わった人物のリスト。各要素は character_id と "
     "location_id), "
     "character_plots(関わった人物のうち、信念・立場が大きく動いた者だけの"
     "リスト。各要素は character_id(対象の人物 id), text("
     + _PLOT_TEXT_INSTRUCTION + ")の二つ), "
-    "character_updates(関わった人物のうち、この出来事で人物レコード自体が"
-    "変わった者だけのリスト。各要素は character_id(対象の人物 id)と、"
-    + _CHARACTER_UPDATE_INSTRUCTION + "), "
-    "object_updates(関わった個体のうち、この出来事で個体レコード自体が"
-    "変わったものだけのリスト。各要素は object_id(対象の個体 id)と、"
-    + OBJECT_TEXT_UPDATE_INSTRUCTION + "), "
-    "object_founded(" + _OBJECT_FOUND_INSTRUCTION + "。無ければ null), "
+    "character_updates(関わった人物・対象のうち、この出来事でレコード自体が"
+    "変わった者だけのリスト。各要素は character_id(対象の id)と、"
+    + CHARACTER_TEXT_UPDATE_INSTRUCTION + "), "
     "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
     "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
     "{name, kind, text, environment}。無ければ null), "
     + _LOCATION_CHANGE_INSTRUCTION + EVENT_DURATION_INSTRUCTION
 )
-
-_OBJECT_FOUND_SCHEMA = {
-    "type": ["object", "null"],
-    "properties": {
-        "name": {"type": "string"},
-        "read": {"type": "string"},
-        "text": {"type": "string"},
-        "scale": {"type": "string", "enum": list(constants.SCALE_INFLUENCE)},
-    },
-    "required": ["name", "read", "text", "scale"],
-    "additionalProperties": False,
-}
 
 _LOCATION_FOUND_SCHEMA = {
     "type": ["object", "null"],
@@ -257,7 +213,6 @@ _PLACE_SCHEMA = {
         "event_name": {"type": "string"},
         "event_text": {"type": "string"},
         "character_ids": {"type": "array", "items": {"type": "integer"}},
-        "object_ids": {"type": "array", "items": {"type": "integer"}},
         "character_moves": {
             "type": "array",
             "items": {
@@ -289,25 +244,11 @@ _PLACE_SCHEMA = {
                 "properties": {
                     "character_id": {"type": "integer"},
                     "text": {"type": "string"},
-                    "belong_id": {"type": ["integer", "null"]},
                 },
                 "required": ["character_id"],
                 "additionalProperties": False,
             },
         },
-        "object_updates": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "object_id": {"type": "integer"},
-                    "text": {"type": "string"},
-                },
-                "required": ["object_id", "text"],
-                "additionalProperties": False,
-            },
-        },
-        "object_founded": _OBJECT_FOUND_SCHEMA,
         "location_abolished": {"type": "boolean"},
         "location_founded": _LOCATION_FOUND_SCHEMA,
         "event_duration_days": {
@@ -317,10 +258,10 @@ _PLACE_SCHEMA = {
         },
     },
     "required": [
-        "event_name", "event_text", "character_ids", "object_ids",
+        "event_name", "event_text", "character_ids",
         "character_moves",
-        "character_plots", "character_updates", "object_updates",
-        "object_founded", "location_abolished", "location_founded",
+        "character_plots", "character_updates",
+        "location_abolished", "location_founded",
         "event_duration_days",
     ],
     "additionalProperties": False,
@@ -332,8 +273,8 @@ def _should_roll(time: Stamp) -> bool:
     return time.day == 1
 
 
-def _append_note(record: Character | Object, note: str) -> None:
-    """人物・個体の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す(先頭の一段は常に残す)。"""
+def _append_note(record: Character, note: str) -> None:
+    """人物の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す(先頭の一段は常に残す)。"""
     if not record.text:
         record.text = note
         return
@@ -349,18 +290,9 @@ def _current_place_id(session: Session, character: Character, time: Stamp) -> in
     return place.location_id if place else None
 
 
-def _current_object_place_id(session: Session, obj: Object, time: Stamp) -> int | None:
-    place = session.scalars(
-        common_query.object_place_select(obj.id, time)).first()
-    return place.location_id if place else None
-
-
-def _group_by_place(
-    session: Session, time: Stamp,
-) -> dict[int, tuple[list[Character], list[Object]]]:
-    """その時点で生きている人物・個体を、いま居る場所ごとにまとめる。進行中の出来事に関わる人物は外す。"""
-    grouped: dict[int, tuple[list[Character], list[Object]]] = defaultdict(
-        lambda: ([], []))
+def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]:
+    """その時点で生きている人物・対象を、いま居る場所ごとにまとめる。進行中の出来事に関わる者は外す。"""
+    grouped: dict[int, list[Character]] = defaultdict(list)
 
     busy_character_ids = set(session.scalars(
         world_createion_query.busy_character_ids_select(time)).all())
@@ -373,41 +305,9 @@ def _group_by_place(
         place_id = _current_place_id(session, character, time)
         if place_id is None:
             continue
-        grouped[place_id][0].append(character)
-
-    objects = session.scalars(
-        world_createion_query.alive_objects_select(time)).all()
-    for obj in objects:
-        place_id = _current_object_place_id(session, obj, time)
-        if place_id is None:
-            continue
-        grouped[place_id][1].append(obj)
+        grouped[place_id].append(character)
 
     return grouped
-
-
-def _reach_objects(
-    session: Session,
-    grouped: dict[int, tuple[list[Character], list[Object]]],
-    place_id: int,
-    exclude_ids: set[int],
-) -> list[Object]:
-    """その場に今いなくても、一つ上の圏内から遠隔で出来事に関与できる個体の候補。追加の select は要らない。"""
-    root_id = common_query.place_up(session, place_id, constants.REACH_LEVELS)
-    nearby_ids = common_query.descendant_place_ids(session, root_id)
-    found: list[Object] = []
-    seen = set(exclude_ids)
-    for nearby_id in nearby_ids:
-        if nearby_id == place_id:
-            continue
-        for obj in grouped.get(nearby_id, ([], []))[1]:
-            if obj.id in seen:
-                continue
-            seen.add(obj.id)
-            found.append(obj)
-            if len(found) >= constants.REACH_OBJECT_LIMIT:
-                return found
-    return found
 
 
 _PLOT_COMPLETION_SYSTEM_PROMPT = (
@@ -451,13 +351,12 @@ def _judge_plot_completed(
     return bool(decided.get("completed"))
 
 
-def _object_recent_event_names(
-    session: Session, object_id: int, time: Stamp,
+def _character_recent_event_names(
+    session: Session, character_id: int, time: Stamp,
 ) -> list[str]:
-    """その個体自身が、場所を問わず関わった直近の出来事の名前。
-    """
+    """その人物・対象自身が、場所を問わず関わった直近の出来事の名前。"""
     events = session.scalars(
-        common_query.events_of_select(object_id, until=time, limit=RECENT_EVENT_LIMIT)
+        common_query.events_of_select(character_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
     return [e.name for e in events]
 
@@ -483,20 +382,13 @@ def _plot_recent_event_names(
 
 
 def _think_participants(
-    situation: str,
-    characters_payload: list[dict], objects_payload: list[dict],
-    reach_objects_payload: list[dict],
+    situation: str, characters_payload: list[dict],
 ) -> list[dict]:
     """当事者ごとに思考・感情・望み・恐れ・行動を推測させる。出来事の候補はこれを土台に立てる。"""
-    participants = (
-        [("人物", p) for p in characters_payload]
-        + [("居合わせる個体", p) for p in objects_payload]
-        + [("一つ上の圏内の個体", p) for p in reach_objects_payload]
-    )
     judgements: list[dict] = []
-    for kind, payload in participants:
+    for payload in characters_payload:
         prompt = (
-            f"この当事者({kind}): {payload}\n"
+            f"この当事者({payload['kind']}): {payload}\n"
             f"{situation}"
             "この当事者のいまの思考・感情・望み・恐れ・行動を推測してください。"
         )
@@ -505,8 +397,7 @@ def _think_participants(
         fields = {key: (decided.get(key) or "").strip() for key in _JUDGEMENT_KEYS}
         if not fields["action"]:
             continue
-        key = "character_id" if "character_id" in payload else "object_id"
-        judgements.append({key: payload[key], "name": payload["name"], **fields})
+        judgements.append({"character_id": payload["character_id"], "name": payload["name"], **fields})
     return judgements
 
 
@@ -535,7 +426,7 @@ def _roll_candidate(
 def _move_destinations(
     session: Session, place_id: int, time: Stamp,
 ) -> list[dict]:
-    """人物が移れる先。`_reach_objects` と同じく一つ上の圏内にある、いま存在する場所。"""
+    """人物が移れる先。一つ上の圏内にある、いま存在する場所。"""
     root_id = common_query.place_up(session, place_id, constants.REACH_LEVELS)
     nearby_ids = set(common_query.descendant_place_ids(session, root_id))
     nearby_ids -= {place_id, root_id}
@@ -549,8 +440,7 @@ def _move_destinations(
 
 def _progress_place(
     session: Session, place_id: int,
-    characters: list[Character], objects: list[Object],
-    reach_objects: list[Object], time: Stamp, rng: random.Random,
+    characters: list[Character], time: Stamp, rng: random.Random,
 ) -> Event | None:
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
@@ -566,41 +456,27 @@ def _progress_place(
         for c in characters[:20]
     }
     characters_payload = [
-        {"character_id": c.id, "name": c.name, "tone": c.tone, "text": c.text,
+        {"character_id": c.id, "kind": c.kind, "name": c.name, "tone": c.tone, "text": c.text,
          "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
-         "plot": [p.text for p in character_plots.get(c.id, [])] or "(指定なし)"}
+         "world_influence": c.world_influence,
+         "plot": [p.text for p in character_plots.get(c.id, [])] or "(指定なし)",
+         "recent_events": _character_recent_event_names(session, c.id, time)}
         for c in characters[:20]
     ]
     destinations = _move_destinations(session, place_id, time)
-    objects_payload = [
-        {"object_id": o.id, "name": o.name, "text": o.text,
-         "world_influence": o.world_influence,
-         "recent_events": _object_recent_event_names(session, o.id, time)}
-        for o in objects[:20]
-    ]
-    reach_objects_payload = [
-        {"object_id": o.id, "name": o.name, "text": o.text,
-         "world_influence": o.world_influence,
-         "recent_events": _object_recent_event_names(session, o.id, time)}
-        for o in reach_objects
-    ]
 
     situation = (
         f"場所id: {place_id}\n"
         f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
-        f"居合わせる人物: {characters_payload}\n"
-        f"居合わせる個体(国・組織・集団・物。recent_events はこの個体自身が"
-        f"場所を問わず関わった直近の出来事): {objects_payload}\n"
-        f"一つ上の圏内で拠点を持つ個体(今はここに居ないが、遠隔で"
-        f"働きかけてくる余地がある候補。recent_events は同上): "
-        f"{reach_objects_payload or '(無し)'}\n"
+        f"居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。"
+        f"recent_events はその者自身が場所を問わず関わった直近の出来事): "
+        f"{characters_payload}\n"
         f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
         f"進めたい筋書き(recent_events はこの場所とその上位の場所で"
         f"直近使われた出来事の名前): {plots_payload or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
     )
-    judgements = _think_participants(
-        situation, characters_payload, objects_payload, reach_objects_payload)
+    judgements = _think_participants(situation, characters_payload)
     candidate = _roll_candidate(rng, situation, judgements)
     if candidate is None:
         return None
@@ -614,13 +490,10 @@ def _progress_place(
         f"サイコロで選ばれた出来事の候補: "
         f"{ {'name': candidate['name'], 'summary': candidate['summary']} }\n"
         "この候補を、この場所にこの時点で起きた出来事として記録してください。"
-        "人物の character_id と個体の "
-        "object_id は別々の番号空間なので、event_text 内で番号に触れるなら "
-        "「character_id」「object_id」のどちらの番号かが分かる書き方にする"
-        "(迷うなら番号ではなく名前だけで書く)。"
+        "event_text 内では番号ではなく名前で書く。"
         + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"
            if plots else "")
-        + ("居合わせる人物のうち plot を持つ者がいれば、その人物個人について"
+        + ("居合わせる人物・対象のうち plot を持つ者がいれば、その者個人について"
            "進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
            if any(character_plots.values()) else "")
     )
@@ -630,13 +503,9 @@ def _progress_place(
         return None
 
     event_name, event_text = _check_typos(
-        decided["event_name"], decided.get("event_text") or "",
-        characters, objects, reach_objects,
-    )
+        decided["event_name"], decided.get("event_text") or "", characters)
 
     character_ids = {c.id: c for c in characters}
-    object_ids = {o.id: o for o in objects}
-    object_ids.update({o.id: o for o in reach_objects})
 
     def _valid_ids(raw, pool: Mapping[int, object]) -> list[int]:
         result: list[int] = []
@@ -650,7 +519,6 @@ def _progress_place(
         return result
 
     involved_character_ids = _valid_ids(decided.get("character_ids"), character_ids)
-    involved_object_ids = _valid_ids(decided.get("object_ids"), object_ids)
 
     destination_names = {d["location_id"]: d["name"] for d in destinations}
     move_notes = []
@@ -675,33 +543,6 @@ def _progress_place(
             involved_character_ids.append(character_id)
         move_notes.append(f"{character.name} → {destination_names[location_id]}")
 
-    object_found_notes = []
-    # 噛み合う主体が無いとき、ローカル AI がこの出来事の中で新しい個体を誕生
-    # させてよい。プロットの無い場所と、個体の枠が埋まった場所には生まない。
-    founded_object = decided.get("object_founded")
-    if (isinstance(founded_object, dict) and founded_object.get("name") and plots
-            and int(session.scalar(world_createion_query.object_count_at_place_select(
-                place_id, time)) or 0) < world_createion_query.MAX_OBJECTS_PER_LOCATION):
-        scale = founded_object.get("scale")
-        if scale not in constants.SCALE_INFLUENCE:
-            scale = constants.DEFAULT_SCALE
-        draft = build_object()
-        draft["name"] = founded_object.get("name") or draft["name"]
-        draft["read"] = founded_object.get("read") or draft["read"]
-        draft["text"] = founded_object.get("text") or draft["text"]
-        draft["world_influence"] = constants.SCALE_INFLUENCE[scale]
-        draft["start"] = time
-        new_object = Object(**draft)
-        session.add(new_object)
-        session.flush()
-        session.add(ObjectPlace(
-            object_id=new_object.id, location_id=place_id,
-            start=new_object.start, end=new_object.end))
-        object_ids[new_object.id] = new_object
-        involved_object_ids.append(new_object.id)
-        object_found_notes.append(
-            f"{new_object.name}(id={new_object.id}, 規模={scale}): 新規誕生")
-
     try:
         duration_days = int(decided.get("event_duration_days"))
     except (TypeError, ValueError):
@@ -720,9 +561,6 @@ def _progress_place(
     )
     record.event_characters = [
         EventCharacter(character_id=cid) for cid in involved_character_ids
-    ]
-    record.event_objects = [
-        EventObject(object_id=oid) for oid in involved_object_ids
     ]
     session.add(record)
 
@@ -764,29 +602,8 @@ def _progress_place(
         if update.get("text"):
             _append_note(character, update["text"])
             applied.append(f"text+={update['text']}")
-        if update.get("belong_id") is not None:
-            try:
-                belong_id = int(update["belong_id"])
-            except (TypeError, ValueError):
-                belong_id = None
-            if belong_id in object_ids:
-                character.belong_id = belong_id
-                applied.append(f"belong_id={belong_id}")
         if applied:
             update_notes.append(f"{character.name}: {', '.join(applied)}")
-
-    for update in decided.get("object_updates") or []:
-        if not isinstance(update, dict):
-            continue
-        try:
-            object_id = int(update.get("object_id") or 0)
-        except (TypeError, ValueError):
-            continue
-        obj = object_ids.get(object_id)
-        if obj is None or not update.get("text"):
-            continue
-        _append_note(obj, update["text"])
-        update_notes.append(f"{obj.name}: text+={update['text']}")
 
     location_notes = []
     if decided.get("location_abolished") and place is not None and place.end is None:
@@ -811,10 +628,7 @@ def _progress_place(
     session.commit()
     when = format_time(time)
     involved_names = [
-        name for name in (
-            [character_ids[cid].name for cid in involved_character_ids]
-            + [object_ids[oid].name for oid in involved_object_ids]
-        ) if name
+        name for name in (character_ids[cid].name for cid in involved_character_ids) if name
     ]
     print(f"[time_keepr/event] {when} 場所id={place_id}: "
           f"{record.name} {record.text}"
@@ -824,14 +638,13 @@ def _progress_place(
           + (f" / 移動: {'; '.join(move_notes)}" if move_notes else "")
           + (f" / 筋書き完了: {'; '.join(plot_done_notes)}" if plot_done_notes else "")
           + (f" / 人物の筋書き: {'; '.join(plot_notes)}" if plot_notes else "")
-          + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
-          + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")
+          + (f" / 人物・対象更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 場所: {'; '.join(location_notes)}" if location_notes else ""))
     return record
 
 
 def generate_random(session: Session, time: Stamp) -> list[Event]:
-    """月初に、人物・個体が居る場所それぞれについて出来事を進行させる。"""
+    """月初に、人物・対象が居る場所それぞれについて出来事を進行させる。"""
     if not _should_roll(time):
         return []
 
@@ -841,14 +654,11 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
 
     grouped = _group_by_place(session, time)
     total_places = len(grouped)
-    for i, (place_id, (characters, objects)) in enumerate(grouped.items(), start=1):
+    for i, (place_id, characters) in enumerate(grouped.items(), start=1):
         print(f"[time_keepr/event] 場所 {i}/{total_places} id={place_id}: "
-              f"人物{len(characters)}人 個体{len(objects)}件")
+              f"人物・対象{len(characters)}件")
         if rng.random() < constants.PLACE_PROBABILITY:
-            reach_objects = _reach_objects(
-                session, grouped, place_id, {o.id for o in objects})
-            event = _progress_place(
-                session, place_id, characters, objects, reach_objects, time, rng)
+            event = _progress_place(session, place_id, characters, time, rng)
             if event is not None:
                 created.append(event)
 

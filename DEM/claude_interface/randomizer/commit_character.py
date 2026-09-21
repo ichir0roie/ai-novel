@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from DEM.claude_interface.randomizer._base import CommitDraft
 from DEM.data_access_logic.query import world_createion_query
-from DEM.db.schema import Character, CharacterPlace, Location, Object
+from DEM.db.schema import Character, CharacterPlace, Location
 from DEM.db.schema_pydantic import to_dict
 
 
@@ -23,7 +23,6 @@ class CommitCharacter(CommitDraft):
         self.check_columns(data)
 
         self.check_exists(session, Location, place_id, "place_id")
-        self.check_exists(session, Object, data.get("belong_id"), "belong_id")
         self._check_capacity(session, place_id, data.get("start"))
         self._check_span(session, place_id, data)
         self._check_plot(session, place_id)

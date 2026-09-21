@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
     Character, CharacterPlace, CharacterPlot, Episode,
-    Event, EventCharacter, EventObject, Location, Object, ObjectPlace,
+    Event, EventCharacter, Location,
     Plot, Story, Term,
 )
 from DEM.db.stamp import Stamp, StampError
@@ -19,7 +19,6 @@ EVENT_RELATIONS = {"place": "place_name"}
 EVENT_LOAD_OPTIONS = (
     selectinload(Event.location),
     selectinload(Event.event_characters).selectinload(EventCharacter.character),
-    selectinload(Event.event_objects).selectinload(EventObject.object),
 )
 
 
@@ -126,12 +125,7 @@ def place_up(session: Session, place_id: int, levels: int) -> int:
     return current.id
 
 
-# ---------------------------------------------------------------- 個体・場所
-
-def objects_select() -> Select:
-    """個体(群)の一覧。"""
-    return select(Object).order_by(Object.id.asc())
-
+# ---------------------------------------------------------------- 場所
 
 def places_select(kind: str | None = None) -> Select:
     """場所の一覧。`kind` を渡すとその種別だけに絞る(例: `"村"`)。"""
@@ -178,7 +172,7 @@ def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
 def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
     """**その id に掛かる出来事と行動を、新しい順に。**
 
-    場所の id ならそこで起きたこと、人物・個体の id ならその者の行動、
+    場所の id ならそこで起きたこと、人物の id ならその者の行動、
     出来事の id ならそれにぶら下がる行動。
     """
     query = (select(Event)
@@ -187,7 +181,6 @@ def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
                  Event.location_id == record_id,
                  Event.parent_event_id == record_id,
                  Event.event_characters.any(EventCharacter.character_id == record_id),
-                 Event.event_objects.any(EventObject.object_id == record_id),
              )))
     if until is not None:
         query = query.where(Event.time <= span(until)[1])
@@ -225,19 +218,18 @@ def character_plots_select() -> Select:
 def open_events_select(place_ids, until: Stamp) -> Select:
     """**まだ終わっていない出来事**(`end` が空か、その先)。張っているもの。
 
-    誰の行動でもない「ただ起きたこと」だけを拾う
-    (人物・個体のどちらにも掛かっていないもの)。
+    誰の行動でもない「ただ起きたこと」だけを拾う(人物に掛かっていないもの)。
     """
     return (select(Event)
             .options(*EVENT_LOAD_OPTIONS)
             .where(Event.location_id.in_(list(place_ids)),
                    Event.time <= until,
                    or_(Event.end.is_(None), Event.end > until),
-                   ~Event.event_characters.any(), ~Event.event_objects.any())
+                   ~Event.event_characters.any())
             .order_by(Event.time.desc(), Event.id.desc()))
 
 
-# ---------------------------------------------------------------- 人物・個体
+# ---------------------------------------------------------------- 人物
 
 def character_plots_at_select(character_id: int, until: Stamp) -> Select:
     """その時点で生きている、その人物の筋書き(欲・恐れ・嘘・必要を含む方向づけ)。"""
@@ -254,31 +246,15 @@ def character_place_select(character_id: int, until: Stamp) -> Select:
             .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc()))
 
 
-def object_place_select(object_id: int, until: Stamp) -> Select:
-    """その時点の居場所(`object_place` の生きている行、新しい順)。"""
-    return (select(ObjectPlace)
-            .options(selectinload(ObjectPlace.place))
-            .where(ObjectPlace.object_id == object_id, *_alive(ObjectPlace, until))
-            .order_by(ObjectPlace.start.desc(), ObjectPlace.id.desc()))
-
-
 def resident_character_ids_select(place_ids, until: Stamp) -> Select:
     """その時点でその場所(群)に居る人物の id。"""
     return (select(CharacterPlace.character_id).distinct()
             .where(CharacterPlace.location_id.in_(list(place_ids)), *_alive(CharacterPlace, until)))
 
 
-def resident_object_ids_select(place_ids, until: Stamp) -> Select:
-    """その時点でその場所(群)に居る個体(群)の id。"""
-    return (select(ObjectPlace.object_id).distinct()
-            .where(ObjectPlace.location_id.in_(list(place_ids)), *_alive(ObjectPlace, until)))
-
-
 def character_select(character_id: int) -> Select:
-    """人物一件。口調・性格の列に加え、所属の関連を積んでおく。"""
-    return (select(Character)
-            .options(selectinload(Character.belong))
-            .where(Character.id == character_id))
+    """人物一件。"""
+    return select(Character).where(Character.id == character_id)
 
 
 def characters_select() -> Select:
@@ -286,11 +262,6 @@ def characters_select() -> Select:
     return (select(Character)
             .options(selectinload(Character.plots), selectinload(Character.places))
             .order_by(Character.id.asc()))
-
-
-def object_select(object_id: int) -> Select:
-    """個体(群)一件。"""
-    return select(Object).where(Object.id == object_id)
 
 
 # ---------------------------------------------------------------- 作品

@@ -6,7 +6,7 @@ import random
 
 from DEM.ai_instructions.event_writing import EVENT_RECORD_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
-from DEM.db.schema import Character, Event, EventCharacter, Session, Stamp
+from DEM.db.schema import CHARACTER_KIND_PERSON, Character, Event, EventCharacter, Session, Stamp
 from DEM.local_ai import ai_client
 from DEM.local_ai.time_keeper import constants
 from DEM.local_ai.time_keeper._format import format_time
@@ -86,7 +86,7 @@ def _kill(
 
 
 def generate_random(session: Session, time: Stamp) -> list[Event]:
-    """年初に、生きている人物それぞれの老衰・事故をロールする。"""
+    """年初に、生きている人物それぞれの老衰・事故をロールする。人物以外の対象は寿命を持たない。"""
     if not _should_roll(time):
         return []
 
@@ -95,7 +95,7 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
         world_createion_query.alive_characters_select(time)).all()
 
     for character in characters:
-        if character.start is None:
+        if character.start is None or character.kind != CHARACTER_KIND_PERSON:
             continue
 
         age = time.year - character.start.year
