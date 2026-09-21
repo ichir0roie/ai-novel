@@ -28,10 +28,10 @@
 
 | 定数                                                                            | 使う側                                                          |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `naming.TERM_NAMING_INSTRUCTION`                                                | 下の二つの土台                                                  |
+| `naming.TERM_NAMING_INSTRUCTION`                                                | `time_keeper/random_object_generator.py`(国・組織などの名)と、下の二つの土台 |
 | `naming.PLACE_NAMING_INSTRUCTION`                                               | `time_keeper/random_location_generator.py`、`time_keeper/event_progression_generator.py`(新しい場所が生まれたとき) |
 | `naming.CHARACTER_NAMING_INSTRUCTION`                                           | `time_keeper/random_character_generator.py`                     |
-| `principles.AVOID_NARO_TEMPLATE_INSTRUCTION`                                    | `time_keeper/event_progression_generator.py`、`random_drive_generator.py` |
+| `principles.AVOID_NARO_TEMPLATE_INSTRUCTION`                                    | `time_keeper/event_progression_generator.py`、`time_keeper/random_object_generator.py`、`random_drive_generator.py` |
 | `event_writing.EVENT_RECORD_INSTRUCTION`                                        | `time_keeper/event_progression_generator.py`、`time_keeper/character_lifespan.py` |
 | `event_writing.EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION`          | `time_keeper/event_progression_generator.py`                    |
 | `event_writing.EVENT_PROGRESSION_INSTRUCTION` `EVENT_DURATION_INSTRUCTION`      | 同上                                                            |

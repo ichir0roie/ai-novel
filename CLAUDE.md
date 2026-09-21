@@ -8,7 +8,7 @@
 旧 `core/` `tools/novel.py` `novels/` の md 群はもう無い。
 
 **ただし `DEM/claude_interface/` にはまだ全ての入口が揃っていない**
-(個体 `object` と語 `term` を確定する入口が無い、など)。無いものを
+(語 `term` を確定する入口が無い、など)。無いものを
 あるかのように書かない。足りない入口が要るときは、その場で作者に相談するか、
 下の「入口の作り方」に沿って `DEM/claude_interface/` に足す。
 
@@ -84,6 +84,8 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 既にある場所の欄を後から直す         | `DEM.claude_interface.randomizer.update_place.UpdatePlace(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`area` を直すときは `CommitPlace` と同じ、親未満・兄弟の合計が親を超えないの制約を確かめる。`random_character_source: true` を渡すと、その場所を「まだ誰も居なければローカルAIがまとめて1〜4人生成する」対象に立てられる。`DEM.local_ai.time_keeper.random_character_generator.seed_initial_characters` が月初に見て、既に誰か居れば何もしない) |
 | 誤って確定した場所を消す             | `DEM.claude_interface.randomizer.delete_place.DeletePlace(<場所id>).run()`(子の場所が残っていると止まる)                                                                                                                                                         |
 | 個体(群)を一覧で見る                 | `DEM.claude_interface.world.list_objects.ListObjects().run()`(`belong_id` に渡す id を拾う。db には触れない)                                                                                                                                                     |
+| ランダムな個体(群)の下書きを作る     | `DEM.claude_interface.randomizer.create_random_object.CreateRandomObject(...).run()`(db には触れない。`name` は `仮の群0` のような仮の値のまま返る。国・組織・商会などの名は `IHG/naming.md`「対象ごとの当て方」の組織・機関に沿って決めてから `CommitObject` に渡す。**個体に `kind` の欄は無い**ので、国か組織か商会かは `text` に書く。何を決められて誰に対して力を持つのかまで書いておくと、出来事の生成でその個体が行為の主体として立つ) |
+| 作った個体を db へ確定する           | `DEM.claude_interface.randomizer.commit_object.CommitObject(<辞書かJSON>).run()`(`root_place_name`(拠り所の場所)の実在確認をしてから書き込む。`name` が必須で、`仮の群` を含むままなら止まる。同じ場所の個体が 10 件あるとき、`start`〜`end` がその場所の期間に収まらないときも止まる) |
 | 語をキーワードで検索する             | `DEM.claude_interface.world.search_terms.SearchTerms(<キーワード>).run()`(`term.text` にキーワードを含む語を返す。db には触れない)                                                                                                                               |
 | ランダムな出来事の下書きを作る       | `DEM.claude_interface.randomizer.create_random_event.CreateRandomEvent(...).run()`(db には触れない。辞書を返すだけ)                                                                                                                                              |
 | 作った出来事の下書きを db へ確定する | `DEM.claude_interface.randomizer.commit_event.CommitEvent(<辞書かJSON>).run()`(`location_id` `parent_event_id` と、`character_ids` `object_ids`(人物・個体の id のリスト。多対多で何人・何個体でも渡せる)の実在確認をしてから書き込む。出来事が人物の情動を動かしたときは、同じ呼び出しに `character_drives`(`[{character_id, text, level, start?, end?}]`)を乗せると、`CharacterDrive`(情動)もまとめて一件ずつ確定する。能力・特徴が変わったときは `update_character` で `text` を書き直す) |
@@ -94,7 +96,7 @@ Claude が執筆作業として直接呼ぶ入口ではない。`DEM/claude_inte
 | 筋書きを一覧で見る                   | `DEM.claude_interface.world.list_plots.ListPlots().run()`(`location_id` が空の行は場所を問わない筋書き。db には触れない)                                                                                                                                        |
 | 既にある筋書きの欄を後から直す       | `DEM.claude_interface.randomizer.update_plot.UpdatePlot(<id を含む辞書かJSON>).run()`(渡した欄だけ上書きする。`text` の書き直しなどに使う)                                                                                                                      |
 
-上の表にない操作(個体 `object` と語 `term` の確定、整合チェック、用語索引の
+上の表にない操作(語 `term` の確定、整合チェック、用語索引の
 書き出しなど)はまだ `DEM/claude_interface/` に無い。必要になった時点で、上の
 「入口の作り方」に沿って足す。**無いものを推測で呼び出そうとしない。**
 
