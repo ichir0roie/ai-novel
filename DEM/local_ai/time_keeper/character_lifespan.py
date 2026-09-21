@@ -80,7 +80,6 @@ def _kill(
 
     record = Event(
         name=decided.get("event_name") or f"{character.name}の死({cause})",
-        kind="死",
         text=decided.get("event_text") or "",
         time=time,
         location_id=place_id,

@@ -155,7 +155,7 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
     その場所の道筋、配下で張っている出来事、`reach` 年ぶんの直近の出来事、
     そこで使われる語、いま居る者の名前。
 
-    `full=False`(既定)では裏の種別(`裏` `伏線`)を伏せる。
+    `full=False`(既定)では `hidden` の立った出来事を伏せる。
     住人が知らないことを本文に書かないため。
     """
     location = common_query._get(session, Location, place_id, "place_id")
@@ -167,7 +167,7 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
     def visible(rows):
         if full:
             return rows
-        return [row for row in rows if row.get("kind") not in common_query.HIDDEN_EVENT_KINDS]
+        return [row for row in rows if not row.get("hidden")]
 
     recent_query = (select(Event)
                     .options(*common_query.EVENT_LOAD_OPTIONS)

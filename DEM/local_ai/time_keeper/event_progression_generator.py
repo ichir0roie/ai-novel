@@ -100,8 +100,8 @@ _PLACE_SYSTEM_PROMPT = (
     "考えてください。"
     + _INVOLVEMENT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
     "JSON で答えてください。キーは "
-    "event_name(出来事の名前), event_kind(出来事の種別。一言。"
-    "無ければ空文字), event_text(出来事の内容。" + _EVENT_TEXT_INSTRUCTION + "), "
+    "event_name(出来事の名前), event_text(出来事の内容。"
+    + _EVENT_TEXT_INSTRUCTION + "), "
     "character_ids(関わった人物の id のリスト。渡した「居合わせる人物」の "
     "id からだけ選ぶ), object_ids(関わった個体の id のリスト。渡した"
     "「居合わせる個体」の id からだけ選ぶ), "
@@ -216,7 +216,7 @@ def _progress_place(
         f"居合わせる人物: {[(c.id, c.name, c.tone, c.text) for c in characters[:20]]}\n"
         f"居合わせる個体(国・組織・集団・物): "
         f"{[(o.id, o.name, o.text, o.world_influence) for o in objects[:20]]}\n"
-        f"直近の出来事(名前, 種別): {[(e.name, e.kind) for e in recent_events]}\n"
+        f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
         f"進めたい筋書き: {[p.text for p in plots] or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
@@ -257,7 +257,6 @@ def _progress_place(
 
     record = Event(
         name=decided["event_name"],
-        kind=decided.get("event_kind") or "",
         text=decided.get("event_text") or "",
         time=time,
         location_id=place_id,
@@ -396,7 +395,7 @@ def _progress_place(
         ) if name
     ]
     print(f"[time_keepr/event] {when} 場所id={place_id}: "
-          f"{record.name}({record.kind}) {record.text}"
+          f"{record.name} {record.text}"
           f" / 継続: {duration_days}日({when}〜{format_time(end)})"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + (f" / 情動: {'; '.join(drive_notes)}" if drive_notes else "")

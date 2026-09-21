@@ -194,7 +194,12 @@ class Event(MarkdownBase):
     __tablename__ = "event"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
-    kind: Mapped[str] = mapped_column(String, default="", sort_order=210)
+    # **旧 `kind`(出来事の種別)は廃止した。** 自由記述だと常駐ループが毎回
+    # 新語を作文して氾濫したため、断面(ReadBrief)で伏せる/伏せないの一点だけ
+    # を持つ `hidden` に絞った。`指標` `関係` のような分類は `name`(例:
+    # 「人口 27400000人」「命令を送る側と、拒めない側」)と `text` の書き方の
+    # 慣例として持つ(IHG/chronicle.md)。
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False, sort_order=210)
     time: Mapped[Stamp] = mapped_column(StampType, index=True, sort_order=220)
 
     parent_event_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("event.id"), sort_order=230)

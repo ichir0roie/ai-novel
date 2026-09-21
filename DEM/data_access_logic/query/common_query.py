@@ -36,9 +36,6 @@ from DEM.db.schema import (
 )
 from DEM.db.stamp import Stamp, StampError
 
-# 断面に出さない出来事の種別(裏の設計。住人が知らないこと)
-HIDDEN_EVENT_KINDS = ("裏", "伏線")
-
 # `_event_row` 相当(claude_interface 側で使う)の relationship 名。
 # `to_dict_with(event, relations=EVENT_RELATIONS)` で place_name が付く。
 # 掛かる人物・個体(多対多)は `event_characters` `event_objects` から別途組む
