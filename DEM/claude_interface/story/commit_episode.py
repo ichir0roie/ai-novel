@@ -42,5 +42,5 @@ class CommitEpisode(StoryCommit):
             for key, value in data.items():
                 setattr(record, key, value)
             record.synced = False
-        session.commit()
+        self.finalize(session, record)
         return to_dict(record)

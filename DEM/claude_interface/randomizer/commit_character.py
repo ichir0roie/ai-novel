@@ -30,12 +30,12 @@ class CommitCharacter(CommitDraft):
 
         record = Character(**data)
         session.add(record)
-        session.flush()
+        session.flush()  # CharacterPlace の character_id に使う id を先に確定させる
         if place_id is not None:
             session.add(CharacterPlace(
                 character_id=record.id, location_id=place_id,
                 start=data.get("start"), end=data.get("end")))
-        session.commit()
+        self.finalize(session, record)
         return to_dict(record)
 
     @staticmethod

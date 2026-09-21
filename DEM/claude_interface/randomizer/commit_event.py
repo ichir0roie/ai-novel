@@ -83,7 +83,7 @@ class CommitEvent(CommitDraft):
         session.add(record)
         for drive in drives:
             session.add(CharacterDrive(**drive))
-        session.commit()
+        self.finalize(session, record)
         return {
             **to_dict(record),
             "character_ids": character_ids,

@@ -46,6 +46,13 @@ db に触れない。`Commit*` を呼んで初めて db に残る。
 引き方は `DEM/data_access_logic/query/` に関数を足して、
 `DEM/claude_interface/` に一つ入口を被せる。
 
+**例外: 常駐ループ(`DEM/local_ai/time_keeper/`)の起動だけは別。**
+三モードのどのモードの作業でもない運用タスクとして、
+`DEM.local_ai.time_keeper.main.claude_main()` を直接呼んでよい
+(`DEM/claude_interface/` を経由しない)。生成そのものはこれまで通り
+ローカル AI が行い、Claude はループの開始・打ち切りを指示するだけなので、
+執筆作業としての db 直触りにはあたらない。
+
 ---
 
 # 1 世界観構成モード

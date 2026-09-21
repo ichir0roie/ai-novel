@@ -12,6 +12,10 @@ claudeが実行するスクリプト群を配置する。
 **この下に無い操作は「まだ無い」。** 推測で呼び出そうとせず、必要になったら
 下の作り方に沿って足すか、作者に相談する(CLAUDE.md)。
 
+(例外: `DEM/local_ai/time_keeper/` の常駐ループの起動だけは、運用タスクとして
+`DEM.local_ai.time_keeper.main.claude_main()` を直接呼んでよい。詳しくは
+`IHG/workflow.md`「どのモードでも共通」の節)
+
 置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の四つ。
 
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
@@ -25,10 +29,11 @@ claudeが実行するスクリプト群を配置する。
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `randomizer/` | `create_random_character` `create_random_place` `create_random_event` `create_random_object`(db に触れない下書き)                |
 |              | `commit_character` `commit_place` `commit_event` `commit_object` `commit_character_drive` `commit_plot` `commit_character_plot`(確定する) |
-|              | `update_character` `update_place` `update_plot` `update_character_plot` `delete_place`(確定済みを直す・消す)                      |
+|              | `update_character` `update_object` `update_place` `update_plot` `update_character_plot` `delete_place`(確定済みを直す・消す)       |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
 | `world/`     | `list_places` `list_objects` `list_characters` `list_events` `list_plots` `list_character_plots` `search_terms`                    |
+|              | `advance_time`(常駐ループを介さず、claude 自身が世界を1日ぶん進める材料を出す。db には書き込まない) |
 | `sync/`      | `export_db`(db → md の写し) `import_db`(md → db。逆向き)                                                                          |
 
 **`term`(語)を確定する入口はまだ無い。** 検索(`search_terms`)だけがある。

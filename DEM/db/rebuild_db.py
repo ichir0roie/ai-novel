@@ -4,7 +4,7 @@ import os
 import shutil
 from datetime import datetime
 
-from sqlalchemy import MetaData, create_engine, text
+from sqlalchemy import MetaData, create_engine, select, text
 
 from DEM.db.schema import Base, DB_PATH, create_db
 
@@ -25,7 +25,7 @@ def rebuild_db(path=DB_PATH, backup_dir="backup"):
     backup_path = os.path.join(backup_dir, f"{base_name}_{stamp}.db")
     shutil.copy2(path, backup_path)
 
-    old_engine = create_engine(f"sqlite:///{backup_path}", future=True)
+    old_engine = create_engine(f"sqlite:///{backup_path}")
     old_meta = MetaData()
     old_meta.reflect(bind=old_engine)
 
@@ -43,7 +43,7 @@ def rebuild_db(path=DB_PATH, backup_dir="backup"):
             ]
             if not common_columns:
                 continue
-            rows = old_conn.execute(old_table.select()).mappings().all()
+            rows = old_conn.execute(select(old_table)).mappings().all()
             if not rows:
                 continue
             insert_rows = [

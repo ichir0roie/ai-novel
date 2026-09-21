@@ -35,12 +35,12 @@ class CommitObject(CommitDraft):
 
         record = Object(**data)
         session.add(record)
-        session.flush()
+        session.flush()  # ObjectPlace の object_id に使う id を先に確定させる
         if place_id is not None:
             session.add(ObjectPlace(
                 object_id=record.id, location_id=place_id,
                 start=data.get("start"), end=data.get("end")))
-        session.commit()
+        self.finalize(session, record)
         return to_dict(record)
 
     @staticmethod

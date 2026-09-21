@@ -16,13 +16,30 @@ class LocalAIError(RuntimeError):
 
 
 # Ollama の既定値(temperature 0.8 / repeat_penalty 1.1 前後)のまま使うと、
-# gemma3n:e2b/e4b のような小型モデルは、渡した設定が薄い場面で高確率トークン
-# (場所を問わず使い回せる抽象的なムード語)へ収束しやすい。temperature を
-# 少し下げ、repeat_penalty を上げることで、同じ言い回しの多用を抑える。
+# 小型モデル(ノート PC の gemma3n:e2b/e4b、GPU PC の gemma4:12b-it-qat 共通)は、
+# 渡した設定が薄い場面で高確率トークン(場所を問わず使い回せる抽象的なムード語)
+# へ収束しやすい。temperature を少し下げ、repeat_penalty を上げることで、
+# 同じ言い回しの多用を抑える。gemma4 系は「寡黙に」のような指示があっても
+# 会話が続くほど応答が長くなる傾向が報告されているため、この効果は引き続き要る。
+#
+# num_ctx は明示しないと Ollama の既定(2048〜4096 程度)に落ちる。gemma4 は
+# 数万〜数十万トークンの context window を持つモデルだが、Ollama はモデルの
+# 対応幅に関係なく既定値で黙って古い方から切り詰める(エラーは出ない)。
+# event_progression_generator._progress_place の1呼び出しだけでも、人物・個体
+# 最大20件ずつ+text+plot を渡すため、既定のままでは日本語で簡単に既定値を
+# 超えて古い情報から見えなくなる。VRAM(3080 10〜12GB, Q4量子化)に収まる
+# 範囲で余裕を持たせておく。
 _DEFAULT_OPTIONS = {
     "temperature": 0.6,
     "repeat_penalty": 1.3,
+    "num_ctx": 16384,
 }
+
+# 呼び出し側の options で明示的に think を渡さないこと。gemma4 は
+# /api/generate では think を渡さない限り既定で思考(reasoning)を出力しないが、
+# think: false を明示すると format(JSON制約)が黙って無視される既知の不具合が
+# Ollama 側にある(2026年時点)。JSON モードで使う本クライアントでは、
+# think キー自体を options に含めないのが最も安全。
 
 
 def _host() -> str:

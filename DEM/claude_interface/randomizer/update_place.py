@@ -31,7 +31,6 @@ class UpdatePlace(CommitDraft):
 
         for key, value in data.items():
             setattr(record, key, value)
-        session.commit()
         return to_dict(record)
 
     @staticmethod
