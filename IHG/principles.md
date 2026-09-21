@@ -31,7 +31,7 @@
 
 **この節は Claude が対話の中で踏まえる基準。** `DEM/local_ai/` の常駐ループ・
 量産系(`time_keeper/event_progression_generator.py`
-`time_keeper/random_character_generator.py` `random_drive_generator.py` など、
+`time_keeper/random_character_generator.py` など、
 Claude を介さず db への確定まで自動で回す部分)は対話越しにこの節を読めないので、要旨だけを
 `IHG/ai_instructions/principles.py` の `AVOID_NARO_TEMPLATE_INSTRUCTION` に
 切り出し、各生成のシステムプロンプトに埋め込んでいる。

@@ -5,16 +5,10 @@
 | ファイル           | 内容                                       |
 | ------------------ | ------------------------------------------ |
 | `principles.md`    | **プロジェクトの目的と禁止事項。最優先**   |
-| `workflow.md`      | **進め方。三つのモードに分かれている**     |
-| `entrypoints.md`   | **「したいこと」から使う入口を引く表**     |
+| `workflow.md`      | **進め方。Claude はもう本文・出来事・人物などを直接生成しない** |
 | `chronicle.md`     | **記録の取り方と、話を尽きさせない仕組み** |
-| `writing-style.md` | 文体の既定値。作品ごとに上書き可           |
 | `naming.md`        | **用語と名づけの基準。日本語として自然に** |
-| `structure.md`     | 構成・プロット・引き・伏線                 |
-| `characters.md`    | キャラ造形と書き分け                       |
-| `dialogue.md`      | 会話文の作り方                             |
-| `checklist.md`     | 推敲チェックリスト                         |
-| `ai_instructions/` | 常駐ループへ渡す基準の Python 定数(下の節) |
+| `ai_instructions/` | 常駐ループへ渡す基準の Python 定数(下の節)。**いま生成に実際に使われているのはここだけ** |
 
 ## IHG と DEM の分担
 
@@ -23,7 +17,7 @@
 | 何を                       | どこが決めるか                               |
 | -------------------------- | -------------------------------------------- |
 | レコードの欄               | `DEM/db/schema.py`(+ `DEM/db/alembic/`)      |
-| 読み書きの入口             | `DEM/claude_interface/`(一覧は `IHG/entrypoints.md`) |
+| 読み書きの入口             | `DEM/claude_interface/`(一覧は `DEM/claude_interface/readme.md`) |
 | 引き方(Select の組み立て)  | `DEM/data_access_logic/query/`               |
 | 自動で世界を進める常駐ループ | `DEM/local_ai/`                              |
 
@@ -31,12 +25,12 @@
 
 ## 常駐ループへ渡す基準(IHG/ai_instructions/)
 
-`DEM/local_ai/` の常駐ループ・量産系(`time_keeper/` 配下など、Claude を
-介さず db への確定まで自動で回す部分)は、対話の中で人間(Claude)が
-IHG の他の md を読んで手順を踏む、ということができない。そこで使う基準は
-`IHG/ai_instructions/` に Python の定数として切り出し、各生成の
-システムプロンプトへ文字列として埋め込む(**db にも AI クライアントにも
-触れない。定数を持つだけ**)。**正本(どちらを直せば反映されるか)は、
+**世界の生成はもう `DEM/local_ai/` の常駐ループ(`time_keeper/` 配下など)
+だけが行う。** Claude が対話の中で `IHG/*.md` を読んで名づけ・出来事の
+判断を直接下す、という経路はもう無い(`IHG/workflow.md`)。だから、常駐
+ループが使う基準は `IHG/ai_instructions/` に Python の定数として切り出し、
+各生成のシステムプロンプトへ文字列として埋め込む(**db にも AI クライアント
+にも触れない。定数を持つだけ**)。**正本(どちらを直せば反映されるか)は、
 ファイルごとに一つに決めてある**(二重メンテを避けるため)。
 
 | 定数ファイル        | 正本                                                              |
@@ -48,14 +42,17 @@ IHG の他の md を読んで手順を踏む、ということができない。
 - **簡略版のほう**(`naming.py` `principles.py`): `naming.md` は
   乱数で言語を一つ引いてから固有名詞を組み立てる、といった対話越しの手順を
   前提にしていて、そのままでは JSON 生成 1 回で名づけを終える常駐ループに
-  埋め込めない。定数はその要旨だけを持つ簡略版でしかない。**Claude 自身が
-  名づけ・世界観判断をするときは、この定数ではなく `naming.md` `principles.md`
-  を直接読んで手順を踏む。** そちらを直したら、対応する定数も揃えて直す
+  埋め込めない。定数はその要旨だけを持つ簡略版でしかない。**`naming.md`
+  `principles.md` はもう Claude が対話の中で踏む手順ではなく、なぜ定数を
+  その形にしたかの設計根拠(正本)として残している。** 名づけ・なろう系回避の
+  基準を変えたくなったら、まず `naming.md` `principles.md` を直し、
+  そのうえで対応する定数を揃えて直す
 - **文面が正本のほう**(`event_writing.py`): 出来事の書き方は対話越しの手順を
   要らない(手順ではなく文面そのものが基準)ので、定数の文面をそのまま正本に
-  できる。Claude が `commit_event` を書くときも、この定数の文面をそのまま
-  基準にする。ルールの文面を変えたいときは `event_writing.py` を直し、
-  `chronicle.md` 側は理由(なぜその形にしたか)だけを見直す
+  できる。`event_progression_generator.py` `character_lifespan.py` が出来事を
+  生成するときも、この定数の文面をそのまま基準にする。ルールの文面を
+  変えたいときは `event_writing.py` を直し、`chronicle.md` 側は理由
+  (なぜその形にしたか)だけを見直す
 
 **定数を書くときの注意**: 避けたい語を具体例として書かない。小型モデルほど、
 否定命令より例示された語のほうが強く残り、かえってその語を呼び出しやすく
@@ -73,7 +70,7 @@ IHG の他の md を読んで手順を踏む、ということができない。
 | `naming.TERM_NAMING_INSTRUCTION`                                                       | `time_keeper/random_object_generator.py`(国・組織などの名)と、下の二つの土台 |
 | `naming.PLACE_NAMING_INSTRUCTION`                                                      | `time_keeper/random_location_generator.py`、`time_keeper/event_progression_generator.py`(新しい場所が生まれたとき) |
 | `naming.CHARACTER_NAMING_INSTRUCTION`                                                  | `time_keeper/random_character_generator.py`                                   |
-| `principles.AVOID_NARO_TEMPLATE_INSTRUCTION`                                           | `time_keeper/event_progression_generator.py`、`time_keeper/random_object_generator.py`、`random_drive_generator.py` |
+| `principles.AVOID_NARO_TEMPLATE_INSTRUCTION`                                           | `time_keeper/event_progression_generator.py`、`time_keeper/random_object_generator.py` |
 | `event_writing.EVENT_RECORD_INSTRUCTION`                                               | `time_keeper/event_progression_generator.py`、`time_keeper/character_lifespan.py` |
 | `event_writing.EVENT_RELATION_INSTRUCTION` `OBJECT_ACTION_INSTRUCTION`                 | `time_keeper/event_progression_generator.py`                                  |
 | `event_writing.EVENT_PROGRESSION_INSTRUCTION` `EVENT_DURATION_INSTRUCTION`             | 同上                                                                          |
