@@ -13,7 +13,8 @@ claudeが実行するスクリプト群を配置する。
 下の作り方に沿って足すか、作者に相談する(CLAUDE.md)。
 
 (例外: `DEM/local_ai/time_keeper/` の常駐ループの起動だけは、運用タスクとして
-`DEM.local_ai.time_keeper.main.claude_main()` を直接呼んでよい。詳しくは
+`DEM.local_ai.time_keeper.main.claude_main()` を直接呼んでよい。生成を Claude Code で
+行う `DEM.claude_ai.time_keeper.main.claude_main()`・`DEM.claude_ai.story_writer.write_story()` も同じ扱い。詳しくは
 `IHG/workflow.md`)
 
 **世界の生成(出来事・人物・場所・本文)はもう `DEM/local_ai/` の
