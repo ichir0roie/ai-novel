@@ -23,16 +23,15 @@ claudeが実行するスクリプト群を配置する。
 
 | 領域         | 入口                                                                                                                             |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `randomizer/` | `create_random_character` `create_random_place` `create_random_event`(db に触れない下書き)                                       |
-|              | `commit_character` `commit_place` `commit_event` `commit_character_drive` `commit_plot`(確定する)                                 |
+| `randomizer/` | `create_random_character` `create_random_place` `create_random_event` `create_random_object`(db に触れない下書き)                |
+|              | `commit_character` `commit_place` `commit_event` `commit_object` `commit_character_drive` `commit_plot`(確定する)                 |
 |              | `update_character` `update_place` `update_plot` `delete_place`(確定済みを直す・消す)                                              |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
 | `world/`     | `list_places` `list_objects` `list_characters` `list_events` `list_plots` `search_terms`                                           |
 | `sync/`      | `export_db`(db → md の写し) `import_db`(md → db。逆向き)                                                                          |
 
-**`object`(個体)と `term`(語)を確定する入口はまだ無い。** 一覧
-(`list_objects` `search_terms`)だけがある。
+**`term`(語)を確定する入口はまだ無い。** 検索(`search_terms`)だけがある。
 
 ## 作り方
 
