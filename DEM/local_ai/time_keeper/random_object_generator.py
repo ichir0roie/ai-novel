@@ -165,7 +165,7 @@ def generate_random(session: Session, time: Stamp) -> Object | None:
         start=record.start, end=record.end))
     session.commit()
     print(f"[time_keepr/object] {when} 生成: {record.name}({record.read})"
-          f" id={record.id} 拠り所={place.name}(id={place.id})"
+          f" id={record.id} 場所={place.name}(id={place.id})"
           f" 規模={scale}(world_influence={record.world_influence})\n"
           f"    説明: {record.text or '(説明なし)'}")
     return record

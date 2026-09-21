@@ -34,7 +34,7 @@ from DEM.local_ai.time_keeper.random_object_generator import (
 from DEM.randomizer.random_location_generator import build_location
 from DEM.randomizer.random_object_generator import build_object
 
-PLACE_PROBABILITY = 0.30  # 月初のロールのたび、場所1件につき30%の確率で出来事を起こす(場所ごとに数ヶ月に一度)
+PLACE_PROBABILITY = 0.60
 
 # 遠隔候補(`_reach_objects`)をどこまで拾うか。`read_cast` の既定
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
@@ -145,11 +145,49 @@ def _check_typos(
     )
 
 
+_JUDGEMENT_SYSTEM_PROMPT = (
+    "あなたは架空の世界観の中で、ある一人の人物、または一つの個体"
+    "(国・組織・集団・物)の立場に立って考える設定作家です。"
+    "渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」が"
+    "いまの状況をどう受け止め、何を望み、何を恐れ、どう動こうと判断するかを、"
+    "その text・口調・立場・世界線への影響度から推測してください。"
+    "人物なら性格と人間関係から、個体なら方針と力の及ぶ範囲から判断する。"
+    "他の当事者の判断は決めない。この当事者自身の判断だけを書く。"
+    "JSON で答えてください。キーは judgement(この当事者の判断。2〜3文)だけ。"
+)
+
+_JUDGEMENT_SCHEMA = {
+    "type": "object",
+    "properties": {"judgement": {"type": "string"}},
+    "required": ["judgement"],
+    "additionalProperties": False,
+}
+
+_INTERACTION_SYSTEM_PROMPT = (
+    "あなたは架空の世界観の中で、複数の当事者の判断が同じ場でぶつかったとき"
+    "何が起きるかを考える設定作家です。"
+    "渡す当事者ごとの判断を見比べ、誰の判断が誰の判断と噛み合う・ぶつかる・"
+    "利用される・無視されるか、その結果どの判断が通り、どの判断が曲げられ、"
+    "誰が誰に働きかけて相手がどう応じるかを推測してください。"
+    "全員が満足する結末に寄せず、判断どうしの食い違いから生じる摩擦を残す。"
+    "JSON で答えてください。キーは interaction(相互作用の推測。3〜5文)だけ。"
+)
+
+_INTERACTION_SCHEMA = {
+    "type": "object",
+    "properties": {"interaction": {"type": "string"}},
+    "required": ["interaction"],
+    "additionalProperties": False,
+}
+
 _PLACE_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
     "その場所自身の情報、そこに居合わせる人物・個体の一覧、一つ上の圏内で"
     "拠点を持つ個体の候補、その場所の直近の出来事を渡すので、この時点で"
     "この場所に起きる出来事を1件だけ考えてください。"
+    "「当事者ごとの判断」「判断どうしの相互作用」が渡されているときは、"
+    "それを出来事の土台にする。相互作用で通った判断・曲げられた判断が、"
+    "行動・感情・変化にそのまま反映されるように書く。"
     + _INVOLVEMENT_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
     "JSON で答えてください。キーは "
     "event_name(出来事の名前), event_text(出来事の内容。"
@@ -370,6 +408,45 @@ def _plot_recent_event_names(session: Session, plot, time: Stamp) -> list[str]:
     return [e.name for e in events]
 
 
+def _think_participants(
+    situation: str,
+    characters_payload: list[dict], objects_payload: list[dict],
+    reach_objects_payload: list[dict],
+) -> tuple[list[dict], str]:
+    """当事者ごとに判断を推測させ、それらの相互作用をもう一度推測させる。出来事の本文はこの二段を土台に書く。"""
+    participants = (
+        [("人物", p) for p in characters_payload]
+        + [("居合わせる個体", p) for p in objects_payload]
+        + [("一つ上の圏内の個体", p) for p in reach_objects_payload]
+    )
+    judgements: list[dict] = []
+    for kind, payload in participants:
+        prompt = (
+            f"この当事者({kind}): {payload}\n"
+            f"{situation}"
+            "この当事者がいまの状況をどう判断するかを推測してください。"
+        )
+        decided = ai_client.try_generate_json(
+            prompt, _JUDGEMENT_SCHEMA, system=_JUDGEMENT_SYSTEM_PROMPT)
+        judgement = (decided.get("judgement") or "").strip()
+        if not judgement:
+            continue
+        key = "character_id" if "character_id" in payload else "object_id"
+        judgements.append(
+            {key: payload[key], "name": payload["name"], "judgement": judgement})
+
+    if len(judgements) < 2:
+        return judgements, ""
+    prompt = (
+        f"当事者ごとの判断: {judgements}\n"
+        f"{situation}"
+        "これらの判断が同じ場でどう噛み合い、ぶつかるかを推測してください。"
+    )
+    decided = ai_client.try_generate_json(
+        prompt, _INTERACTION_SCHEMA, system=_INTERACTION_SYSTEM_PROMPT)
+    return judgements, (decided.get("interaction") or "").strip()
+
+
 def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], objects: list[Object],
@@ -406,7 +483,7 @@ def _progress_place(
         for o in reach_objects
     ]
 
-    prompt = (
+    situation = (
         f"場所id: {place_id}\n"
         f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
         f"居合わせる人物: {characters_payload}\n"
@@ -419,6 +496,14 @@ def _progress_place(
         f"進めたい筋書き(recent_events はその筋書きの範囲で場所を問わず"
         f"直近使われた出来事の名前): {plots_payload or '(指定なし)'}\n"
         f"現在の時刻: {time}\n"
+    )
+    judgements, interaction = _think_participants(
+        situation, characters_payload, objects_payload, reach_objects_payload)
+
+    prompt = (
+        situation
+        + f"当事者ごとの判断(先に推測したもの): {judgements or '(無し)'}\n"
+        f"判断どうしの相互作用(先に推測したもの): {interaction or '(無し)'}\n"
         "この場所に、この時点で起きる出来事を1件、決めてください。"
         "居合わせる人物・個体・場所のうち、どれとどれが噛み合って"
         "この出来事になったのかを踏まえる。人物の character_id と個体の "
@@ -593,6 +678,10 @@ def _progress_place(
           f"{record.name} {record.text}"
           f" / 継続: {duration_days}日({when}〜{format_time(end)})"
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
+          + (f"\n    当事者の判断: "
+             + "; ".join(f"{j['name']}: {j['judgement']}" for j in judgements)
+             if judgements else "")
+          + (f"\n    相互作用: {interaction}" if interaction else "")
           + (f" / 人物の筋書き: {'; '.join(plot_notes)}" if plot_notes else "")
           + (f" / 人物・個体更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 新規個体: {'; '.join(object_found_notes)}" if object_found_notes else "")

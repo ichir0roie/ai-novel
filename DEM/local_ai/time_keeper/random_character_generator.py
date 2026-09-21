@@ -73,6 +73,9 @@ _NAME_SYSTEM_PROMPT = (
     + CHARACTER_NAMING_INSTRUCTION +
     "渡す人物説明・年齢・筋書き・体格や口調から連想できる、この人物に似合う"
     "名前にしてください。"
+    "居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・"
+    "参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、"
+    "同じ場所の人物として馴染む名にしてください(固有名詞をそのまま持ち込まない)。"
     "「既にいる人物の名」が渡されているときは、頭の音や拍数がそれらと"
     "重ならないようにしてください。"
     "キーは name(名前), read(読み)の二つだけ。"
@@ -233,9 +236,9 @@ def _generate_one(
     nearby_objects = _nearby_objects(session, born_place, time)
 
     content_prompt = (
-        f"生まれの場所: {born_place.name if born_place else '不明'}\n"
-        f"場所の特徴:\n{_location_context(born_place)}\n"
-        f"所属する地域: {region_label}\n"
+        f"出身: {born_place.name if born_place else '不明'}\n"
+        f"出身地の特徴:\n{_location_context(born_place)}\n"
+        f"地域: {region_label}\n"
         f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
         f"現在の時刻: {time}\n"
         f"年齢は{_AGE_RANGE[0]}〜{_AGE_RANGE[1]}歳の範囲で、text の人物説明に"
@@ -250,11 +253,15 @@ def _generate_one(
 
     draft["text"] = decided.get("text") or draft["text"]
     try:
-        age = int(decided.get("age"))
+        age = int(decided.get("age", 0))
     except (TypeError, ValueError):
         age = rng.randint(*_AGE_RANGE)
     age = min(max(age, _AGE_RANGE[0]), _AGE_RANGE[1])
+
+    dead_age = age + rng.randint(10, 100)
+
     draft["start"] = Stamp(time.year - age)
+    draft["end"] = Stamp(time.year - age + dead_age)
     plot_text = (decided.get("plot") or "").strip() or draft["text"]
 
     # 名前は、人物説明・年齢・筋書きなど中身が決まったあとに、その内容から連想して決める。
@@ -263,6 +270,9 @@ def _generate_one(
         f"年齢: {age}\n"
         f"筋書き: {plot_text}\n"
         f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
+        f"居場所: {born_place.name if born_place else '不明'}\n"
+        f"場所の特徴:\n{_location_context(born_place)}\n"
+        f"所属する地域: {region_label}\n"
         f"既にいる人物の名: {_character_names(nearby_characters)}\n"
         "この人物に似合う名前と読みを決めてください。"
     )

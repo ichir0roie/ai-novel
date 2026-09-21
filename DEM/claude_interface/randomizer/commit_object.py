@@ -9,7 +9,7 @@ from DEM.db.schema_pydantic import to_dict
 
 
 class CommitObject(CommitDraft):
-    """`place_id` は列ではなく、拠り所を表す `ObjectPlace` の一件として書き込む。"""
+    """`place_id` は列ではなく、居場所を表す `ObjectPlace` の一件として書き込む。"""
 
     model = Object
 
