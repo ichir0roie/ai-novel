@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""世界の側を、時の流れの中で自動的に進める常駐ループの本体。`DEM/local_ai/` と `DEM/claude_ai/` が共用する。
+"""世界の側を、時の流れの中で自動的に進める常駐ループの本体。`DEM/ai/local_ai/` と `DEM/ai/claude_code/` が共用する。
 
 `loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続け、その時刻をカバーする
 筋書き(`Plot`)が一件も無くなったら止まる。再開するには `CommitPlot` で筋書きを足す。

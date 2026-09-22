@@ -2,7 +2,7 @@
 """語をキーワードで検索する、claude が呼ぶ入口。`term.text` にそのキーワードを含む語を返す。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.world._base import WorldQuery
+from DEM.ai.claude_code.interface.world._base import WorldQuery
 from DEM.data_access_logic.query import dictionary_query
 
 

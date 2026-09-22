@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from DEM.ai.claude_code.claude_interface.randomizer._base import CommitDraft
+from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
 from DEM.db.schema import Location
 from DEM.db.schema_pydantic import to_dict
 

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from DEM.ai.claude_code.claude_interface._base import UnknownRecordError
-from DEM.ai.claude_code.claude_interface.story._base import StoryCommit
+from DEM.ai.claude_code.interface._base import UnknownRecordError
+from DEM.ai.claude_code.interface.story._base import StoryCommit
 from DEM.db.schema import Episode
 from DEM.db.schema_pydantic import to_dict
 

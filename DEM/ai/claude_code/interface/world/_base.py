@@ -2,7 +2,7 @@
 """`world/` 配下の入口に共通する基底。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface._base import SessionEntrypoint
+from DEM.ai.claude_code.interface._base import SessionEntrypoint
 
 
 class WorldQuery(SessionEntrypoint):

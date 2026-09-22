@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface._base import Entrypoint
+from DEM.ai.claude_code.interface._base import Entrypoint
 from DEM.tool.markdown.import_db import WORLDS_ROOT, ImportDbError, import_db as _import_db
 
 __all__ = ["ImportDb", "ImportDbError"]

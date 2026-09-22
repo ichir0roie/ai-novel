@@ -11,12 +11,11 @@
 
 ## ここに書かないもの
 
-- 世界の設定そのもの(→ `novels/worlds` `objects` `characters` `terms`)
-- 本文(→ `novels/stories/<作品名>/episodes/`)
+- 世界の設定そのもの(→ `novel.db` の場所・人物・語)
+- 本文(→ `novel.db` の `episode`)
 
-アイデアが実際に採用されたら、設定は世界の側へ、筋は `plot.md` へ移す。
-**このディレクトリは `tools/novel.py check` の対象外**なので、front matter の
-スキーマに縛られない。自由に書いてよい。
+アイデアが実際に採用されたら、設定は世界の側へ、筋は `plot` へ移す。
+このディレクトリは front matter のスキーマに縛られない。自由に書いてよい。
 
 ## 書き方
 

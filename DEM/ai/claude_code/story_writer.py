@@ -11,8 +11,8 @@ import json
 
 from DEM.ai.instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.ai.instructions.story_writing import EPISODE_WRITING_INSTRUCTION
-from DEM.ai.claude_ai import ai_client
-from DEM.ai.claude_code.claude_interface.story import _rows
+from DEM.ai.claude_code import ai_client
+from DEM.ai.claude_code.interface.story import _rows
 from DEM.data_access_logic.query import common_query
 from DEM.db.schema import Episode, Session, get_session
 

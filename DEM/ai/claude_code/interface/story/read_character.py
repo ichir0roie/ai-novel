@@ -2,8 +2,8 @@
 """人物一件を読む、claude が呼ぶ入口。口調・性格・生きている情動・居場所・直近の行動が出る。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.story import _rows
-from DEM.ai.claude_code.claude_interface.story._base import StoryQuery
+from DEM.ai.claude_code.interface.story import _rows
+from DEM.ai.claude_code.interface.story._base import StoryQuery
 
 
 class ReadCharacter(StoryQuery):

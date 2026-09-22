@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """出来事(`Event`)の書き方・進め方のルールを持つ、正本。
 
-Claude が `commit_event` の `text` を書くときも、`DEM/local_ai/`(`ai_client`
+Claude が `commit_event` の `text` を書くときも、`DEM/ai/local_ai/`(`ai_client`
 を介してローカル AI が db への確定まで一気に行う `time_keeper` の常駐ループ)
 が `event_progression_generator.py` / `character_lifespan.py` で出来事を
 生成するときも、**ここに書いた定数の文面をそのまま基準にする。**
@@ -10,16 +10,7 @@ Claude が `commit_event` の `text` を書くときも、`DEM/local_ai/`(`ai_cl
 (本文)は話(`Episode`)の側で別に書くので、出来事で文体・セリフの言い回しを
 決めない。出来事が持つのは、物事がどう変わったか・人物が何を感じたか・誰と
 どの組織が何をしたか、という後から引ける中身だけ。
-
-`IHG/chronicle.md` にはこのルールの散文(なぜこの形にしたか)だけを置き、
-文面そのものはここへ寄せてある。**ルールの文面を変えるときはここだけを
-直す。** `IHG/chronicle.md` 側は、ここを指す参照と背景説明のままにする
-(散文を変えたくなったら、そちらも合わせて見直す)。
-
-`naming.py` `principles.py` は逆に、対話の中で人間(Claude)が手順を踏む
-前提の長い IHG 文書から、常駐ループ向けに要旨だけを抜き出した簡略版
-(そちらは `IHG/*.md` が正本のまま)。この違いは、`IHG/chronicle.md`
-「出来事の text は記録として書く」の節にも明記してある。
+**ルールの文面を変えるときはここだけを直す。**
 """
 from __future__ import annotations
 
