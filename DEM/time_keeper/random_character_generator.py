@@ -22,9 +22,9 @@ from DEM.ai_instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.data_access_logic.query.base import *
 from DEM.db.schema import *
-from DEM.claude_ai import ai_client
-from DEM.claude_ai.time_keeper import constants
-from DEM.claude_ai.time_keeper._format import format_time
+from DEM.time_keeper._ai import AIClient
+from DEM.time_keeper import constants
+from DEM.time_keeper._format import format_time
 from DEM.randomizer.random_character_generator import build_character
 
 _PLACEHOLDER_INSTRUCTION = (
@@ -189,7 +189,7 @@ _ELEMENT_SCHEMA = {
 }
 
 
-def _plot_elements(plot_text: str) -> list[str]:
+def _plot_elements(plot_text: str, ai: AIClient) -> list[str]:
     """`plot_text` から、体現しうる人物像の要素を抜き出して集める。
 
     抜き出し(この関数)と選択(呼び出し側の `rng.choice`)を分けることで、
@@ -198,7 +198,7 @@ def _plot_elements(plot_text: str) -> list[str]:
     """
     if not plot_text:
         return []
-    decided = ai_client.try_generate_json(
+    decided = ai.try_generate_json(
         plot_text, _ELEMENT_SCHEMA, system=_ELEMENT_SYSTEM_PROMPT)
     return [e.strip() for e in decided.get("elements", []) if e and e.strip()]
 
@@ -263,7 +263,7 @@ def _location_context(place: Location | None) -> str:
 
 def _generate_one(
     session: Session, born_place: Location | None, time: Stamp, rng: random.Random,
-    person: bool = True,
+    ai: AIClient, person: bool = True,
 ) -> Character:
     """**人物(`person=False` なら人物以外の対象)を一件、db へ確定して返す。** ロール判定(当たり外れ)は呼び出し側の責任。"""
     draft = build_character()
@@ -275,7 +275,7 @@ def _generate_one(
     plot_text = _plot_text(session, born_place, time)
     plot_label = plot_text or "(無し)"
 
-    elements = _plot_elements(plot_text)
+    elements = _plot_elements(plot_text, ai)
     chosen_element = rng.choice(elements) if elements else None
     subject = "人物" if person else "対象"
     element_line = (
@@ -305,10 +305,10 @@ def _generate_one(
         f"この場所に自然な{subject}を1件、決めてください。"
     )
     if person:
-        decided = ai_client.try_generate_json(
+        decided = ai.try_generate_json(
             content_prompt, _CONTENT_SCHEMA, system=_CONTENT_SYSTEM_PROMPT)
     else:
-        decided = ai_client.try_generate_json(
+        decided = ai.try_generate_json(
             content_prompt, _NON_PERSON_CONTENT_SCHEMA, system=_NON_PERSON_CONTENT_SYSTEM_PROMPT)
         kind = decided.get("kind")
         draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
@@ -343,7 +343,7 @@ def _generate_one(
         f"既にいる人物・対象の名: {_character_names(nearby_characters)}\n"
         f"この{subject}に似合う名前と読みを決めてください。"
     )
-    named = ai_client.try_generate_json(
+    named = ai.try_generate_json(
         name_prompt, _NAME_SCHEMA,
         system=_NAME_SYSTEM_PROMPT if person else _NON_PERSON_NAME_SYSTEM_PROMPT)
     draft["name"] = named.get("name") or draft["name"]
@@ -367,7 +367,7 @@ def _generate_one(
     session.commit()
     when = format_time(time)
     place_label = f"{born_place.name}(id={born_place.id})" if born_place else "不明"
-    print(f"[claude_ai/character] {when} 生成: {record.name}({record.read})"
+    print(f"[time_keepr/character] {when} 生成: {record.name}({record.read})"
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
           + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
              if person else f"    world_influence={record.world_influence}\n")
@@ -412,18 +412,18 @@ def get_usable_location_q(time: Stamp):
     return union_all(base_q, add_q)
 
 
-def generate_random(session: Session, time: Stamp) -> Character | None:
+def generate_random(session: Session, time: Stamp, ai: AIClient) -> Character | None:
     """ロールに当たったら、人物か人物以外の対象を一件 db へ確定して返す。当たらなければ None。"""
 
     usable_location_q = get_usable_location_q(time)
     eligible_places = session.scalars(select(Location).where(Location.id.in_(usable_location_q))).all()
     if not eligible_places:
-        print(f"[claude_ai/character] 空きのある場所が無いため見送り")
+        print(f"[time_keepr/character] 空きのある場所が無いため見送り")
         return None
 
     for location in eligible_places:
         try_generate_character(
-            session, time, location
+            session, time, location, ai
         )
 
 
@@ -431,6 +431,7 @@ def try_generate_character(
     session: Session,
     time: Stamp,
     location: Location,
+    ai: AIClient,
 ):
     if not _should_roll(time):
         return None
@@ -441,14 +442,14 @@ def try_generate_character(
     when = format_time(time)
 
     if roll >= constants.GENERATION_CHARACTER_PROBABILITY:
-        print(f"[claude_ai/character] {when} 判定: "
+        print(f"[time_keepr/character] {when} 判定: "
               f"seed={seed} roll={roll:.4f} >= {constants.GENERATION_CHARACTER_PROBABILITY} → 見送り")
         return None
-    print(f"[claude_ai/character] {when} 判定: "
+    print(f"[time_keepr/character] {when} 判定: "
           f"seed={seed} roll={roll:.4f} < {constants.GENERATION_CHARACTER_PROBABILITY} → 生成")
 
     # 人物か、人物以外の対象か。数の偏りは AI に任せずサイコロで決める。
     person = rng.random() >= constants.NON_PERSON_PROBABILITY
-    print(f"[claude_ai/character] {when} 種別判定: {'人物' if person else '人物以外の対象'}")
+    print(f"[time_keepr/character] {when} 種別判定: {'人物' if person else '人物以外の対象'}")
 
-    return _generate_one(session, location, time, rng, person=person)
+    return _generate_one(session, location, time, rng, ai, person=person)

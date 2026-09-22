@@ -8,9 +8,9 @@ from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.data_access_logic.query.base import location_active_condition
 from DEM.db.schema import Location, Session, Stamp
-from DEM.claude_ai import ai_client
-from DEM.claude_ai.time_keeper import constants
-from DEM.claude_ai.time_keeper._format import format_time
+from DEM.time_keeper._ai import AIClient
+from DEM.time_keeper import constants
+from DEM.time_keeper._format import format_time
 from DEM.randomizer.random_location_generator import build_location
 
 _SYSTEM_PROMPT = (
@@ -56,7 +56,7 @@ def _should_roll(time: Stamp) -> bool:
     return time.month == 1 and time.day == 1
 
 
-def generate_random(session: Session, time: Stamp) -> Location | None:
+def generate_random(session: Session, time: Stamp, ai: AIClient) -> Location | None:
     """ロールに当たったら、場所を一件 db へ確定して返す。当たらなければ None。"""
     if not _should_roll(time):
         return None
@@ -66,10 +66,10 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
     roll = rng.random()
     when = format_time(time)
     if roll >= constants.LOCATION_PROBABILITY:
-        print(f"[claude_ai/location] {when} 年初判定: "
+        print(f"[time_keepr/location] {when} 年初判定: "
               f"seed={seed} roll={roll:.4f} >= {constants.LOCATION_PROBABILITY} → 見送り")
         return None
-    print(f"[claude_ai/location] {when} 年初判定: "
+    print(f"[time_keepr/location] {when} 年初判定: "
           f"seed={seed} roll={roll:.4f} < {constants.LOCATION_PROBABILITY} → 生成")
 
     # 親は、この時刻にまだ存在している(start〜end に収まっている)場所だけ。
@@ -83,7 +83,7 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
         if (remaining := _remaining_area(session, c)) is None or remaining > 0
     ]
     if candidates and not eligible:
-        print(f"[claude_ai/location] {when} 広さの余地がある親が無いため見送り")
+        print(f"[time_keepr/location] {when} 広さの余地がある親が無いため見送り")
         return None
     parent = rng.choice(eligible) if eligible else None
 
@@ -106,7 +106,7 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
         f"現在の時刻: {time}\n"
         "この親の配下に新しく生まれる場所を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
+    decided = ai.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
 
     draft["name"] = decided.get("name") or draft["name"]
     draft["kind"] = decided.get("kind") or draft["kind"]
@@ -119,7 +119,7 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
     session.add(record)
     session.commit()
     parent_label = f"{parent.name}(id={parent.id})" if parent else "根(親なし)"
-    print(f"[claude_ai/location] {when} 生成: {record.name}({record.kind})"
+    print(f"[time_keepr/location] {when} 生成: {record.name}({record.kind})"
           f" id={record.id} 親={parent_label} 広さ={record.area} 環境={record.environment}\n"
           f"    説明: {record.text or '(説明なし)'}")
 

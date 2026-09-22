@@ -1,16 +1,16 @@
 # claude_ai
 
 `DEM/local_ai/`(Ollama)と**同じ仕様**で、生成を Claude Code(`claude -p`)にやらせる側。
-local_ai とはコードを共有せず、完全に分かれている(local_ai 側に切り替えの分岐は無い)。
-共有するのは `DEM/ai_instructions/`(プロンプトの文面)と `DEM/randomizer/`(db に触れない下書き)だけ。
+常駐ループの本体(生成器・時刻・定数)は上位の `DEM/time_keeper/` にあり、local_ai と
+claude_ai はそこへ自分の `ai_client` を渡すだけの薄い入口になっている。
 
 ```
+DEM/time_keeper/          常駐ループの本体(両方で共用)。生成器は AI を `ai` 引数(`_ai.AIClient`)で受け取る
 DEM/claude_ai/
-  ai_client.py        `local_ai/ai_client.py` と同じ関数(generate / generate_json / try_generate_json)。
-                      中身は `claude -p --output-format json --json-schema …` の subprocess
-  time_keeper/        local_ai/time_keeper/ と同じ構成の常駐ループ(人物・出来事・場所・寿命・時刻・定数)。
-                      import 先が `DEM.claude_ai.ai_client` になっているだけで、確率・プロンプト・db への書き方は同じ
-  story_writer.py     作品の次の話を書いて db へ確定する(local_ai に無い、ここだけの生成器)
+  ai_client.py            `local_ai/ai_client.py` と同じ関数(generate / generate_json / try_generate_json)。
+                          中身は `claude -p --output-format json --json-schema …` の subprocess
+  time_keeper/main.py     `DEM/time_keeper/main.py` に claude_ai の ai_client を渡して回す入口
+  story_writer.py         作品の次の話を書いて db へ確定する(local_ai に無い、ここだけの生成器)
 ```
 
 ## 仕組み
@@ -20,7 +20,6 @@ DEM/claude_ai/
   このリポジトリの `CLAUDE.md` や設定を読み込ませない
 - 認証は CLI に任せる(`claude login` 済みか `ANTHROPIC_API_KEY`)
 - ループの終わりに Claude Code の呼び出し回数・トークン・費用を出す
-- local_ai の生成器を直したら、ここの `time_keeper/` にも同じ変更を入れる(意図的に別物にする場合を除く)
 
 ## 環境変数(`.env` でよい)
 

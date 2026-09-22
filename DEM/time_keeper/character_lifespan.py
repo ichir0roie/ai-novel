@@ -7,9 +7,9 @@ import random
 from DEM.ai_instructions.event_writing import EVENT_RECORD_INSTRUCTION
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import CHARACTER_KIND_PERSON, Character, Event, EventCharacter, Session, Stamp
-from DEM.local_ai import ai_client
-from DEM.local_ai.time_keeper import constants
-from DEM.local_ai.time_keeper._format import format_time
+from DEM.time_keeper._ai import AIClient
+from DEM.time_keeper import constants
+from DEM.time_keeper._format import format_time
 
 _DEATH_SYSTEM_PROMPT = (
     "あなたは架空の世界観の中で、ある人物の死を記録する設定作家です。"
@@ -53,7 +53,7 @@ def _current_place_id(session: Session, character: Character, time: Stamp) -> in
 
 
 def _kill(
-    session: Session, character: Character, time: Stamp, cause: str,
+    session: Session, character: Character, time: Stamp, cause: str, ai: AIClient,
 ) -> Event:
     place_id = _current_place_id(session, character, time)
     prompt = (
@@ -63,7 +63,7 @@ def _kill(
         f"現在の時刻: {time}\n"
         "この人物の最期を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_DEATH_SYSTEM_PROMPT)
+    decided = ai.try_generate_json(prompt, _SCHEMA, system=_DEATH_SYSTEM_PROMPT)
     event_name = decided.get("event_name") or f"{character.name}の死({cause})"
     event_text = decided.get("event_text") or ""
 
@@ -87,7 +87,7 @@ def _kill(
     return record
 
 
-def generate_random(session: Session, time: Stamp) -> list[Event]:
+def generate_random(session: Session, time: Stamp, ai: AIClient) -> list[Event]:
     """年初に、生きている人物それぞれの老衰・事故をロールする。人物以外の対象は寿命を持たない。"""
     if not _should_roll(time):
         return []
@@ -105,13 +105,13 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
         if constants.NATURAL_DEATH_MAX_AGE < age:
             dead_age = random.randint(constants.NATURAL_DEATH_MAX_AGE, age)
             dead_time = Stamp(character.start.year + dead_age)
-            created.append(_kill(session, character, dead_time, "老衰"))
+            created.append(_kill(session, character, dead_time, "老衰", ai))
 
         if random.random() < _natural_death_probability(age):
-            created.append(_kill(session, character, time, "老衰"))
+            created.append(_kill(session, character, time, "老衰", ai))
             continue
 
         if random.random() < constants.ACCIDENT_PROBABILITY_PER_YEAR:
-            created.append(_kill(session, character, time, "事故"))
+            created.append(_kill(session, character, time, "事故", ai))
 
     return created
