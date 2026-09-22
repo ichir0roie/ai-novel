@@ -35,7 +35,7 @@ claudeが実行するスクリプト群を配置する。
 | 領域         | 入口                                                                                                                             |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `randomizer/` | `create_random_character` `create_random_place` `create_random_event`(db に触れない下書き)                |
-|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term`(確定する) |
+|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term` `commit_character_place`(確定する。`commit_character_place` は既にいる人物に出自・居場所を足す) |
 |              | `update_character` `update_place` `update_plot` `update_character_plot` `delete_place`(確定済みを直す・消す)       |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
