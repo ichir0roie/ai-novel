@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""db から、星ごとに「経緯度を持つ場所」を素の辞書に集める。SVG・HTML の描画と `list_neighbors` の共通の材料。"""
+"""db から、星ごとに「経緯度を持つ場所」と「輪郭を持つ場所」を素の辞書に集める。SVG・HTML の描画と `list_neighbors` の共通の材料。"""
 from __future__ import annotations
 
 from DEM.data_access_logic.query import common_query
@@ -28,6 +28,7 @@ def point_dict(session, place) -> dict:
         "parent_kind": parent.kind if parent else None,
         "lon": _num(place.location_longitude), "lat": _num(place.location_latitude),
         "alt": _num(place.location_altitude),
+        "polygon": place.polygon,
         "environment": place.environment,
         "sample_region": place.sample_region, "sample_culture": place.sample_culture,
         "sample_era": place.sample_era,
@@ -38,11 +39,17 @@ def point_dict(session, place) -> dict:
 
 
 def collect_planets(session) -> list[dict]:
-    """`[{"planet": {...}, "points": [...]}, ...]`。点の無い星は含めない。"""
+    """`[{"planet": {...}, "points": [...], "shapes": [...]}, ...]`。点も輪郭も無い星は含めない。
+
+    経緯度と輪郭の両方を持つ場所は両方に入る。
+    """
     result = []
     for planet in session.scalars(common_query.planets_select()).all():
         places = session.scalars(common_query.places_on_planet_select(planet.id)).all()
-        if not places:
+        shapes = session.scalars(common_query.shapes_on_planet_select(planet.id)).all()
+        if not places and not shapes:
             continue
-        result.append({"planet": planet_dict(planet), "points": [point_dict(session, p) for p in places]})
+        result.append({"planet": planet_dict(planet),
+                       "points": [point_dict(session, p) for p in places],
+                       "shapes": [point_dict(session, p) for p in shapes]})
     return result

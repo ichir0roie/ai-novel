@@ -2,6 +2,8 @@
 """平板図の描画範囲と、ラベルの置き場所。SVG(Python)と HTML(JS)で同じ決め方をする。"""
 from __future__ import annotations
 
+from DEM.db.polygon import outer_ring
+
 __all__ = ["Frame", "fit_frame", "text_width", "place_labels"]
 
 PAD_DEG = 10
@@ -43,12 +45,16 @@ def _ceil(v, step):
     return -_floor(-v, step)
 
 
-def fit_frame(points: list[dict]) -> Frame:
-    """点の広がりに余白を足し、格子に揃えて全球に収める。点が無ければ全球。"""
-    if not points:
-        return Frame(-180, 180, -90, 90, MIN_SCALE / 2)
+def fit_frame(points: list[dict], shapes: list[dict] = ()) -> Frame:
+    """点と輪郭の頂点の広がりに余白を足し、格子に揃えて全球に収める。何も無ければ全球。"""
     lons = [p["lon"] for p in points]
     lats = [p["lat"] for p in points]
+    for shape in shapes:
+        for lon, lat in outer_ring(shape["polygon"]):
+            lons.append(lon)
+            lats.append(lat)
+    if not lons:
+        return Frame(-180, 180, -90, 90, MIN_SCALE / 2)
     lon_min = max(-180, _floor(min(lons) - PAD_DEG, GRID_DEG))
     lon_max = min(180, _ceil(max(lons) + PAD_DEG, GRID_DEG))
     lat_min = max(-90, _floor(min(lats) - PAD_DEG, GRID_DEG))

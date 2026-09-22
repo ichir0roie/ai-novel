@@ -30,7 +30,7 @@ def render_maps(session, root: str) -> list[str]:
         planet = entry["planet"]
         dir_path = os.path.join(table_dir, planet["directory_path"]) if planet["directory_path"] else table_dir
         path = os.path.join(dir_path, f"{planet['id']}_map.svg")
-        _write(path, render_svg(planet, entry["points"]))
+        _write(path, render_svg(planet, entry["points"], entry["shapes"]))
         written.append(path)
     html_path = os.path.join(table_dir, "map.html")
     _write(html_path, render_html(planets))

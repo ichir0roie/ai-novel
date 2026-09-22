@@ -5,7 +5,7 @@ import enum
 import os
 
 from sqlalchemy import (
-    BigInteger, Boolean, Integer, String, DECIMAL, TypeDecorator,
+    BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator,
     create_engine,
     ForeignKey,
     select,
@@ -29,6 +29,7 @@ from sqlalchemy.orm import (
 
 from sqlalchemy import func
 
+from DEM.db.polygon import parse_polygon
 from DEM.db.stamp import Stamp
 
 
@@ -47,6 +48,19 @@ class StampType(TypeDecorator):
 
     def process_result_value(self, value, dialect):
         return Stamp.from_int(value)
+
+
+class PolygonType(TypeDecorator):
+
+    impl = JSON
+    cache_ok = True
+
+    def __init__(self):
+        # 既定だと None が JSON の 'null' 文字列で入り、IS NULL で引けなくなる
+        super().__init__(none_as_null=True)
+
+    def process_bind_param(self, value, dialect):
+        return parse_polygon(value)
 
 
 LOCATION_COLUMNS = ("location_world", "location_planet",
@@ -123,6 +137,9 @@ class Location(MarkdownBase):
     location_longitude: Mapped[float | None] = mapped_column(DECIMAL, comment="経度。基準の子午線から東へ何度(西は負)", sort_order=250)
     location_latitude: Mapped[float | None] = mapped_column(DECIMAL, comment="緯度。赤道から北へ何度(南は負)", sort_order=260)
     location_altitude: Mapped[float | None] = mapped_column(DECIMAL, comment="高度。基準面から上へ何 m", sort_order=270)
+    polygon: Mapped[dict | None] = mapped_column(
+        PolygonType, comment="輪郭。GeoJSON の Polygon(`coordinates` は [経度, 緯度] の環の並び、"
+        "先頭が外周で以降は穴)。地図では面として描く。経緯度が無くても持てる", sort_order=280)
 
     area: Mapped[float | None] = mapped_column(
         DECIMAL, comment="広さ。単位は決めていないが、親と子で揃える。"
@@ -326,6 +343,26 @@ class CharacterPlot(MarkdownBase):
 
     start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
     end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
+
+
+class CharacterRelation(MarkdownBase):
+    """人物同士の相関。`character_id_1` から見た `character_id_2` との関係を一行で持つ。"""
+
+    __tablename__ = "character_relation"
+
+    character_id_1: Mapped[int] = mapped_column(
+        Integer, ForeignKey("character.id"), index=True,
+        comment="関係の主体となる人物", sort_order=100)
+    character_id_2: Mapped[int] = mapped_column(
+        Integer, ForeignKey("character.id"), index=True,
+        comment="関係の相手となる人物", sort_order=110)
+    relation: Mapped[str] = mapped_column(
+        String, nullable=False, comment="関係の短い名前(母・師・宿敵 など)", sort_order=120)
+
+    character_1: Mapped["Character"] = relationship(
+        foreign_keys="CharacterRelation.character_id_1", lazy="noload")
+    character_2: Mapped["Character"] = relationship(
+        foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
 class Term(MarkdownBase):

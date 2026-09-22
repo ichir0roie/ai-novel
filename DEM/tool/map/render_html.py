@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""全ての星をまとめた一枚の HTML。星の切り替え・親ごとの表示切り替え・点を選ぶと他の点までの距離と方角を出す。"""
+"""全ての星をまとめた一枚の HTML。星の切り替え・親ごとの表示切り替え・点を選ぶと他の点までの距離と方角を出す。輪郭を持つ場所は面として敷く。"""
 from __future__ import annotations
 
 import json
@@ -62,10 +62,12 @@ const BEARINGS = __BEARINGS__;
 const ML = 60, MT = 40, MR = 20, MB = 30, PAD = 10, GRID = 10, MIN_SCALE = 6, TARGET_WIDTH = 1400;
 const state = { planet: 0, hidden: new Set(), origin: null, zoom: 1 };
 
-function fitFrame(points) {
+const outerRing = poly => { const r = poly.coordinates[0]; return r.length > 1 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1] ? r.slice(0, -1) : r; };
+function fitFrame(points, shapes = []) {
   const fl = (v, s) => Math.floor(v / s) * s, ce = (v, s) => -fl(-v, s);
-  if (!points.length) return { lonMin: -180, lonMax: 180, latMin: -90, latMax: 90, scale: MIN_SCALE / 2 };
   const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
+  for (const sh of shapes) for (const [lon, lat] of outerRing(sh.polygon)) { lons.push(lon); lats.push(lat); }
+  if (!lons.length) return { lonMin: -180, lonMax: 180, latMin: -90, latMax: 90, scale: MIN_SCALE / 2 };
   const f = { lonMin: Math.max(-180, fl(Math.min(...lons) - PAD, GRID)), lonMax: Math.min(180, ce(Math.max(...lons) + PAD, GRID)),
               latMin: Math.max(-90, fl(Math.min(...lats) - PAD, GRID)), latMax: Math.min(90, ce(Math.max(...lats) + PAD, GRID)) };
   f.scale = Math.max(MIN_SCALE, TARGET_WIDTH / (f.lonMax - f.lonMin)) * state.zoom;
@@ -147,8 +149,12 @@ function marker(p, x, y, r, color, extra) {
   return `<path d="M${x},${y - r} L${x + r},${y} L${x},${y + r} L${x - r},${y} Z" fill="${color}" stroke="#fff" ${extra}/>`;
 }
 
-function renderMap(planet, points, layers, colorOf) {
-  const f = fitFrame(points), X = f.x, Y = f.y;
+function shapePath(f, poly) {
+  return poly.coordinates.map(ring => ring.map(([lon, lat], i) => `${i ? "L" : "M"}${f.x(lon)},${f.y(lat)}`).join(" ") + " Z").join(" ");
+}
+
+function renderMap(planet, points, shapes, layers, colorOf) {
+  const f = fitFrame(points, shapes), X = f.x, Y = f.y;
   const W = ML + (f.lonMax - f.lonMin) * f.scale + MR, H = MT + (f.latMax - f.latMin) * f.scale + MB;
   let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-size="11">`;
   s += `<rect width="${W}" height="${H}" fill="#fdfcf8"/>`;
@@ -164,6 +170,17 @@ function renderMap(planet, points, layers, colorOf) {
   const r = planet.radius_km;
   s += `<text x="${ML}" y="24" font-size="18" font-weight="bold">${esc(planet.name)}</text>`;
   s += `<text x="${ML + 40 + planet.name.length * 18}" y="24" fill="#555">${r ? `半径 約${Math.round(r).toLocaleString()} km、緯度1度 ≒ ${Math.round(r * Math.PI / 180).toLocaleString()} km` : "半径は不明(area が無い)"}</text>`;
+
+  const pointIds = new Set(points.map(p => p.id));
+  for (const p of shapes.filter(p => !state.hidden.has(parentOf(p)))) {
+    const color = colorOf[parentOf(p)];
+    s += `<g class="shape" data-id="${p.id}"><path d="${shapePath(f, p.polygon)}" fill="${color}" fill-opacity=".15" fill-rule="evenodd" stroke="${color}" stroke-width="1.2" stroke-linejoin="round"/>`;
+    if (!pointIds.has(p.id)) {
+      const ring = outerRing(p.polygon), cx = ring.reduce((a, q) => a + q[0], 0) / ring.length, cy = ring.reduce((a, q) => a + q[1], 0) / ring.length;
+      s += `<text x="${X(cx)}" y="${Y(cy)}" text-anchor="middle" font-size="13" font-weight="bold" fill="${color}" fill-opacity=".7" pointer-events="none">${esc(p.name)}</text>`;
+    }
+    s += "</g>";
+  }
 
   const shown = points.filter(p => !state.hidden.has(parentOf(p)));
   const origin = shown.find(p => p.id === state.origin) ?? null;
@@ -188,6 +205,13 @@ function renderMap(planet, points, layers, colorOf) {
   const map = document.getElementById("map");
   map.innerHTML = s;
   const tip = document.getElementById("tip");
+  map.querySelectorAll(".shape").forEach(g => {
+    const p = shapes.find(q => q.id === +g.dataset.id);
+    g.onmousemove = e => { tip.style.display = "block"; tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY + 14) + "px";
+      tip.textContent = [`${p.name} (${p.kind ?? ""})`, `親: ${p.parent_name ?? "-"}`, `輪郭 ${outerRing(p.polygon).length} 頂点`,
+        p.environment ? `環境: ${p.environment}` : null].filter(Boolean).join("\n"); };
+    g.onmouseleave = () => { tip.style.display = "none"; };
+  });
   map.querySelectorAll(".pt").forEach(g => {
     const p = points.find(q => q.id === +g.dataset.id);
     g.onclick = () => { state.origin = state.origin === p.id ? null : p.id; render(); };
@@ -200,11 +224,11 @@ function renderMap(planet, points, layers, colorOf) {
   });
 }
 
-function renderSide(planet, points) {
+function renderSide(planet, points, shapes) {
   const side = document.getElementById("side");
   const origin = points.find(p => p.id === state.origin);
   if (!origin) { side.innerHTML = `<p class="hint">点をクリックすると、そこから見た他の場所の距離と方角を出す。</p>` +
-    `<p class="hint">経緯度を持つ場所 ${points.length} 件。面(大陸・世界)は座標を持たないので描かない。</p>`; return; }
+    `<p class="hint">経緯度を持つ場所 ${points.length} 件、輪郭(polygon)を持つ場所 ${shapes.length} 件。輪郭は薄い面として敷く。</p>`; return; }
   const rows = points.filter(p => p !== origin && !state.hidden.has(parentOf(p))).map(p => {
     const deg = angular(origin, p), km = planet.radius_km ? rad(deg) * planet.radius_km : null, b = bearing(origin, p);
     const diff = (origin.alt != null && p.alt != null) ? p.alt - origin.alt : null;
@@ -222,13 +246,13 @@ function renderSide(planet, points) {
 }
 
 function render() {
-  const { planet, points } = PLANETS[state.planet];
-  const layers = layersOf(points);
+  const { planet, points, shapes } = PLANETS[state.planet];
+  const layers = layersOf([...points, ...shapes]);
   const colorOf = Object.fromEntries(layers.map((n, i) => [n, COLORS[i % COLORS.length]]));
-  renderTabs(); renderLayers(layers, colorOf, points); renderMap(planet, points, layers, colorOf); renderSide(planet, points);
+  renderTabs(); renderLayers(layers, colorOf, [...points, ...shapes]); renderMap(planet, points, shapes, layers, colorOf); renderSide(planet, points, shapes);
 }
 document.getElementById("zoom").oninput = e => { state.zoom = +e.target.value; document.getElementById("zoomv").textContent = state.zoom + "×"; render(); };
-if (PLANETS.length) render(); else document.getElementById("map").innerHTML = '<p class="hint" style="padding:16px">経緯度を持つ場所が無い。</p>';
+if (PLANETS.length) render(); else document.getElementById("map").innerHTML = '<p class="hint" style="padding:16px">経緯度も輪郭も持つ場所が無い。</p>';
 </script>
 </body>
 </html>

@@ -33,6 +33,8 @@ def _python_type(column_type) -> type:
 def _field_type(column) -> type:
     if isinstance(column.type, schema.StampType):
         py_type = Stamp
+    elif isinstance(column.type, schema.PolygonType):
+        py_type = dict
     else:
         py_type = _python_type(column.type)
     return py_type | None if column.nullable else py_type

@@ -151,6 +151,16 @@ def places_on_planet_select(planet_id: int) -> Select:
     )
 
 
+def shapes_on_planet_select(planet_id: int) -> Select:
+    """その星の上で輪郭(polygon)を持つ場所。経緯度の有無は問わない。"""
+    return (
+        select(Location)
+        .where(Location.location_planet == planet_id)
+        .where(Location.polygon.is_not(None))
+        .order_by(Location.id.asc())
+    )
+
+
 # ---------------------------------------------------------------- 出来事
 
 def events_at_select(when, *, place_ids=None, limit=None) -> Select:
@@ -336,3 +346,12 @@ def terms_select(place_ids) -> Select:
                        Term.restrict_planet_id.in_(place_ids),
                        Term.restrict_world_id.in_(place_ids)))
             .order_by(Term.id))
+
+
+def character_relations_select(character_id: int | None = None) -> Select:
+    """人物の相関(`CharacterRelation`)の一覧。人物を渡すと、その人物が主体か相手のものに絞る。"""
+    query = select(CharacterRelation)
+    if character_id is not None:
+        query = query.where(or_(CharacterRelation.character_id_1 == character_id,
+                                CharacterRelation.character_id_2 == character_id))
+    return query.order_by(CharacterRelation.id)
