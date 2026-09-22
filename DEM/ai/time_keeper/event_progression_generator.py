@@ -37,57 +37,48 @@ from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper._format import add_days, format_time
 from DEM.randomizer.random_location_generator import build_location
 
-_EVENT_TEXT_INSTRUCTION = (
-    "選ばれた出来事の候補(name と summary)を、当事者ごとの思考・感情・"
-    "望み・恐れ・行動を土台にして記録に起こす。候補の筋から外れない。"
-    + EVENT_RECORD_INSTRUCTION
-)
+_EVENT_TEXT_INSTRUCTION = f"""\
+選ばれた出来事の候補(name と summary)を、当事者ごとの思考・感情・望み・恐れ・行動を土台にして記録に起こす。
+候補の筋から外れない。
+{EVENT_RECORD_INSTRUCTION}"""
 
 
-_PLOT_TEXT_INSTRUCTION = (
-    "text はその人物の信念・思考の核になる情報として扱う。日常の細かな"
-    "出来事では character_plots 自体を空リストのままにし、信念・立場が"
-    "大きく動いたときだけ書く。書くときは一文で済ませず、"
-    + CHARACTER_PLOT_INSTRUCTION +
-    f"この人物自身を指すときは名前を書かず、必ず「{NAME_PLACEHOLDER}」とだけ書く。"
-)
+_PLOT_TEXT_INSTRUCTION = f"""\
+text はその人物の信念・思考の核になる情報として扱う。
+日常の細かな出来事では character_plots 自体を空リストのままにし、信念・立場が大きく動いたときだけ書く。
+渡した plot に既にある筋書きを書き写したり言い換えたりして返さない。書くのは新しい筋書きだけ。
+一人の人物につき要素は一つだけにし、起・承・転・結を別々の要素に分けない。
+書くときは一文で済ませず、次の書き方に従う。
+{CHARACTER_PLOT_INSTRUCTION}
+この人物自身を指すときは名前を書かず、必ず「{NAME_PLACEHOLDER}」とだけ書く。"""
 
-_INVOLVEMENT_INSTRUCTION = (
-    "関わった人物・対象があれば、その id を渡した一覧の中からだけ選んで "
-    "character_ids に入れる(複数可)。"
-)
+_INVOLVEMENT_INSTRUCTION = """\
+関わった人物・対象があれば、その id を渡した一覧の中からだけ選んで character_ids に入れる(複数可)。"""
 
-_CHARACTER_MOVE_INSTRUCTION = (
-    "character_moves は、この出来事で居場所が変わった人物だけのリスト"
-    "(旅立ち・移住・避難・帰還など)。各要素は character_id(渡した"
-    "「居合わせる人物」の id)と location_id(渡した「移動先の候補」の id)の"
-    "二つ。誰も動いていなければ空リストにする。"
-)
+_CHARACTER_MOVE_INSTRUCTION = """\
+character_moves は、この出来事で居場所が変わった人物だけのリスト(旅立ち・移住・避難・帰還など)。
+各要素は character_id(渡した「居合わせる人物」の id)と location_id(渡した「移動先の候補」の id)の二つ。
+誰も動いていなければ空リストにする。"""
 
-_LOCATION_CHANGE_INSTRUCTION = (
-    "この出来事が場所自身の改廃(消滅・新設)に及ぶときだけ、"
-    "location_abolished / location_founded を埋める。何も変わっていなければ "
-    "location_abolished は false、location_founded は null のままにする。"
-    "location_founded の固有名詞は次の基準で名づける。"
-    + PLACE_NAMING_INSTRUCTION
-)
+_LOCATION_CHANGE_INSTRUCTION = f"""\
+この出来事が場所自身の改廃(消滅・新設)に及ぶときだけ、location_abolished / location_founded を埋める。
+何も変わっていなければ location_abolished は false、location_founded は null のままにする。
+location_founded の固有名詞は次の基準で名づける。
+{PLACE_NAMING_INSTRUCTION}"""
 
 _JUDGEMENT_KEYS = ("thought", "emotion", "wish", "fear", "action")
 
-_JUDGEMENT_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある一人の人物、または人物以外の一つの対象"
-    "(国・組織・集団・物)の立場に立って考える設定作家です。"
-    "渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」の"
-    "いまを、その kind・text・口調・性格の数値・立場・世界線への影響度から推測して"
-    "ください。人物なら性格と人間関係から、人物以外なら方針と力の及ぶ範囲から。"
-    "他の当事者のことは決めない。この当事者自身のことだけを書く。"
-    "JSON で答えてください。キーは thought(思考。いまの状況をどう受け止め、"
-    "何を考えているか), emotion(感情。何に対して怒り・喜び・悲しみ・退屈・"
-    "不安などを抱いているか。感情の名前を含める), wish(望み。何を手に入れ"
-    "たい・何をしたいか), fear(恐れ。何を失いたくない・何が起きてほしく"
-    "ないか), action(行動。この時点で実際に何をするか。話す・動く・作る・"
-    "出かける・黙るなど具体的な動作で)の五つ。各1〜2文。"
-)
+_JUDGEMENT_SYSTEM_PROMPT = """\
+あなたは架空の世界観の中で、ある一人の人物、または人物以外の一つの対象(国・組織・集団・物)の立場に立って考える設定作家です。
+渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」のいまを、その kind・text・口調・性格の数値・立場・世界線への影響度から推測してください。
+人物なら性格と人間関係から、人物以外なら方針と力の及ぶ範囲から。
+他の当事者のことは決めない。この当事者自身のことだけを書く。
+JSON で答えてください。キーは次の五つ。各1〜2文。
+- thought: 思考。いまの状況をどう受け止め、何を考えているか。
+- emotion: 感情。何に対して怒り・喜び・悲しみ・退屈・不安などを抱いているか。感情の名前を含める。
+- wish: 望み。何を手に入れたい・何をしたいか。
+- fear: 恐れ。何を失いたくない・何が起きてほしくないか。
+- action: 行動。この時点で実際に何をするか。話す・動く・作る・出かける・黙るなど具体的な動作で。"""
 
 _JUDGEMENT_SCHEMA = {
     "type": "object",
@@ -96,22 +87,15 @@ _JUDGEMENT_SCHEMA = {
     "additionalProperties": False,
 }
 
-_CANDIDATE_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある場所に起こりうる出来事を列挙する"
-    "設定作家です。渡す場所・居合わせる人物・対象・当事者ごとの思考・感情・"
-    "望み・恐れ・行動・直近の出来事・筋書きを踏まえ、これらの行動が同じ場で"
-    "重なった結果として、この時点で起こりうる出来事の候補を"
-    f"{constants.CANDIDATE_COUNT}件挙げてください。"
-    "どれが起きるかはあとでサイコロで決めるので、候補どうしは性質を"
-    "ばらけさせる。日常の小さな出来事、感情がぶつかる出来事、偶発的な"
-    "出来事(事故・天候・病・思いがけない出会い)、居場所が変わる出来事"
-    "(旅立ち・帰還・避難)、笑いや祝いの出来事、取り決めや対立が動く出来事"
-    "など、種類の違うものを混ぜ、交渉・要求・合意の型に寄せない。"
-    "各候補は当事者の action と矛盾しない範囲で立てる。"
-    + EVENT_PROGRESSION_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
-    "JSON で答えてください。キーは candidates(候補のリスト。各要素は "
-    "name(出来事の名前)と summary(何が起きて誰が関わるか。2〜3文)の二つ)だけ。"
-)
+_CANDIDATE_SYSTEM_PROMPT = f"""\
+あなたは架空の世界観の中で、ある場所に起こりうる出来事を列挙する設定作家です。
+渡す場所・居合わせる人物・対象・当事者ごとの思考・感情・望み・恐れ・行動・直近の出来事・筋書きを踏まえ、これらの行動が同じ場で重なった結果として、この時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。
+どれが起きるかはあとでサイコロで決めるので、候補どうしは性質をばらけさせる。
+日常の小さな出来事、感情がぶつかる出来事、偶発的な出来事(事故・天候・病・思いがけない出会い)、居場所が変わる出来事(旅立ち・帰還・避難)、笑いや祝いの出来事、取り決めや対立が動く出来事など、種類の違うものを混ぜ、交渉・要求・合意の型に寄せない。
+各候補は当事者の action と矛盾しない範囲で立てる。
+{EVENT_PROGRESSION_INSTRUCTION}
+{AVOID_NARO_TEMPLATE_INSTRUCTION}
+JSON で答えてください。キーは candidates(候補のリスト。各要素は name(出来事の名前)と summary(何が起きて誰が関わるか。2〜3文)の二つ)だけ。"""
 
 _CANDIDATE_SCHEMA = {
     "type": "object",
@@ -133,33 +117,33 @@ _CANDIDATE_SCHEMA = {
     "additionalProperties": False,
 }
 
-_PLACE_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。"
-    "その場所自身の情報、そこに居合わせる人物・対象の一覧、"
-    "その場所の直近の出来事、当事者ごとの思考・感情・"
-    "望み・恐れ・行動、そしてサイコロで選ばれた出来事の候補を渡すので、"
-    "その候補をこの場所にこの時点で起きた出来事として1件、記録に起こして"
-    "ください。候補の name は event_name にそのまま使うか、整えてもよい。"
-    + _INVOLVEMENT_INSTRUCTION + _CHARACTER_MOVE_INSTRUCTION
-    + AVOID_NARO_TEMPLATE_INSTRUCTION +
-    "JSON で答えてください。キーは "
-    "event_name(出来事の名前), event_text(出来事の内容。"
-    + _EVENT_TEXT_INSTRUCTION + "), "
-    "character_ids(関わった人物・対象の id のリスト。渡した「居合わせる人物・対象」の "
-    "character_id からだけ選ぶ), "
-    "character_moves(居場所が変わった人物のリスト。各要素は character_id と "
-    "location_id), "
-    "character_plots(関わった人物のうち、信念・立場が大きく動いた者だけの"
-    "リスト。各要素は character_id(対象の人物 id), text("
-    + _PLOT_TEXT_INSTRUCTION + ")の二つ), "
-    "character_updates(関わった人物・対象のうち、この出来事でレコード自体が"
-    "変わった者だけのリスト。各要素は character_id(対象の id)と、"
-    + CHARACTER_TEXT_UPDATE_INSTRUCTION + "), "
-    "location_abolished(bool。この出来事でこの場所自体が消滅・放棄されたか), "
-    "location_founded(この出来事でこの場所の配下に新しい場所が生まれたなら "
-    "{name, kind, text, environment}。無ければ null), "
-    + _LOCATION_CHANGE_INSTRUCTION + EVENT_DURATION_INSTRUCTION
-)
+_PLACE_SYSTEM_PROMPT = f"""\
+あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。
+その場所自身の情報、そこに居合わせる人物・対象の一覧、その場所の直近の出来事、当事者ごとの思考・感情・望み・恐れ・行動、そしてサイコロで選ばれた出来事の候補を渡すので、その候補をこの場所にこの時点で起きた出来事として1件、記録に起こしてください。
+候補の name は event_name にそのまま使うか、整えてもよい。
+{_INVOLVEMENT_INSTRUCTION}
+{_CHARACTER_MOVE_INSTRUCTION}
+{_LOCATION_CHANGE_INSTRUCTION}
+{AVOID_NARO_TEMPLATE_INSTRUCTION}
+JSON で答えてください。キーは次の九つだけ。
+- event_name: 出来事の名前。
+- event_text: 出来事の内容。書き方は後述の「event_text の書き方」に従う。
+- character_ids: 関わった人物・対象の id のリスト。渡した「居合わせる人物・対象」の character_id からだけ選ぶ。
+- character_moves: 居場所が変わった人物のリスト。各要素は character_id と location_id。
+- character_plots: 関わった人物のうち、信念・立場が大きく動いた者だけのリスト。各要素は character_id(対象の人物 id)と text の二つ。text は後述の「character_plots の text の書き方」に従う。
+- character_updates: 関わった人物・対象のうち、この出来事でレコード自体が変わった者だけのリスト。各要素は character_id(対象の id)と text の二つ。text は後述の「character_updates の text の書き方」に従う。
+- location_abolished: bool。この出来事でこの場所自体が消滅・放棄されたか。
+- location_founded: この出来事でこの場所の配下に新しい場所が生まれたなら {{name, kind, text, environment}}。無ければ null。
+- event_duration_days: {EVENT_DURATION_INSTRUCTION}
+
+event_text の書き方:
+{_EVENT_TEXT_INSTRUCTION}
+
+character_plots の text の書き方:
+{_PLOT_TEXT_INSTRUCTION}
+
+character_updates の text の書き方:
+{CHARACTER_TEXT_UPDATE_INSTRUCTION}"""
 
 _LOCATION_FOUND_SCHEMA = {
     "type": ["object", "null"],
@@ -279,18 +263,15 @@ def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]
     return grouped
 
 
-_PLOT_COMPLETION_SYSTEM_PROMPT = (
-    "あなたは物語の進行を見届ける編集者です。人物一人の筋書き(起・承・転・結)と、"
-    "その人物が関わった直近の出来事、そしていま起きたばかりの出来事を渡します。"
-    "いま起きた出来事によって、筋書きの「結」に相当する到達点まで至ったかどうかを"
-    "判定してください。転機(転)を迎えただけ、結へ向かう途中、という段階では"
-    "完了と見なさない。結に書かれた行き着き先(成功・失敗・変質など)が、"
-    "出来事の記録として実際に起きたときだけ完了とする。"
-    "筋書きには期間(start〜end)があり、end が結に至る予定の時点。現在の時刻が"
-    "期間の終わりにまだ遠いうちは、結に似た出来事が起きても通過点と見なして"
-    "完了としない。"
-    "JSON で答えてください。キーは completed(bool)と reason(一〜二文の根拠)の二つ。"
-)
+_PLOT_COMPLETION_SYSTEM_PROMPT = """\
+あなたは物語の進行を見届ける編集者です。
+人物一人の筋書き(起・承・転・結)と、その人物が関わった直近の出来事、そしていま起きたばかりの出来事を渡します。
+いま起きた出来事によって、筋書きの「結」に相当する到達点まで至ったかどうかを判定してください。
+転機(転)を迎えただけ、結へ向かう途中、という段階では完了と見なさない。
+結に書かれた行き着き先(成功・失敗・変質など)が、出来事の記録として実際に起きたときだけ完了とする。
+筋書きには期間(start〜end)があり、end が結に至る予定の時点。
+現在の時刻が期間の終わりにまだ遠いうちは、結に似た出来事が起きても通過点と見なして完了としない。
+JSON で答えてください。キーは completed(bool)と reason(一〜二文の根拠)の二つ。"""
 
 _PLOT_COMPLETION_SCHEMA = {
     "type": "object",
@@ -301,6 +282,10 @@ _PLOT_COMPLETION_SCHEMA = {
     "required": ["completed", "reason"],
     "additionalProperties": False,
 }
+
+
+def _plot_key(text: str | None) -> str:
+    return "".join((text or "").split())
 
 
 def _plot_span_label(plot: CharacterPlot) -> str:
@@ -555,13 +540,13 @@ def _progress_place(
     plot_done_notes = []
     for cid in involved_character_ids:
         for plot in character_plots.get(cid, []):
-            if plot.end is not None:
-                continue
+            # end は結に至る予定の時点として常に入っているので、有効な筋書きは全部判定にかける
             if _judge_plot_completed(session, plot, character_ids[cid], record, time, ai):
                 plot.end = record.time
                 plot_done_notes.append(f"{character_ids[cid].name}: id={plot.id} 完了")
 
-    plot_notes = []
+    # 同じ人物について起・承・転・結が別要素で返ることがあるので、人物ごとに一つの text にまとめる
+    plot_texts: dict[int, list[str]] = defaultdict(list)
     for item in decided.get("character_plots") or []:
         if not isinstance(item, dict):
             continue
@@ -572,7 +557,14 @@ def _progress_place(
         text = item.get("text")
         if character_id not in character_ids or not text:
             continue
-        text = fill_name_placeholder(text, character_ids[character_id].name or "")
+        plot_texts[character_id].append(text.strip())
+
+    plot_notes = []
+    for character_id, texts in plot_texts.items():
+        text = fill_name_placeholder("\n".join(texts), character_ids[character_id].name or "")
+        existing = {_plot_key(p.text) for p in character_plots.get(character_id, [])}
+        if _plot_key(text) in existing:
+            continue
         plot_end = Stamp(time.year + plot_years, time.month, time.day)
         session.add(CharacterPlot(character_id=character_id, text=text, start=time, end=plot_end))
         plot_notes.append(f"{character_ids[character_id].name}({plot_years}年、〜{format_time(plot_end)}): {text}")

@@ -13,17 +13,16 @@ from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper._format import format_time
 from DEM.randomizer.random_location_generator import build_location
 
-_SYSTEM_PROMPT = (
-    "あなたは架空の世界観を構築する設定作家です。"
-    "既存の場所の一覧と、新しく生まれる場所がどこの配下になりそうかを渡します。"
-    "その配下に新しく生まれる場所を1件だけ考え、自然な固有名詞を JSON で"
-    "答えてください。" + PLACE_NAMING_INSTRUCTION + "キーは name(固有名詞), "
-    "kind(大陸/国/町/村などの種別), text(具体的な産業・生活・人間関係が"
-    "伝わる2〜3文の説明。「自然豊か」「歴史がある」のような、他のどの場所"
-    "にも当てはまる抽象的な形容だけで済ませず、この場所固有の職業・特産品・"
-    "行事・地形の起伏など具体を最低一つ含める), environment(環境。気候・"
-    "地形など一言)の四つだけ。"
-)
+_SYSTEM_PROMPT = f"""\
+あなたは架空の世界観を構築する設定作家です。
+既存の場所の一覧と、新しく生まれる場所がどこの配下になりそうかを渡します。
+その配下に新しく生まれる場所を1件だけ考え、自然な固有名詞を JSON で答えてください。
+{PLACE_NAMING_INSTRUCTION}
+キーは次の四つだけ。
+- name: 固有名詞。
+- kind: 大陸/国/町/村などの種別。
+- text: 具体的な産業・生活・人間関係が伝わる2〜3文の説明。「自然豊か」「歴史がある」のような、他のどの場所にも当てはまる抽象的な形容だけで済ませず、この場所固有の職業・特産品・行事・地形の起伏など具体を最低一つ含める。
+- environment: 環境。気候・地形など一言。"""
 
 _SCHEMA = {
     "type": "object",

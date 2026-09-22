@@ -11,14 +11,11 @@ from DEM.ai.time_keeper._ai import AIClient
 from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper._format import format_time
 
-_DEATH_SYSTEM_PROMPT = (
-    "あなたは架空の世界観の中で、ある人物の死を記録する設定作家です。"
-    "渡す人物の情報と死因をもとに、その最期に何が起きたかを1件だけ"
-    "決めてください。"
-    + EVENT_RECORD_INSTRUCTION +
-    "JSON で答えてください。キーは event_name(出来事の名前), "
-    "event_text(死の記録)の二つだけ。"
-)
+_DEATH_SYSTEM_PROMPT = f"""\
+あなたは架空の世界観の中で、ある人物の死を記録する設定作家です。
+渡す人物の情報と死因をもとに、その最期に何が起きたかを1件だけ決めてください。
+{EVENT_RECORD_INSTRUCTION}
+JSON で答えてください。キーは event_name(出来事の名前), event_text(死の記録)の二つだけ。"""
 
 _SCHEMA = {
     "type": "object",
