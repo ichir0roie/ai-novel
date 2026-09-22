@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 
 from DEM.db.schema import Stamp
-from DEM.local_ai.time_keeper import constants
+from DEM.time_keeper import constants
 
 
 def is_leap_year(year: int) -> bool:

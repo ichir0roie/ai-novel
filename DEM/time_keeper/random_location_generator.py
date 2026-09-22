@@ -8,9 +8,9 @@ from DEM.ai_instructions.naming import PLACE_NAMING_INSTRUCTION
 from DEM.data_access_logic.query import world_createion_query
 from DEM.data_access_logic.query.base import location_active_condition
 from DEM.db.schema import Location, Session, Stamp
-from DEM.local_ai import ai_client
-from DEM.local_ai.time_keeper import constants
-from DEM.local_ai.time_keeper._format import format_time
+from DEM.time_keeper._ai import AIClient
+from DEM.time_keeper import constants
+from DEM.time_keeper._format import format_time
 from DEM.randomizer.random_location_generator import build_location
 
 _SYSTEM_PROMPT = (
@@ -56,7 +56,7 @@ def _should_roll(time: Stamp) -> bool:
     return time.month == 1 and time.day == 1
 
 
-def generate_random(session: Session, time: Stamp) -> Location | None:
+def generate_random(session: Session, time: Stamp, ai: AIClient) -> Location | None:
     """ロールに当たったら、場所を一件 db へ確定して返す。当たらなければ None。"""
     if not _should_roll(time):
         return None
@@ -106,7 +106,7 @@ def generate_random(session: Session, time: Stamp) -> Location | None:
         f"現在の時刻: {time}\n"
         "この親の配下に新しく生まれる場所を1件、決めてください。"
     )
-    decided = ai_client.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
+    decided = ai.try_generate_json(prompt, _SCHEMA, system=_SYSTEM_PROMPT)
 
     draft["name"] = decided.get("name") or draft["name"]
     draft["kind"] = decided.get("kind") or draft["kind"]
