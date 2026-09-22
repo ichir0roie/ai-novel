@@ -19,13 +19,12 @@ from DEM.db.schema import Episode, Session, get_session
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
 
-_SYSTEM_PROMPT = (
-    "あなたは日本語のライトノベルを書く作家です。"
-    "作品の見出し・直前の話・世界の断面・顔ぶれを渡すので、この作品の次の話を"
-    "一話ぶん書いてください。"
-    + EPISODE_WRITING_INSTRUCTION + AVOID_NARO_TEMPLATE_INSTRUCTION +
-    "JSON で答えてください。キーは title(サブタイトル。短く)と text(本文)の二つだけ。"
-)
+_SYSTEM_PROMPT = f"""\
+あなたは日本語のライトノベルを書く作家です。
+作品の見出し・直前の話・世界の断面・顔ぶれを渡すので、この作品の次の話を一話ぶん書いてください。
+{EPISODE_WRITING_INSTRUCTION}
+{AVOID_NARO_TEMPLATE_INSTRUCTION}
+JSON で答えてください。キーは title(サブタイトル。短く)と text(本文)の二つだけ。"""
 
 _SCHEMA = {
     "type": "object",
