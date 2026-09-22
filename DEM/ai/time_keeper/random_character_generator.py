@@ -222,7 +222,7 @@ def _nearby_characters(session: Session, born_place: Location | None, time: Stam
     if not ids:
         return []
     ids = ids[:constants.NEARBY_CHARACTER_LIMIT]
-    return session.scalars(select(Character).where(Character.id.in_(ids))).all()
+    return list(session.scalars(select(Character).where(Character.id.in_(ids))).all())
 
 
 def _record_context(records: list[Character]) -> str:
@@ -236,7 +236,7 @@ def _character_names(characters: list[Character]) -> str:
     """人物・対象のリストを、名前(読み)の一覧にする。命名時の重複回避に使う。"""
     if not characters:
         return "(無し)"
-    return "、".join(f"{c.name}({c.read})" if c.read else c.name for c in characters)
+    return "、".join(f"{c.name}({c.read})" if c.read else (c.name or "") for c in characters)
 
 
 def _location_context(place: Location | None) -> str:
@@ -393,15 +393,21 @@ def get_usable_location_q(time: Stamp):
             CharacterPlot, Character.id == CharacterPlot.character_id
         )
         .where(
-            CharacterPlot.id == None,
-            location_active_condition(),
+            location_active_condition(time),
         )
     )
 
-    add_q = (
+    q_1 = (
         base_q
         .where(
-            location_time_condition(time),
+            CharacterPlot.id == None,
+        )
+    )
+
+    q_2 = (
+        base_q
+        .where(
+            character_plot_time_condition(time)
         )
         .group_by(Location.id)
         .having(
@@ -409,7 +415,7 @@ def get_usable_location_q(time: Stamp):
         )
     )
 
-    return union_all(base_q, add_q)
+    return union_all(q_1, q_2)
 
 
 def generate_random(session: Session, time: Stamp, ai: AIClient) -> Character | None:
