@@ -35,14 +35,14 @@ claudeが実行するスクリプト群を配置する。
 | 領域         | 入口                                                                                                                             |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `randomizer/` | `create_random_character` `create_random_place` `create_random_event`(db に触れない下書き)                |
-|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot`(確定する) |
+|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term`(確定する) |
 |              | `update_character` `update_place` `update_plot` `update_character_plot` `delete_place`(確定済みを直す・消す)       |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
 | `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
 | `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/location/map.html` も描く) `import_db`(md → db。逆向き) |
 
-**`term`(語)を確定する入口はまだ無い。** 検索(`search_terms`)だけがある。
+`term`(語)は `commit_term` で確定し、`search_terms` で引く。直す入口はまだ無い。
 
 ## 作り方
 
