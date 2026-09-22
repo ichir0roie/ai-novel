@@ -1,0 +1,74 @@
+"""time_keeper の人物生成。サイコロで決めた性格を AI へ渡し、その段階のまま db に確定する。"""
+import random
+
+from DEM.ai.time_keeper.random_character_generator import (
+    _CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
+)
+from DEM.db.schema import (
+    PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlot, Location, Plot,
+)
+from DEM.db.stamp import Stamp
+from DEM.tool.test.mock_ai_client import MockAIClient
+
+_ALL_HIGH = {name: "高" for name in PERSONALITY_COLUMNS}
+
+
+def test_personality_label_uses_column_comments():
+    label = _personality_label(dict(_ALL_HIGH, sincerity="無", imagination="必"))
+    parts = label.split(" / ")
+    assert len(parts) == 12
+    assert parts[0] == "誠実性=無"
+    assert parts[-1] == "想像力=必"
+    assert all(part.endswith("=高") for part in parts[1:-1])
+
+
+def test_personality_label_accepts_record():
+    record = Character(name="x", text="", **_ALL_HIGH)
+    assert _personality_label(record) == _personality_label(_ALL_HIGH)
+
+
+def test_system_prompt_explains_levels():
+    assert "/".join(PERSONALITY_LEVELS) in _CONTENT_SYSTEM_PROMPT
+    assert "サイコロで決まっていて変えられない" in _CONTENT_SYSTEM_PROMPT
+
+
+def _place(session) -> Location:
+    place = Location(name="村", kind="村", text="山あいの村", start=Stamp(2000))
+    session.add(place)
+    session.flush()
+    session.add(Plot(location_id=place.id, text="村の筋書き", start=Stamp(2000), end=Stamp(2300)))
+    session.commit()
+    return place
+
+
+def test_generate_person_passes_personality_to_ai_and_keeps_it(session):
+    place = _place(session)
+    ai = MockAIClient(seed=1)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    levels = {name: getattr(record, name) for name in PERSONALITY_COLUMNS}
+    assert all(value in PERSONALITY_LEVELS for value in levels.values())
+
+    content_call = next(c for c in ai.calls if c["system"] == _CONTENT_SYSTEM_PROMPT)
+    expected_line = f"性格({'/'.join(PERSONALITY_LEVELS)} の五段階): {_personality_label(levels)}"
+    assert expected_line in content_call["prompt"]
+    # 命名も、決まった性格を材料にする
+    name_call = ai.calls[-1]
+    assert _personality_label(levels) in name_call["prompt"]
+
+    session.expire_all()
+    stored = session.get(Character, record.id)
+    assert {name: getattr(stored, name) for name in PERSONALITY_COLUMNS} == levels
+    assert session.query(CharacterPlot).filter_by(character_id=record.id).count() == 1
+
+
+def test_generate_non_person_has_no_personality_line(session):
+    place = _place(session)
+    ai = MockAIClient(seed=2)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), ai, person=False)
+
+    assert record.kind != "人物"
+    assert record.sex is None and record.tone is None
+    assert all("性格(" not in c["prompt"] for c in ai.calls)

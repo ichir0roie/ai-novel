@@ -8,3 +8,4 @@ backup
 
 *.test.db
 tmp
+.pytest_cache
