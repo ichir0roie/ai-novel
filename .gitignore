@@ -4,7 +4,6 @@ scripts
 
 .env
 
-worlds
 backup
 
 *.test.db
