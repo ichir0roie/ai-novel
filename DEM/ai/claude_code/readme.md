@@ -1,16 +1,17 @@
-# claude_ai
+# claude_code
 
-`DEM/local_ai/`(Ollama)と**同じ仕様**で、生成を Claude Code(`claude -p`)にやらせる側。
-常駐ループの本体(生成器・時刻・定数)は上位の `DEM/time_keeper/` にあり、local_ai と
-claude_ai はそこへ自分の `ai_client` を渡すだけの薄い入口になっている。
+`DEM/ai/local_ai/`(Ollama)と**同じ仕様**で、生成を Claude Code(`claude -p`)にやらせる側。
+常駐ループの本体(生成器・時刻・定数)は上位の `DEM/ai/time_keeper/` にあり、local_ai と
+claude_code はそこへ自分の `ai_client` を渡すだけの薄い入口になっている。
 
 ```
-DEM/time_keeper/          常駐ループの本体(両方で共用)。生成器は AI を `ai` 引数(`_ai.AIClient`)で受け取る
-DEM/claude_ai/
-  ai_client.py            `local_ai/ai_client.py` と同じ関数(generate / generate_json / try_generate_json)。
+DEM/ai/time_keeper/          常駐ループの本体(両方で共用)。生成器は AI を `ai` 引数(`_ai.AIClient`)で受け取る
+DEM/ai/claude_code/
+  ai_client.py            `DEM/ai/local_ai/ai_client.py` と同じ関数(generate / generate_json / try_generate_json)。
                           中身は `claude -p --output-format json --json-schema …` の subprocess
-  time_keeper/main.py     `DEM/time_keeper/main.py` に claude_ai の ai_client を渡して回す入口
+  claude_code_time_keeper.py  `DEM/ai/time_keeper/main.py` に claude_code の ai_client を渡して回す入口
   story_writer.py         作品の次の話を書いて db へ確定する(local_ai に無い、ここだけの生成器)
+  interface/              Claude が db を読み書きする入口(一覧は interface/readme.md)
 ```
 
 ## 仕組み
@@ -36,7 +37,7 @@ DEM/claude_ai/
 
 ```
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
-from DEM.claude_ai.time_keeper.main import claude_main
+from DEM.ai.claude_code.claude_code_time_keeper import claude_main
 claude_main(year=2027, max_days=30)
 "
 ```
@@ -48,11 +49,11 @@ claude_main(year=2027, max_days=30)
 
 ```
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
-from DEM.claude_ai.story_writer import write_story
+from DEM.ai.claude_code.story_writer import write_story
 write_story(story_id=1, episodes_to_write=1)
 "
 ```
 
 材料は `start_story` 入口と同じ(作品の見出し・直前の話・断面・顔ぶれ)。
 未同期の話が残っている作品は書かない。書いた話は `synced=True` で確定する。
-本文の書き方は `DEM/ai_instructions/story_writing.py` にある。
+本文の書き方は `DEM/ai/instructions/story_writing.py` にある。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code(`claude -p`)を叩く、`DEM/local_ai/ai_client.py` と同じ顔の薄いクライアント。db には触れない。
+"""Claude Code(`claude -p`)を叩く、`DEM/ai/local_ai/ai_client.py` と同じ顔の薄いクライアント。db には触れない。
 
 環境変数: `DEM_CLAUDE_AI_COMMAND`(実行する CLI、既定 `claude`)、
 `DEM_CLAUDE_AI_MODEL`(モデル名、既定 `claude-sonnet-5`)、

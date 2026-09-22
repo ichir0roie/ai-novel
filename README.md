@@ -2,8 +2,7 @@
 
 AI にラノベを書いてもらうためのプロジェクト。
 
-**方針・技術(`IHG/`)、仕組み(`DEM/`)、記録と本文(`novel.db`)をそれぞれ別の
-場所に置き、「毎回ゼロから考え直さない」ことを目的にしている。**
+**仕組み(`DEM/`)と記録・本文(`novel.db`)を別の場所に置き、「毎回ゼロから考え直さない」ことを目的にしている。**
 
 すべての作品は現実の過去、現在、未来で起こっている。平行世界を許容する。
 
@@ -11,7 +10,6 @@ AI にラノベを書いてもらうためのプロジェクト。
 
 | ディレクトリ | 役割                                                             |
 | ------------ | ---------------------------------------------------------------- |
-| `IHG/`       | 共通の作業方針とテクニック。どの世界線・どの作品にも効く知見     |
 | `DEM/`       | 仕組み。db の形・入口・問い合わせ・ローカル AI                   |
 | `novel.db`   | **世界の記録と本文そのもの**(SQLite)                             |
 | `worlds/`    | db から書き出した**読む専用の写し**(`ExportDb`。無くてもよい)    |
@@ -19,33 +17,26 @@ AI にラノベを書いてもらうためのプロジェクト。
 | `CLAUDE.md`  | **Claude 向けの作業指針**                                         |
 
 ```
-IHG/
-  principles.md       プロジェクトの目的と禁止事項(最優先)
-  workflow.md         **進め方。Claude はもう本文・出来事・人物などを直接生成しない**
-  chronicle.md        **記録の取り方と、話を尽きさせない仕組み**
-  naming.md           用語と名づけの基準(日本語として自然に)
-  ai_instructions/    常駐ループのプロンプトに埋め込む基準の定数(Python)。
-                      いま生成に実際に使われているのはここだけ
-
 DEM/
   db/                 **記録の形(SQLAlchemy)。列はここ一か所で決まる**
                       alembic/ にマイグレーション
-  claude_interface/   **Claude が呼ぶ入口。db に触れるのはここ越しだけ**
-                      randomizer/ story/ world/ sync/
   data_access_logic/  引き方(Select の組み立て)。SQL 文字列は組まない
   randomizer/         db に触れない下書き作り(factory)と乱数
-  time_keeper/        常駐ループの本体。世界を進める生成器(人物・出来事・場所・寿命)。AI は引数で受け取る
-  local_ai/           ローカル AI(Ollama)の client と、それでループを回す入口
-  claude_ai/          Claude Code(`claude -p`)の client と、それでループを回す入口。本文(episode)もここが書く
+  ai/                 AI に生成させる側をまとめた置き場
+    instructions/     常駐ループのプロンプトに埋め込む基準の定数(Python)
+    time_keeper/      常駐ループの本体。世界を進める生成器(人物・出来事・場所・寿命)。AI は引数で受け取る
+    local_ai/         ローカル AI(Ollama)の client と、それでループを回す入口
+    claude_code/      Claude Code(`claude -p`)の client と、それでループを回す入口。本文(episode)もここが書く
+      interface/      **Claude が呼ぶ入口。db に触れるのはここ越しだけ**
+                      randomizer/ story/ world/ sync/
   tool/               md への書き出し・読み戻し、危険操作
 ```
 
 ## Claude はもう物語を直接生成しない
 
-出来事・人物(国・組織などの対象も含む)・場所も、本文(`episode`)も、`DEM/local_ai/`(常駐ループ)
+出来事・人物(国・組織などの対象も含む)・場所も、本文(`episode`)も、`DEM/ai/local_ai/`(常駐ループ)
 が生成する。Claude がこのリポジトリで担うのは、その生成の仕組み
-(`DEM/local_ai/` `DEM/claude_interface/` など)を作る・直す開発作業。
-詳しくは `IHG/workflow.md`。
+(`DEM/ai/local_ai/` `DEM/ai/claude_code/interface/` など)を作る・直す開発作業。
 
 ## 触り方
 
@@ -53,15 +44,15 @@ DEM/
 pip install -r requirements.txt
 ```
 
-**db を直に開かない。** 読むのも書くのも `DEM/claude_interface/` の入口を
+**db を直に開かない。** 読むのも書くのも `DEM/ai/claude_code/interface/` の入口を
 import して呼ぶ。入口は一ファイル一クラスで、CLI 引数のパースをしない。
 
 ```python
-from DEM.claude_interface.world.list_places import ListPlaces
+from DEM.ai.claude_code.interface.world.list_places import ListPlaces
 ListPlaces(kind="村").run()
 ```
 
-今ある入口の一覧は **`DEM/claude_interface/readme.md` の表**にある。そこに無い操作は「まだ無い」。
+今ある入口の一覧は **`DEM/ai/claude_code/interface/readme.md` の表**にある。そこに無い操作は「まだ無い」。
 必要になったら同じ readme の「作り方」に沿って足す。
 
 ## 命名規約
@@ -75,7 +66,7 @@ ListPlaces(kind="村").run()
 
 ## AI に依頼するときのコツ
 
-Claude への依頼は、いまは物語の生成そのものではなく `DEM/local_ai/` の
+Claude への依頼は、いまは物語の生成そのものではなく `DEM/ai/local_ai/` の
 開発・保守が対象になる。「イベントを起こして」「キャラを足して」ではなく、
 「出来事が生まれる確率を上げて」「この場所にキャラが生まれない不具合を
 直して」のように、**生成の仕組みへの変更**として頼む。

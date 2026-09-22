@@ -2,8 +2,8 @@
 """人物一人を軸に、その時刻・その居場所の周辺(居合わせる人物、直近の出来事)を読む、claude が呼ぶ入口。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.story import _rows
-from DEM.ai.claude_code.claude_interface.story._base import StoryQuery
+from DEM.ai.claude_code.interface.story import _rows
+from DEM.ai.claude_code.interface.story._base import StoryQuery
 from DEM.data_access_logic.query import character_simulation_query, common_query
 from DEM.db.schema_pydantic import to_dict_with
 

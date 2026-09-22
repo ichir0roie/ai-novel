@@ -4,7 +4,7 @@ claudeが実行するスクリプト群を配置する。
 呼び出し側(claude)は、そのクラスをインスタンス化して `run()` を呼ぶだけでよい
 (CLI 引数のパースはしない。`if __name__ == "__main__"` も置かない)。
 
-    from DEM.claude_interface.world.list_places import ListPlaces
+    from DEM.ai.claude_code.interface.world.list_places import ListPlaces
     ListPlaces(kind="村").run()
 
 **db に触れるのはここ越しだけ。** `DEM/db/` `DEM/randomizer/`
@@ -12,15 +12,14 @@ claudeが実行するスクリプト群を配置する。
 **この下に無い操作は「まだ無い」。** 推測で呼び出そうとせず、必要になったら
 下の作り方に沿って足すか、作者に相談する(CLAUDE.md)。
 
-(例外: 常駐ループ(`DEM/time_keeper/`)の起動だけは、運用タスクとして
-`DEM.local_ai.time_keeper.main.loop_time()`(ローカル AI)か
-`DEM.claude_ai.time_keeper.main.claude_main()`・`DEM.claude_ai.story_writer.write_story()`(Claude Code)を直接呼んでよい。詳しくは
-`IHG/workflow.md`)
+(例外: 常駐ループ(`DEM/ai/time_keeper/`)の起動だけは、運用タスクとして
+`DEM.ai.local_ai.local_ai_time_keeper.loop_time()`(ローカル AI)か
+`DEM.ai.claude_code.claude_code_time_keeper.claude_main()`・`DEM.ai.claude_code.story_writer.write_story()`(Claude Code)を直接呼んでよい)
 
-**世界の生成(出来事・人物・場所・本文)はもう `DEM/local_ai/` の
+**世界の生成(出来事・人物・場所・本文)はもう `DEM/ai/local_ai/` の
 常駐ループだけが行う。** `randomizer/` `story/` の「作る」「確定する」入口も
 残っているが、Claude が対話の中でこれらを呼んで内容を直接決めることは
-しない(`IHG/workflow.md`「Claude はもう何を生成しないか」)。
+しない。
 
 置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の四つ。
 
@@ -56,11 +55,11 @@ claudeが実行するスクリプト群を配置する。
 各領域に共通する処理はクラスへ寄せ、その領域の入口の**上位**(`<領域>/_base.py`)
 に置く。さらに四領域をまたいで共通する部分(db セッションを開いて渡す・
 「確定する」系の実在確認とスキーマ列チェック等)は、一段上の
-`DEM/claude_interface/_base.py` に置く。`_rows.py` と同じく、先頭が `_` の
+`DEM/ai/claude_code/interface/_base.py` に置く。`_rows.py` と同じく、先頭が `_` の
 ファイルはそれ自体が claude の呼ぶ入口ではない。
 
 ```
-Entrypoint(claude_interface/_base.py)
+Entrypoint(interface/_base.py)
 ├─ SessionEntrypoint            db セッションを開いて execute(session) へ渡す
 │   ├─ CommitEntrypoint         「確定する」系の共通処理(parse/check_columns/check_exists)
 │   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_place.py

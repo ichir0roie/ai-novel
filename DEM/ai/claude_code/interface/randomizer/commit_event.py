@@ -28,7 +28,7 @@
 """
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.randomizer._base import CommitDraft
+from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
 from DEM.db.schema import (
     Character, CharacterPlot, Event, EventCharacter, Location,
 )

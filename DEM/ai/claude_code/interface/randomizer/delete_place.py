@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from DEM.ai.claude_code.claude_interface._base import UnknownRecordError
-from DEM.ai.claude_code.claude_interface.randomizer._base import CommitDraft
+from DEM.ai.claude_code.interface._base import UnknownRecordError
+from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
 from DEM.db.schema import Location
 
 

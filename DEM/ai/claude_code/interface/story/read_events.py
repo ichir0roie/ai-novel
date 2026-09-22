@@ -8,8 +8,8 @@
 """
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.story import _rows
-from DEM.ai.claude_code.claude_interface.story._base import StoryQuery
+from DEM.ai.claude_code.interface.story import _rows
+from DEM.ai.claude_code.interface.story._base import StoryQuery
 
 
 class ReadEvents(StoryQuery):

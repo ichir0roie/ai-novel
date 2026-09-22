@@ -2,7 +2,7 @@
 """既にある人物を一件、渡した欄だけ db 上で直す、claude が呼ぶ入口。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.randomizer._base import CommitDraft
+from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
 from DEM.db.schema import Character
 from DEM.db.schema_pydantic import to_dict
 

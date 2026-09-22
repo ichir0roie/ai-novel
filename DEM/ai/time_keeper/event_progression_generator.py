@@ -473,7 +473,7 @@ def _progress_place(
         f"当事者ごとの思考・感情・望み・恐れ・行動(先に推測したもの): "
         f"{judgements or '(無し)'}\n"
         f"サイコロで選ばれた出来事の候補: "
-        f"{{'name': candidate['name'], 'summary': candidate['summary']} }\n"
+        f"{ {'name': candidate['name'], 'summary': candidate['summary']} }\n"
         "この候補を、この場所にこの時点で起きた出来事として記録してください。"
         "event_text 内では番号ではなく名前で書く。"
         + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"

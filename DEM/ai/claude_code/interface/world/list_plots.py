@@ -2,7 +2,7 @@
 """筋書きの一覧を出す、claude が呼ぶ入口。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.world._base import WorldQuery
+from DEM.ai.claude_code.interface.world._base import WorldQuery
 from DEM.data_access_logic.query import common_query
 
 

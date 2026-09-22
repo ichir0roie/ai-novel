@@ -2,7 +2,7 @@
 """人物の筋書き(`CharacterPlot`)を一件、db へ確定する、claude が呼ぶ入口。"""
 from __future__ import annotations
 
-from DEM.ai.claude_code.claude_interface.randomizer._base import CommitDraft
+from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
 from DEM.db.schema import Character, CharacterPlot
 from DEM.db.schema_pydantic import to_dict
 

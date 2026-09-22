@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`claude_interface/` 全体の基底。`randomizer/` `story/` `sync/` `world/` に共通する部分。"""
+"""`interface/` 全体の基底。`randomizer/` `story/` `sync/` `world/` に共通する部分。"""
 from __future__ import annotations
 
 import json

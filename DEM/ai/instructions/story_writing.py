@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""話(`Episode`)の本文の書き方のルール。`DEM/claude_ai/story_writer.py` がプロンプトに埋め込む。
+"""話(`Episode`)の本文の書き方のルール。`DEM/ai/claude_code/story_writer.py` がプロンプトに埋め込む。
 
 出来事(`event_writing.py`)が「記録」であるのに対し、ここは読ませる本文。
 文体・セリフ・情景はここで初めて決める。
