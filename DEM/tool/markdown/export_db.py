@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from DEM.db.schema import Base, MarkdownBase, get_session
 from DEM.db.stamp import Stamp
+from DEM.tool.map.render import render_maps
 
 WORLDS_ROOT = "worlds"
 
@@ -55,8 +56,6 @@ def _filename(row) -> str:
 
 
 def _write(path: str, data: dict, text: str) -> None:
-    if os.path.exists(path):
-        raise ExportError(f"ファイル名が重複した: {path}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(_render(data, text))
@@ -64,8 +63,8 @@ def _write(path: str, data: dict, text: str) -> None:
 
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     """db を md へ書き出して、テーブル名ごとの件数を辞書で返す。"""
-    if os.path.exists(root):
-        shutil.rmtree(root)
+    # if os.path.exists(root):
+    #     shutil.rmtree(root)
 
     counts: dict[str, int] = {}
     with get_session() as session:
@@ -85,6 +84,8 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                 _write(os.path.join(dir_path, _filename(row)), data, text)
 
             counts[table_name] = len(rows)
+
+        render_maps(session, root)
 
     return counts
 

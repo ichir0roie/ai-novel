@@ -135,6 +135,22 @@ def places_select(kind: str | None = None) -> Select:
     return query.order_by(Location.id.asc())
 
 
+def planets_select() -> Select:
+    """星(`kind="星"`)の一覧。"""
+    return select(Location).where(Location.kind == "星").order_by(Location.id.asc())
+
+
+def places_on_planet_select(planet_id: int) -> Select:
+    """その星の上で経緯度を持つ場所。距離・方角を出せる行だけ。"""
+    return (
+        select(Location)
+        .where(Location.location_planet == planet_id)
+        .where(Location.location_longitude.is_not(None))
+        .where(Location.location_latitude.is_not(None))
+        .order_by(Location.id.asc())
+    )
+
+
 # ---------------------------------------------------------------- 出来事
 
 def events_at_select(when, *, place_ids=None, limit=None) -> Select:

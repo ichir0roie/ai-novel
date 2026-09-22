@@ -247,13 +247,13 @@ class Character(MarkdownBase):
 
     __tablename__ = "character"
 
+    text: Mapped[str | None] = mapped_column(String, nullable=True, sort_order=10000)
+
     name: Mapped[str | None] = mapped_column(String, sort_order=210)
     read: Mapped[str | None] = mapped_column(String, sort_order=220)
     kind: Mapped[str] = mapped_column(
         String, default=CHARACTER_KIND_PERSON, nullable=False,
         comment="種別。「人物」か、人物以外の対象(国・組織・商会・氏族・集団・物など)", sort_order=230)
-
-    world_influence: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="世界線への影響度。大きいほど世界線を変える", sort_order=240)
 
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)

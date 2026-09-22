@@ -138,7 +138,6 @@ class CharacterFactory(_ModelFactory):
     read = factory.Faker("kana_name", locale=_LOCALE)
     kind = factory.Faker("random_element", elements=_CHARACTER_KINDS)
     text = _text()
-    world_influence = factory.Faker("random_int", min=0, max=5)
 
     start = _optional_stamp()
     end = _end_after_start()

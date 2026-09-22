@@ -53,8 +53,6 @@ class CharacterFactory(factory.DictFactory):
     sensitivity = _personality()
     imagination = _personality()
 
-    world_influence = factory.Faker("random_int", min=0, max=2)
-
     start = None
     end = None
 
