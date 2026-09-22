@@ -40,3 +40,19 @@ def test_commit_rejects_unknown_or_missing_references(session, world):
     with pytest.raises(UnknownRecordError, match="location_id=999"):
         CommitCharacterPlace({"character_id": world["person"], "location_id": 999}).run()
     assert session.query(CharacterPlace).count() == 0
+
+
+def test_update_sets_end_when_moving(session, world):
+    from DEM.ai.claude_code.interface.randomizer.update_character_place import UpdateCharacterPlace
+
+    row = CommitCharacterPlace({
+        "character_id": world["person"], "location_id": world["village"], "start": "2120"}).run()
+    updated = UpdateCharacterPlace({"id": row["id"], "end": "2130"}).run()
+    assert updated["end"] == "2130/01/01 00:00:00"
+    session.expire_all()
+    assert session.get(CharacterPlace, row["id"]).end == Stamp(2130)
+
+    with pytest.raises(ValueError, match="id は必須"):
+        UpdateCharacterPlace({"end": "2130"}).run()
+    with pytest.raises(UnknownRecordError, match="location_id=999"):
+        UpdateCharacterPlace({"id": row["id"], "location_id": 999}).run()
