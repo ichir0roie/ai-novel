@@ -29,7 +29,8 @@ DEM/
     claude_code/      Claude Code(`claude -p`)の client と、それでループを回す入口。本文(episode)もここが書く
       interface/      **Claude が呼ぶ入口。db に触れるのはここ越しだけ**
                       randomizer/ story/ world/ sync/
-  tool/               md への書き出し・読み戻し、危険操作(danger/seed_mock_db で全テーブルにモックデータを流し込める)
+  tool/               md への書き出し・読み戻し、危険操作(danger/)、テスト用の道具(test/。必ず novel.test.db を使う。
+                      mock_ai_client で AI 無しに redrive_mock_world を回す、seed_mock_db で全テーブルにモックデータを流し込む)
 ```
 
 ## Claude はもう物語を直接生成しない

@@ -14,7 +14,9 @@ claudeが実行するスクリプト群を配置する。
 
 (例外: 常駐ループ(`DEM/ai/time_keeper/`)の起動だけは、運用タスクとして
 `DEM.ai.local_ai.local_ai_time_keeper.loop_time()`(ローカル AI)か
-`DEM.ai.claude_code.claude_code_time_keeper.claude_main()`・`DEM.ai.claude_code.story_writer.write_story()`(Claude Code)を直接呼んでよい)
+`DEM.ai.claude_code.claude_code_time_keeper.claude_main()`・`DEM.ai.claude_code.story_writer.write_story()`(Claude Code)を直接呼んでよい。
+既にいる人物とその筋書きだけで出来事を進め続けるループは、同じく
+`local_ai_time_keeper.loop_character_plots()` / `claude_code_time_keeper.claude_character_plots_main()`)
 
 **世界の生成(出来事・人物・場所・本文)はもう `DEM/ai/local_ai/` の
 常駐ループだけが行う。** `randomizer/` `story/` の「作る」「確定する」入口も

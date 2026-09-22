@@ -58,3 +58,10 @@ def format_time(time: Stamp) -> str:
     if (time.hour, time.minute, time.second) != (0, 0, 0):
         text += f" {time.hour}時{time.minute}分{time.second}秒"
     return text
+
+
+def next_month_start(time: Stamp) -> Stamp:
+    """翌月の1日0時。"""
+    if time.month == 12:
+        return Stamp(time.year + 1, 1, 1)
+    return Stamp(time.year, time.month + 1, 1)
