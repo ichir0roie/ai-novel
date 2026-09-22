@@ -8,3 +8,4 @@ worlds
 backup
 
 *.test.db
+tmp

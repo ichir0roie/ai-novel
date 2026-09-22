@@ -264,7 +264,7 @@ def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]
         world_createion_query.busy_character_ids_select(time)).all())
 
     active_place_ids = set(session.scalars(
-        select(Location.id).where(location_active_condition())).all())
+        select(Location.id).where(location_active_condition(time))).all())
 
     characters = session.scalars(
         world_createion_query.alive_characters_select(time)).all()
@@ -412,7 +412,7 @@ def _move_destinations(
     nearby_ids -= {place_id, root_id}
     places = session.scalars(
         world_createion_query.alive_locations_select(time)
-        .where(Location.id.in_(nearby_ids), location_active_condition())
+        .where(Location.id.in_(nearby_ids), location_active_condition(time))
     ).all()
     return [{"location_id": p.id, "name": p.name, "kind": p.kind}
             for p in places[:constants.MOVE_DESTINATION_LIMIT]]
@@ -466,14 +466,14 @@ def _progress_place(
     if candidate is None:
         return None
 
+    candidate_summary = {"name": candidate["name"], "summary": candidate["summary"]}
     prompt = (
         situation
         + f"移動先の候補(character_moves の location_id はここからだけ選ぶ): "
         f"{destinations or '(無し)'}\n"
         f"当事者ごとの思考・感情・望み・恐れ・行動(先に推測したもの): "
         f"{judgements or '(無し)'}\n"
-        f"サイコロで選ばれた出来事の候補: "
-        f"{ {'name': candidate['name'], 'summary': candidate['summary']} }\n"
+        f"サイコロで選ばれた出来事の候補: {candidate_summary}\n"
         "この候補を、この場所にこの時点で起きた出来事として記録してください。"
         "event_text 内では番号ではなく名前で書く。"
         + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"
@@ -529,8 +529,10 @@ def _progress_place(
             involved_character_ids.append(character_id)
         move_notes.append(f"{character.name} → {destination_names[location_id]}")
 
+    raw_duration = decided.get("event_duration_days")
     try:
-        duration_days = int(decided.get("event_duration_days"))
+        duration_days = (int(raw_duration) if raw_duration is not None
+                         else constants.DEFAULT_EVENT_DURATION_DAYS)
     except (TypeError, ValueError):
         duration_days = constants.DEFAULT_EVENT_DURATION_DAYS
     duration_days = min(max(duration_days, constants.EVENT_DURATION_RANGE_DAYS[0]),
@@ -570,7 +572,7 @@ def _progress_place(
         text = item.get("text")
         if character_id not in character_ids or not text:
             continue
-        text = fill_name_placeholder(text, character_ids[character_id].name)
+        text = fill_name_placeholder(text, character_ids[character_id].name or "")
         plot_end = Stamp(time.year + plot_years, time.month, time.day)
         session.add(CharacterPlot(character_id=character_id, text=text, start=time, end=plot_end))
         plot_notes.append(f"{character_ids[character_id].name}({plot_years}年、〜{format_time(plot_end)}): {text}")
@@ -588,7 +590,7 @@ def _progress_place(
             continue
         applied = []
         if update.get("text"):
-            note = fill_name_placeholder(update["text"], character.name)
+            note = fill_name_placeholder(update["text"], character.name or "")
             _append_note(character, note)
             applied.append(f"text+={note}")
         if applied:

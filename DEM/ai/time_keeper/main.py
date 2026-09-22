@@ -48,16 +48,8 @@ def loop_time(
             print(f"[time_keepr] {format_time(current_time)} をカバーする"
                   "プロットが無い。CommitPlot で筋書きを足すまでループを止める。")
             return current_time
-        try:
-            with get_session() as s:
-                time_process(s, current_time, ai)
-        except Exception:
-            # 常駐ループなので、一日ぶんの生成が失敗しても(DB の一時的な
-            # 制約違反・AI の壊れた応答など)ループ全体を止めず、
-            # 記録を残して次の日へ進む。
-            print(f"[time_keepr] {format_time(current_time)} の処理が失敗、"
-                  "この日はスキップして続行する")
-            traceback.print_exc()
+        with get_session() as s:
+            time_process(s, current_time, ai)
 
         next_process_day = random.randint(1, 5)
         current_time = add_days(current_time, next_process_day)

@@ -75,7 +75,7 @@ def generate_random(session: Session, time: Stamp, ai: AIClient) -> Location | N
     # 親は、この時刻にまだ存在している(start〜end に収まっている)場所だけ。
     candidates = session.scalars(
         world_createion_query.alive_locations_select(time)
-        .where(location_active_condition())).all()
+        .where(location_active_condition(time))).all()
     # 広さが決まっている親は、もう入る余地(remaining > 0)がある場所だけを選ぶ。
     # 広さが決まっていない親(None)は制約が無いのでそのまま選べる。
     eligible = [
