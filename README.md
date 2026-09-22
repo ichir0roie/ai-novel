@@ -34,7 +34,9 @@ DEM/
                       randomizer/ story/ world/ sync/
   data_access_logic/  引き方(Select の組み立て)。SQL 文字列は組まない
   randomizer/         db に触れない下書き作り(factory)と乱数
-  local_ai/           ローカル AI。常駐ループ(time_keeper/)が世界を進める
+  time_keeper/        常駐ループの本体。世界を進める生成器(人物・出来事・場所・寿命)。AI は引数で受け取る
+  local_ai/           ローカル AI(Ollama)の client と、それでループを回す入口
+  claude_ai/          Claude Code(`claude -p`)の client と、それでループを回す入口。本文(episode)もここが書く
   tool/               md への書き出し・読み戻し、危険操作
 ```
 

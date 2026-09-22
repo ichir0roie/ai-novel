@@ -32,9 +32,9 @@ from DEM.db.schema import (
     Character, CharacterPlace, CharacterPlot, Event, EventCharacter,
     Location, Session, Stamp,
 )
-from DEM.local_ai import ai_client
-from DEM.local_ai.time_keeper import constants
-from DEM.local_ai.time_keeper._format import add_days, format_time
+from DEM.time_keeper._ai import AIClient
+from DEM.time_keeper import constants
+from DEM.time_keeper._format import add_days, format_time
 from DEM.randomizer.random_location_generator import build_location
 
 _EVENT_TEXT_INSTRUCTION = (
@@ -311,7 +311,7 @@ def _plot_span_label(plot: CharacterPlot) -> str:
 
 def _judge_plot_completed(
     session: Session, plot: CharacterPlot, character: Character,
-    event: Event, time: Stamp,
+    event: Event, time: Stamp, ai: AIClient,
 ) -> bool:
     recent = session.scalars(
         common_query.events_of_select(character.id, until=time, limit=RECENT_EVENT_LIMIT)
@@ -326,7 +326,7 @@ def _judge_plot_completed(
         f"いま起きた出来事: {event.name}\n{event.text}\n"
         "この出来事で筋書きは完了したか判定してください。"
     )
-    decided = ai_client.try_generate_json(
+    decided = ai.try_generate_json(
         prompt, _PLOT_COMPLETION_SCHEMA, system=_PLOT_COMPLETION_SYSTEM_PROMPT)
     return bool(decided.get("completed"))
 
@@ -362,7 +362,7 @@ def _plot_recent_event_names(
 
 
 def _think_participants(
-    situation: str, characters_payload: list[dict],
+    situation: str, characters_payload: list[dict], ai: AIClient,
 ) -> list[dict]:
     """当事者ごとに思考・感情・望み・恐れ・行動を推測させる。出来事の候補はこれを土台に立てる。"""
     judgements: list[dict] = []
@@ -372,7 +372,7 @@ def _think_participants(
             f"{situation}"
             "この当事者のいまの思考・感情・望み・恐れ・行動を推測してください。"
         )
-        decided = ai_client.try_generate_json(
+        decided = ai.try_generate_json(
             prompt, _JUDGEMENT_SCHEMA, system=_JUDGEMENT_SYSTEM_PROMPT)
         fields = {key: (decided.get(key) or "").strip() for key in _JUDGEMENT_KEYS}
         if not fields["action"]:
@@ -382,7 +382,7 @@ def _think_participants(
 
 
 def _roll_candidate(
-    rng: random.Random, situation: str, judgements: list[dict],
+    rng: random.Random, situation: str, judgements: list[dict], ai: AIClient,
 ) -> dict | None:
     """起こりうる出来事の候補をローカル AI に列挙させ、その中から一件をサイコロで選ぶ。"""
     prompt = (
@@ -390,7 +390,7 @@ def _roll_candidate(
         f"{situation}"
         f"この場所にこの時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。"
     )
-    decided = ai_client.try_generate_json(
+    decided = ai.try_generate_json(
         prompt, _CANDIDATE_SCHEMA, system=_CANDIDATE_SYSTEM_PROMPT)
     candidates = [
         c for c in (decided.get("candidates") or [])
@@ -420,7 +420,7 @@ def _move_destinations(
 
 def _progress_place(
     session: Session, place_id: int,
-    characters: list[Character], time: Stamp, rng: random.Random,
+    characters: list[Character], time: Stamp, rng: random.Random, ai: AIClient,
 ) -> Event | None:
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
@@ -461,8 +461,8 @@ def _progress_place(
         f"現在の時刻: {time}\n"
         + (PLOT_PACING_INSTRUCTION + "\n" if any(character_plots.values()) else "")
     )
-    judgements = _think_participants(situation, characters_payload)
-    candidate = _roll_candidate(rng, situation, judgements)
+    judgements = _think_participants(situation, characters_payload, ai)
+    candidate = _roll_candidate(rng, situation, judgements, ai)
     if candidate is None:
         return None
 
@@ -483,7 +483,7 @@ def _progress_place(
            if any(character_plots.values()) else "")
         + "character_plots に新しく書く筋書きについて: " + plot_span_instruction(plot_years)
     )
-    decided = ai_client.try_generate_json(prompt, _PLACE_SCHEMA, system=_PLACE_SYSTEM_PROMPT)
+    decided = ai.try_generate_json(prompt, _PLACE_SCHEMA, system=_PLACE_SYSTEM_PROMPT)
 
     if not decided.get("event_name"):
         return None
@@ -555,7 +555,7 @@ def _progress_place(
         for plot in character_plots.get(cid, []):
             if plot.end is not None:
                 continue
-            if _judge_plot_completed(session, plot, character_ids[cid], record, time):
+            if _judge_plot_completed(session, plot, character_ids[cid], record, time, ai):
                 plot.end = record.time
                 plot_done_notes.append(f"{character_ids[cid].name}: id={plot.id} 完了")
 
@@ -633,7 +633,7 @@ def _progress_place(
     return record
 
 
-def generate_random(session: Session, time: Stamp) -> list[Event]:
+def generate_random(session: Session, time: Stamp, ai: AIClient) -> list[Event]:
     """月初に、人物・対象が居る場所それぞれについて出来事を進行させる。"""
     if not _should_roll(time):
         return []
@@ -648,7 +648,7 @@ def generate_random(session: Session, time: Stamp) -> list[Event]:
         print(f"[time_keepr/event] 場所 {i}/{total_places} id={place_id}: "
               f"人物・対象{len(characters)}件")
         if rng.random() < constants.PLACE_PROBABILITY:
-            event = _progress_place(session, place_id, characters, time, rng)
+            event = _progress_place(session, place_id, characters, time, rng, ai)
             if event is not None:
                 created.append(event)
 
