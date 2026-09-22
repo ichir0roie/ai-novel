@@ -6,3 +6,5 @@ scripts
 
 worlds
 backup
+
+*.test.db
