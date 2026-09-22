@@ -1,33 +1,81 @@
 #!/usr/bin/env python3
-"""`DEM/local_ai/time_keeper/main.py` と同じ常駐ループを、生成だけ Claude Code(`claude -p`)で行う入口。
+"""世界の側を、時の流れの中で自動的に進める常駐ループ。生成は Claude Code(`claude -p`)が行う。
 
-生成器(人物・出来事とその中の場所の改廃)は `DEM/local_ai/time_keeper/` のものを
-そのまま使い、AI の呼び先だけを `DEM_AI_BACKEND=claude` で `DEM/claude_ai/ai_client.py` へ切り替える。
-確率・プロンプト・db への書き方は local_ai と一切変わらない。
+`DEM/local_ai/time_keeper/main.py` と同じ仕組みで、`loop_time` が1日ずつ時刻を進めながら
+`time_process` を呼び続け、その時刻をカバーする筋書き(`Plot`)が一件も無くなったら止まる。
+再開するには `CommitPlot` で筋書きを足す。
 
 `claude_main` は、このループを claude code から起動するための非対話の入口。
 """
 from __future__ import annotations
 
-import os
+import random
+import traceback
 
 from DEM.claude_ai import ai_client
-from DEM.db.schema import Stamp
-from DEM.local_ai.time_keeper import main as local_main
-
-
-def use_claude() -> None:
-    """このプロセスの生成を Claude Code へ向ける。"""
-    os.environ["DEM_AI_BACKEND"] = "claude"
+from DEM.claude_ai.time_keeper import (
+    event_progression_generator,
+    random_character_generator,
+)
+from DEM.claude_ai.time_keeper._format import add_days, format_time
+from DEM.data_access_logic.query import common_query, world_createion_query
+from DEM.db.schema import Session, Stamp, get_session
 
 
 def loop_time(start_time: Stamp | None = None, max_days: int | None = None) -> Stamp:
-    """`local_main.loop_time` と同じ。終わりに Claude Code の呼び出し回数とトークンを出す。"""
-    use_claude()
+    """`max_days` を渡すと、その日数だけ進めて途中でも戻る
+    (省けばプロットが尽きるまで進め続ける)。
+    戻り値は最後に処理した時刻。終わりに Claude Code の呼び出し回数とトークンを出す。
+    """
     try:
-        return local_main.loop_time(start_time, max_days)
+        return _loop_time(start_time, max_days)
     finally:
         print(f"[claude_ai] {ai_client.usage_summary()}")
+
+
+def _loop_time(start_time: Stamp | None, max_days: int | None) -> Stamp:
+    if start_time is None:
+        with get_session() as s:
+            start_time = s.scalar(
+                common_query.latest_time_select()
+            ) or Stamp(1)
+    current_time = start_time
+    days_done = 0
+
+    while True:
+        if max_days is not None and days_done >= max_days:
+            print(f"[claude_ai] {format_time(current_time)} で "
+                  f"{max_days} 日ぶん進めて区切る")
+            return current_time
+        print(f"[claude_ai] {format_time(current_time)}")
+        with get_session() as s:
+            active_plots = s.scalar(
+                world_createion_query.active_plot_count_select(current_time))
+        if not active_plots:
+            print(f"[claude_ai] {format_time(current_time)} をカバーする"
+                  "プロットが無い。CommitPlot で筋書きを足すまでループを止める。")
+            return current_time
+        try:
+            with get_session() as s:
+                time_process(s, current_time)
+        except Exception:
+            # 常駐ループなので、一日ぶんの生成が失敗しても(DB の一時的な
+            # 制約違反・Claude Code の壊れた応答など)ループ全体を止めず、
+            # 記録を残して次の日へ進む。
+            print(f"[claude_ai] {format_time(current_time)} の処理が失敗、"
+                  "この日はスキップして続行する")
+            traceback.print_exc()
+
+        next_process_day = random.randint(1, 5)
+        current_time = add_days(current_time, next_process_day)
+        days_done += 1
+
+
+def time_process(
+    s: Session, time: Stamp
+):
+    random_character_generator.generate_random(s, time)
+    event_progression_generator.generate_random(s, time)
 
 
 def claude_main(year: int | None = None, max_days: int | None = None) -> Stamp:
