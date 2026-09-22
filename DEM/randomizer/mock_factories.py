@@ -23,7 +23,7 @@ from DEM.db.schema import (
 )
 from DEM.db.stamp import Stamp
 from DEM.randomizer.random_character_generator import (
-    _BUILD_CHOICES, _FIRST_PERSON_CHOICES, _PERSONALITY_RANGE,
+    _BUILD_CHOICES, _FIRST_PERSON_CHOICES, _personality,
     _SECOND_PERSON_CHOICES, _SEX_CHOICES, _THIRD_PERSON_CHOICES, _TONE_CHOICES,
 )
 
@@ -152,18 +152,18 @@ class CharacterFactory(_ModelFactory):
     third_person = factory.Faker("random_element", elements=_THIRD_PERSON_CHOICES)
     tone = factory.Faker("random_element", elements=_TONE_CHOICES)
 
-    sincerity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    curiosity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    proactivity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    cooperativeness = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    sociability = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    emotional_expression = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    self_esteem = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    self_efficacy = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    stress_resilience = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    flexibility_of_values = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    sensitivity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    imagination = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
+    sincerity = _personality()
+    curiosity = _personality()
+    proactivity = _personality()
+    cooperativeness = _personality()
+    sociability = _personality()
+    emotional_expression = _personality()
+    self_esteem = _personality()
+    self_efficacy = _personality()
+    stress_resilience = _personality()
+    flexibility_of_values = _personality()
+    sensitivity = _personality()
+    imagination = _personality()
 
 
 class EventFactory(_ModelFactory):

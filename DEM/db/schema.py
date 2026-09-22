@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import enum
 import os
 
 from sqlalchemy import (
@@ -212,6 +213,35 @@ class Plot(MarkdownBase):
 CHARACTER_KIND_PERSON = "人物"
 
 
+class PersonalityLevel(enum.StrEnum):
+    """性格の各軸の段階。列には値(「無」など)をそのまま文字列で持つ。"""
+
+    NONE = "無"
+    LOW = "低"
+    NORMAL = "並"
+    HIGH = "高"
+    MUST = "必"
+
+
+PERSONALITY_LEVELS = tuple(level.value for level in PersonalityLevel)
+PERSONALITY_DEFAULT = PersonalityLevel.NORMAL.value
+
+PERSONALITY_COLUMNS = (
+    "sincerity", "curiosity", "proactivity", "cooperativeness", "sociability",
+    "emotional_expression", "self_esteem", "self_efficacy", "stress_resilience",
+    "flexibility_of_values", "sensitivity", "imagination",
+)
+
+
+def check_personality(data) -> None:
+    """辞書に入っている性格の欄が `PERSONALITY_LEVELS` のどれかであることを確かめる。"""
+    bad = {column: data[column] for column in PERSONALITY_COLUMNS
+           if column in data and data[column] not in PERSONALITY_LEVELS}
+    if bad:
+        raise ValueError(
+            f"性格は {'/'.join(PERSONALITY_LEVELS)} のいずれか: {bad}")
+
+
 class Character(MarkdownBase):
     """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。"""
 
@@ -242,18 +272,19 @@ class Character(MarkdownBase):
     tone: Mapped[str | None] = mapped_column(String,  comment="口調", sort_order=380)
 
     # --- 性格 -----------------------------------------------------------
-    sincerity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="誠実性", sort_order=390)
-    curiosity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="好奇心", sort_order=400)
-    proactivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="行動力", sort_order=410)
-    cooperativeness: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="協調性", sort_order=420)
-    sociability: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="社交性", sort_order=430)
-    emotional_expression: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感情表現", sort_order=440)
-    self_esteem: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己肯定感", sort_order=450)
-    self_efficacy: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="自己効力感", sort_order=460)
-    stress_resilience: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="ストレス耐性", sort_order=470)
-    flexibility_of_values: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="価値観の柔軟性", sort_order=480)
-    sensitivity: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="感受性", sort_order=490)
-    imagination: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="想像力", sort_order=500)
+    # 各列は PersonalityLevel の値(無/低/並/高/必)。
+    sincerity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="誠実性", sort_order=390)
+    curiosity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="好奇心", sort_order=400)
+    proactivity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="行動力", sort_order=410)
+    cooperativeness: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="協調性", sort_order=420)
+    sociability: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="社交性", sort_order=430)
+    emotional_expression: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="感情表現", sort_order=440)
+    self_esteem: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="自己肯定感", sort_order=450)
+    self_efficacy: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="自己効力感", sort_order=460)
+    stress_resilience: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="ストレス耐性", sort_order=470)
+    flexibility_of_values: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="価値観の柔軟性", sort_order=480)
+    sensitivity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="感受性", sort_order=490)
+    imagination: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="想像力", sort_order=500)
 
     # relationships
 

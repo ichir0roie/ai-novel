@@ -39,6 +39,15 @@
 - `ModuleNotFoundError` など依存不足で実行が失敗したら、まず
   `.venv/Scripts/python.exe -m pip install -r requirements.txt` を試してから調査する
 
+# テスト
+
+- `tests/` に pytest のテストがある。`PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest` で回す
+- テストは `novel.test.db` だけを読み書きする(`tests/conftest.py` が `DEM.tool.test` を先に読んで固定する)。
+  本番の `novel.db` には触れない
+- db・入口・生成器を変えたら、対応するテストを足すか直してから終える
+- プルリクを作る前に必ず、変更に対するテストケースを実装し、全体のテストを回し、
+  出たエラーを直してから作る
+
 # db への接続
 
 - 実体は **ルートの `novel.db`**(SQLite)。パスは `DEM/db/schema.py` の `DB_PATH`

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import factory
 
-from DEM.db.schema import CHARACTER_KIND_PERSON
+from DEM.db.schema import CHARACTER_KIND_PERSON, PERSONALITY_LEVELS
 
 _SEX_CHOICES = ("男", "女", "不定")
 _BUILD_CHOICES = ("細身", "小柄", "がっしり", "長身", "ふくよか", "痩身")
@@ -13,8 +13,11 @@ _FIRST_PERSON_CHOICES = ("わたし", "俺", "僕", "あたし", "自分", "う�
 _SECOND_PERSON_CHOICES = ("あなた", "君", "お前", "そちら", "あんた")
 _THIRD_PERSON_CHOICES = ("さん", "くん", "ちゃん", "殿", "氏")
 
-# 性格の 12 軸。schema.py の Character に合わせる。
-_PERSONALITY_RANGE = (-5, 5)
+
+
+def _personality():
+    """性格の一軸。schema.py の PersonalityLevel(無/低/並/高/必)から一つ引く。"""
+    return factory.Faker("random_element", elements=PERSONALITY_LEVELS)
 
 
 class CharacterFactory(factory.DictFactory):
@@ -37,18 +40,18 @@ class CharacterFactory(factory.DictFactory):
     third_person = factory.Faker("random_element", elements=_THIRD_PERSON_CHOICES)
     tone = factory.Faker("random_element", elements=_TONE_CHOICES)
 
-    sincerity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    curiosity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    proactivity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    cooperativeness = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    sociability = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    emotional_expression = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    self_esteem = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    self_efficacy = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    stress_resilience = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    flexibility_of_values = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    sensitivity = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
-    imagination = factory.Faker("random_int", min=_PERSONALITY_RANGE[0], max=_PERSONALITY_RANGE[1])
+    sincerity = _personality()
+    curiosity = _personality()
+    proactivity = _personality()
+    cooperativeness = _personality()
+    sociability = _personality()
+    emotional_expression = _personality()
+    self_esteem = _personality()
+    self_efficacy = _personality()
+    stress_resilience = _personality()
+    flexibility_of_values = _personality()
+    sensitivity = _personality()
+    imagination = _personality()
 
     world_influence = factory.Faker("random_int", min=0, max=2)
 

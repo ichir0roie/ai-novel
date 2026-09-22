@@ -22,6 +22,7 @@ from DEM.ai.instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
 from DEM.data_access_logic.query.base import *
 from DEM.db.schema import *
+from DEM.db.schema import PERSONALITY_COLUMNS, PERSONALITY_LEVELS
 from DEM.ai.time_keeper._ai import AIClient
 from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper._format import format_time
@@ -39,6 +40,7 @@ _CONTENT_SYSTEM_PROMPT = f"""\
 渡す場所の説明・参考地域・参考文化・参考時代や、所属する地域、その場所・時刻に関連する筋書きに、この人物の生活・仕事・性格が自然に馴染むよう考慮してください(参考地域・参考文化・参考時代は、固有名詞をそのまま持ち込むのではなく、地理・気候・生業・価値観の手がかりとして使ってください)。
 「この人物が体現する要素」が渡されているときは、複数の立場のうちあなたが選びやすいものへ寄せず、渡された要素をこの人物の生き方の核として必ず反映してください。
 「既にいる人物・対象」が渡されているときは、その役割・関係・特徴とは重ならない人物にしてください(同じ立場・同じ能力・同じ関係性の作り直しをしない)。
+「性格」は各軸を {'/'.join(PERSONALITY_LEVELS)} の五段階で渡す(サイコロで決まっていて変えられない)。人物説明と筋書きはこの段階と矛盾しないようにし、「無」「必」の軸はその極端さが生活・仕事・人との関わり方に具体的な癖として表れるように書く。段階の語をそのまま書き写さない。
 {CHARACTER_PLOT_INSTRUCTION}
 {_PLACEHOLDER_INSTRUCTION}
 キーは次の三つだけ。
@@ -122,6 +124,13 @@ _PERSON_ONLY_COLUMNS = (
 def _should_roll(time: Stamp) -> bool:
     """月に一度、月初(1日)にだけロールする。"""
     return time.day == 1
+
+
+def _personality_label(values) -> str:
+    """性格の 12 軸を「誠実性=高 / 好奇心=並 / …」の一行にする。`values` は辞書でもレコードでもよい。"""
+    get = values.get if hasattr(values, "get") else (lambda column: getattr(values, column))
+    columns = Character.__table__.columns
+    return " / ".join(f"{columns[column].comment}={get(column)}" for column in PERSONALITY_COLUMNS)
 
 
 def _region_label(session: Session, born_place: Location | None) -> str:
@@ -255,6 +264,7 @@ def _generate_one(
     plot_years = rng.randint(*constants.CHARACTER_PLOT_YEARS_RANGE)
     person_line = (
         f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
+        f"性格({'/'.join(PERSONALITY_LEVELS)} の五段階): {_personality_label(draft)}\n"
         if person else ""
     )
 
@@ -336,6 +346,7 @@ def _generate_one(
     print(f"[time_keepr/character] {when} 生成: {record.name}({record.read})"
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
           + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
+             f"    性格: {_personality_label(record)}\n"
              if person else f"    world_influence={record.world_influence}\n")
           + f"    筋書きの要素: {chosen_element or '(無し)'}\n"
           f"    筋書き({plot_years}年、〜{format_time(plot_end)}): {plot_text}\n"
