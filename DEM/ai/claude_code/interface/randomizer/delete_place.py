@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""場所を一件、db から削除する、claude が呼ぶ入口。配下に子の場所を持つ場所は消せない。"""
+from __future__ import annotations
+
+from sqlalchemy import select
+
+from DEM.ai.claude_code.claude_interface._base import UnknownRecordError
+from DEM.ai.claude_code.claude_interface.randomizer._base import CommitDraft
+from DEM.db.schema import Location
+
+
+class DeletePlace(CommitDraft):
+    """場所を一件削除して、消す直前の中身を辞書で返す。"""
+
+    model = Location
+
+    def __init__(self, place_id: int):
+        self.place_id = place_id
+
+    def execute(self, session) -> dict:
+        record = session.get(Location, int(self.place_id))
+        if record is None:
+            raise UnknownRecordError(
+                f"place_id={self.place_id} という id の location が見つからない")
+        child = session.scalars(
+            select(Location.id).where(Location.parent_id == record.id)).first()
+        if child is not None:
+            raise ValueError(f"place_id={self.place_id} には子の場所が残っている。先にそちらを消す")
+
+        data = {"id": record.id, "name": record.name, "kind": record.kind}
+        session.delete(record)
+        return data
