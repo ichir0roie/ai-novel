@@ -52,7 +52,7 @@
 
 - 実体は **ルートの `novel.db`**(SQLite)。パスは `DEM/db/schema.py` の `DB_PATH`
   で、環境変数 `DEM_DB_PATH` で差し替えられる
-- コードから触るときは `from DEM.db.schema import get_session` で `Session` を開く。
+- コードから触るときは `from DEM.db.schema import get_env_session` で `Session` を開く。
   `engine` も同じモジュールにある
 - 作業として db を読み書きするときは `DEM/ai/claude_code/interface/` の入口越しに行う
   (一覧は `DEM/ai/claude_code/interface/readme.md`)。下地(`DEM/db/` `DEM/data_access_logic/`)を直接呼ぶのは開発・調査のときだけ

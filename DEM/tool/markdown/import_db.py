@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 
-from DEM.db.schema import DB_PATH, Base, MarkdownBase, StampType, get_session
+from DEM.db.schema import NOVEL_DB_PATH, Base, MarkdownBase, StampType, get_novel_session
 from DEM.db.stamp import Stamp
 
 WORLDS_ROOT = "worlds"
@@ -109,12 +109,12 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     date_str = datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = f"backup/{date_str}.db.bk"
     os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-    shutil.copy(DB_PATH, backup_path)
+    shutil.copy(NOVEL_DB_PATH, backup_path)
 
     models_by_table = _markdown_models()
 
     counts: dict[str, int] = {}
-    with get_session() as session:
+    with get_novel_session() as session:
         for table_name, model in models_by_table.items():
             table_dir = os.path.join(root, table_name)
             if not os.path.isdir(table_dir):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from DEM.db.schema import get_session
+from DEM.db.schema import get_env_session
 
 
 class Entrypoint:
@@ -16,7 +16,7 @@ class Entrypoint:
 
 class SessionEntrypoint(Entrypoint):
     def run(self):
-        with get_session() as session:
+        with get_env_session() as session:
             return self.execute(session)
 
     def execute(self, session):
@@ -42,7 +42,7 @@ class CommitEntrypoint(SessionEntrypoint):
     model: type
 
     def run(self):
-        with get_session() as session:
+        with get_env_session() as session:
             with session.begin():
                 return self.execute(session)
 

@@ -8,7 +8,7 @@ import os
 import shutil
 from decimal import Decimal
 
-from DEM.db.schema import Base, MarkdownBase, get_session
+from DEM.db.schema import Base, MarkdownBase, get_novel_session
 from DEM.db.stamp import Stamp
 from DEM.tool.map.render import render_maps
 
@@ -67,7 +67,7 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     #     shutil.rmtree(root)
 
     counts: dict[str, int] = {}
-    with get_session() as session:
+    with get_novel_session() as session:
         for model in _markdown_models():
             table_name = model.__tablename__
             rows = session.query(model).order_by(model.id.asc()).all()
