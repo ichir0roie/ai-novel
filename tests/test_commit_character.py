@@ -8,6 +8,7 @@ from DEM.ai.claude_code.interface.randomizer.commit_character import CommitChara
 from DEM.ai.claude_code.interface.randomizer.commit_place import CommitPlace
 from DEM.ai.claude_code.interface.randomizer.create_random_character import CreateRandomCharacter
 from DEM.ai.claude_code.interface.randomizer.update_character import UpdateCharacter
+from DEM.ai.claude_code.interface.randomizer.update_plot import UpdatePlot
 from DEM.ai.claude_code.interface.story.read_character import ReadCharacter
 from DEM.db.schema import (
     PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlace, Location, Plot,
@@ -117,6 +118,21 @@ def test_update_personality(session, world):
             UpdateCharacter(bad).run()
     session.expire_all()
     assert session.get(Character, committed["id"]).sincerity == committed["sincerity"]
+
+
+def test_update_accepts_stamp_string_with_five_digit_year(session, world):
+    committed = CommitCharacter(_draft(place_id=world["root"], start="2100")).run()
+
+    updated = UpdateCharacter({"id": committed["id"], "start": "11556/01/01 00:00:00"}).run()
+    assert updated["start"] == "11556/01/01 00:00:00"
+    session.expire_all()
+    assert session.get(Character, committed["id"]).start == Stamp(11556)
+
+    plot_id = session.query(Plot).filter_by(location_id=world["root"]).one().id
+    updated = UpdatePlot({"id": plot_id, "start": "11572"}).run()
+    assert updated["start"] == "11572/01/01 00:00:00"
+    session.expire_all()
+    assert session.get(Plot, plot_id).start == Stamp(11572)
 
 
 def test_update_requires_id():
