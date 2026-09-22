@@ -1,35 +1,31 @@
 # claude_ai
 
-`DEM/local_ai/`(Ollama)と**同じ仕様**で、生成だけを Claude Code(`claude -p`)に
-やらせる側。人物・筋書き(`CharacterPlot`)・出来事・場所の改廃は local_ai の
-常駐ループそのものを使い、本文(`Episode`)だけはここにしか無い生成器で書く。
+`DEM/local_ai/`(Ollama)と**同じ仕様**で、生成を Claude Code(`claude -p`)にやらせる側。
+local_ai とはコードを共有せず、完全に分かれている(local_ai 側に切り替えの分岐は無い)。
+共有するのは `DEM/ai_instructions/`(プロンプトの文面)と `DEM/randomizer/`(db に触れない下書き)だけ。
 
 ```
 DEM/claude_ai/
   ai_client.py        `local_ai/ai_client.py` と同じ関数(generate / generate_json / try_generate_json)。
                       中身は `claude -p --output-format json --json-schema …` の subprocess
-  time_keeper/main.py local_ai の常駐ループを、AI の呼び先だけ Claude Code に向けて回す
+  time_keeper/        local_ai/time_keeper/ と同じ構成の常駐ループ(人物・出来事・場所・寿命・時刻・定数)。
+                      import 先が `DEM.claude_ai.ai_client` になっているだけで、確率・プロンプト・db への書き方は同じ
   story_writer.py     作品の次の話を書いて db へ確定する(local_ai に無い、ここだけの生成器)
 ```
 
 ## 仕組み
 
-- `DEM/local_ai/ai_client.py` は環境変数 `DEM_AI_BACKEND` が `claude` のとき、
-  `generate` をそのまま `DEM/claude_ai/ai_client.py` へ回す。生成器
-  (`DEM/local_ai/time_keeper/*_generator.py`)は `ai_client.try_generate_json` を
-  呼ぶだけなので、プロンプト・確率・db への書き方は一切変わらない
-- `claude_ai/time_keeper/main.py` はそのフラグを立ててから local_ai の
-  `loop_time` を呼ぶ。ループの終わりに Claude Code の呼び出し回数・トークン・費用を出す
 - 各呼び出しは `--tools ""`(道具なし)・`--no-session-persistence`・`--system-prompt`
   で、単発の「プロンプト → JSON」に絞る。カレントは一時ディレクトリにして、
   このリポジトリの `CLAUDE.md` や設定を読み込ませない
 - 認証は CLI に任せる(`claude login` 済みか `ANTHROPIC_API_KEY`)
+- ループの終わりに Claude Code の呼び出し回数・トークン・費用を出す
+- local_ai の生成器を直したら、ここの `time_keeper/` にも同じ変更を入れる(意図的に別物にする場合を除く)
 
 ## 環境変数(`.env` でよい)
 
 | 変数                    | 意味                                                        |
 | ----------------------- | ----------------------------------------------------------- |
-| `DEM_AI_BACKEND`        | `claude` で local_ai の生成器の呼び先を Claude Code にする。`time_keeper/main.py` は自分で立てる |
 | `DEM_CLAUDE_AI_COMMAND` | 実行する CLI。既定 `claude`                                  |
 | `DEM_CLAUDE_AI_MODEL`   | `--model` に渡す。既定 `claude-sonnet-5`                     |
 | `DEM_CLAUDE_AI_EFFORT`  | `--effort` に渡す(low / medium / high)。既定 `low`          |

@@ -3,8 +3,6 @@
 
 環境変数: `DEM_LOCAL_AI_HOST`(Ollama のベース URL、既定 `http://localhost:11434`)、
 `DEM_LOCAL_AI_MODEL`(モデル名、必須)。
-`DEM_AI_BACKEND` を `claude` にすると、生成だけ `DEM/claude_ai/ai_client.py`
-(Claude Code)へ回す。呼び出し側(`time_keeper/` の各生成器)は変えない。
 """
 from __future__ import annotations
 
@@ -32,10 +30,6 @@ _DEFAULT_OPTIONS = {
 }
 
 
-def _backend() -> str:
-    return os.environ.get("DEM_AI_BACKEND", "local")
-
-
 def _host() -> str:
     return os.environ.get("DEM_LOCAL_AI_HOST", "http://localhost:11434")
 
@@ -61,14 +55,6 @@ def generate(
     省略時は `_DEFAULT_OPTIONS` を使う。`format` は Ollama にそのまま渡す
     (JSON Schema の辞書、または `"json"`)。
     """
-    if _backend() == "claude":
-        from DEM.claude_ai import ai_client as claude_ai_client
-        try:
-            return claude_ai_client.generate(
-                prompt, system=system, format=format, timeout=timeout, options=options)
-        except claude_ai_client.ClaudeAIError as error:
-            raise LocalAIError(str(error)) from error
-
     payload: dict = {
         "model": _model(),
         "prompt": prompt,
