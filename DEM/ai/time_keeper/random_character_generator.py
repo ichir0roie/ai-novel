@@ -68,12 +68,11 @@ _NON_PERSON_CONTENT_SYSTEM_PROMPT = f"""\
 {CHARACTER_PLOT_INSTRUCTION}
 {_PLACEHOLDER_INSTRUCTION}
 {AVOID_NARO_TEMPLATE_INSTRUCTION}
-キーは次の五つだけ。
+キーは次の四つだけ。
 - kind: 種別。{' / '.join(constants.NON_PERSON_KINDS)} のいずれか一つ。
 - text: この対象が何であって、何を決められて、誰に対して力を持つのかが伝わる2〜3文の説明。「由緒ある」「謎めいた」のような、どの対象にも当てはまる形容だけで済ませない。
 - age: 成り立ってからの年数(整数)。{_AGE_RANGE}の範囲。
-- plot: 今後の筋書き。
-- scale: この対象の力がどこまで届くか。{' / '.join(constants.SCALE_INFLUENCE)} のいずれか一つ。"""
+- plot: 今後の筋書き。"""
 
 _NON_PERSON_CONTENT_SCHEMA = {
     "type": "object",
@@ -82,9 +81,8 @@ _NON_PERSON_CONTENT_SCHEMA = {
         "text": {"type": "string"},
         "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
         "plot": {"type": "string"},
-        "scale": {"type": "string", "enum": list(constants.SCALE_INFLUENCE)},
     },
-    "required": ["kind", "text", "age", "plot", "scale"],
+    "required": ["kind", "text", "age", "plot"],
     "additionalProperties": False,
 }
 
@@ -288,10 +286,6 @@ def _generate_one(
             content_prompt, _NON_PERSON_CONTENT_SCHEMA, system=_NON_PERSON_CONTENT_SYSTEM_PROMPT)
         kind = decided.get("kind")
         draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
-        scale = decided.get("scale")
-        if scale not in constants.SCALE_INFLUENCE:
-            scale = constants.DEFAULT_SCALE
-        draft["world_influence"] = constants.SCALE_INFLUENCE[scale]
 
     draft["text"] = decided.get("text") or draft["text"]
     try:
@@ -347,7 +341,7 @@ def _generate_one(
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
           + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
              f"    性格: {_personality_label(record)}\n"
-             if person else f"    world_influence={record.world_influence}\n")
+             if person else "")
           + f"    筋書きの要素: {chosen_element or '(無し)'}\n"
           f"    筋書き({plot_years}年、〜{format_time(plot_end)}): {plot_text}\n"
           f"    説明: {record.text or '(説明なし)'}")

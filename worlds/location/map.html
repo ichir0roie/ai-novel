@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>場所の地図</title>
+<style>
+  :root { --bg: #fdfcf8; --sea: #eef3f7; --ink: #222; --dim: #666; --line: #c8d0d8; --panel: #fff; }
+  body { margin: 0; font-family: sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0 16px 0 0; }
+  .tabs button { margin-right: 4px; padding: 4px 10px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+  .tabs button.on { background: var(--ink); color: #fff; }
+  .layers label { margin-right: 10px; white-space: nowrap; }
+  .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 3px; vertical-align: middle; }
+  main { display: grid; grid-template-columns: 1fr 340px; height: calc(100vh - 56px); }
+  #map { overflow: auto; }
+  svg { display: block; }
+  aside { border-left: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); font-size: 13px; }
+  aside h2 { font-size: 14px; margin: 0 0 6px; }
+  aside dl { margin: 0 0 12px; display: grid; grid-template-columns: 5em 1fr; gap: 2px 8px; }
+  aside dt { color: var(--dim); }
+  aside dd { margin: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+  td.num { text-align: right; }
+  td, th { white-space: nowrap; }
+  td:first-child { white-space: normal; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: var(--sea); }
+  .hint { color: var(--dim); }
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: #fff; padding: 6px 8px; font-size: 12px; border-radius: 3px; white-space: pre; display: none; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 40vh; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>場所の地図</h1>
+  <div class="tabs" id="tabs"></div>
+  <div class="layers" id="layers"></div>
+  <label class="hint">拡大 <input type="range" id="zoom" min="0.5" max="4" step="0.25" value="1"> <span id="zoomv">1×</span></label>
+</header>
+<main>
+  <div id="map"></div>
+  <aside id="side"><p class="hint">点をクリックすると、そこから見た他の場所の距離と方角を出す。</p></aside>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+const PLANETS = [{"planet": {"id": 51, "name": "ノウル", "directory_path": "SFファンタジー/ノウル", "area": 430000000.0, "radius_km": 5849.64210569822}, "points": [{"id": 59, "name": "ヴェルム聖王国", "kind": "国", "parent_id": 52, "parent_name": "ハルディア", "parent_kind": "大陸", "lon": 0.0, "lat": 40.0, "alt": 400.0, "environment": "温帯の内陸。丘陵と古い石の都市", "sample_region": "神聖ローマ帝国", "sample_culture": "教会と諸侯、選挙王制", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/59.md"}, {"id": 60, "name": "リオネ王国", "kind": "国", "parent_id": 52, "parent_name": "ハルディア", "parent_kind": "大陸", "lon": -12.0, "lat": 36.0, "alt": 80.0, "environment": "温帯の平野と大河。穀倉と港", "sample_region": "フランス", "sample_culture": "中央集権の王権、常備軍", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/60.md"}, {"id": 61, "name": "ローザ諸都市同盟", "kind": "国", "parent_id": 52, "parent_name": "ハルディア", "parent_kind": "大陸", "lon": 10.0, "lat": 30.0, "alt": 10.0, "environment": "温暖な半島と沿岸。商業都市が並ぶ", "sample_region": "イタリア都市国家", "sample_culture": "商人共和政、海上交易", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/61.md"}, {"id": 62, "name": "コウ帝国", "kind": "国", "parent_id": 53, "parent_name": "セイラン", "parent_kind": "大陸", "lon": 95.0, "lat": 30.0, "alt": 50.0, "environment": "大河流域の平野と山地。稲作と運河", "sample_region": "中国", "sample_culture": "官僚制、科挙、儒教的秩序", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/62.md"}, {"id": 63, "name": "アキツ諸侯国", "kind": "国", "parent_id": 53, "parent_name": "セイラン", "parent_kind": "大陸", "lon": 125.0, "lat": 34.0, "alt": 30.0, "environment": "多雨の列島。山と海が近い", "sample_region": "日本", "sample_culture": "武家の諸侯、稲作と海の民", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/63.md"}, {"id": 64, "name": "ハーン草原連合", "kind": "国", "parent_id": 53, "parent_name": "セイラン", "parent_kind": "大陸", "lon": 85.0, "lat": 46.0, "alt": 1200.0, "environment": "乾いた草原と高原。馬と羊", "sample_region": "モンゴル", "sample_culture": "遊牧、部族連合、選ばれる大ハーン", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/64.md"}, {"id": 65, "name": "ヴィシャラ神国", "kind": "国", "parent_id": 54, "parent_name": "ザハラ", "parent_kind": "大陸", "lon": 45.0, "lat": -8.0, "alt": 80.0, "environment": "大河と熱帯の平野。寺院都市", "sample_region": "インド", "sample_culture": "神官政治、身分制、篤い信仰", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/65.md"}, {"id": 66, "name": "パルサ交易王国", "kind": "国", "parent_id": 54, "parent_name": "ザハラ", "parent_kind": "大陸", "lon": 25.0, "lat": -18.0, "alt": 600.0, "environment": "乾燥帯のオアシスと隊商路", "sample_region": "ペルシア", "sample_culture": "隊商交易、王の道、寛容な宗教政策", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/66.md"}, {"id": 67, "name": "シルヴァーン", "kind": "国", "parent_id": 54, "parent_name": "ザハラ", "parent_kind": "大陸", "lon": 55.0, "lat": -3.0, "alt": 150.0, "environment": "熱帯の大森林。巨木と川", "sample_region": "森林の王国", "sample_culture": "長命のエルフ、森の掟", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/67.md"}, {"id": 68, "name": "ガルド荒野国", "kind": "国", "parent_id": 54, "parent_name": "ザハラ", "parent_kind": "大陸", "lon": 15.0, "lat": -26.0, "alt": 900.0, "environment": "乾いた荒野と岩山。魔力の痩せた土地", "sample_region": "追放者の国", "sample_culture": "追われた者の掟", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/68.md"}, {"id": 69, "name": "ドヴェルグ山王国", "kind": "国", "parent_id": 55, "parent_name": "ヴォルド", "parent_kind": "大陸", "lon": -45.0, "lat": 62.0, "alt": 1800.0, "environment": "寒冷な山脈。坑道と工房の都市", "sample_region": "北欧", "sample_culture": "鍛冶、石工、契約を重んじる氏族", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/69.md"}, {"id": 70, "name": "ルスカ辺境公国", "kind": "国", "parent_id": 55, "parent_name": "ヴォルド", "parent_kind": "大陸", "lon": -25.0, "lat": 58.0, "alt": 200.0, "environment": "針葉樹林と凍る川。長い冬", "sample_region": "ロシア", "sample_culture": "辺境の開拓、公と農民", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/70.md"}, {"id": 71, "name": "パンデム", "kind": "国", "parent_id": 56, "parent_name": "ネザル", "parent_kind": "世界", "lon": 5.0, "lat": 32.0, "alt": -3000.0, "environment": "地下の大空洞。光る鉱石に照らされた都", "sample_region": "地下の都", "sample_culture": "契約と序列、開放と変革", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/71.md"}, {"id": 72, "name": "ホロウ", "kind": "国", "parent_id": 56, "parent_name": "ネザル", "parent_kind": "世界", "lon": 15.0, "lat": -24.0, "alt": -800.0, "environment": "地下の川沿いの洞窟群。地上との抜け道が多い", "sample_region": "地下の避難所", "sample_culture": "追われた者の共同体", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/72.md"}, {"id": 73, "name": "夏の宮廷", "kind": "国", "parent_id": 57, "parent_name": "ティルナ", "parent_kind": "世界", "lon": 8.0, "lat": 38.0, "alt": 300.0, "environment": "光の差す森と花の谷", "sample_region": "妖精郷", "sample_culture": "気まぐれな宮廷、恩と返礼", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/73.md"}, {"id": 74, "name": "冬の宮廷", "kind": "国", "parent_id": 57, "parent_name": "ティルナ", "parent_kind": "世界", "lon": -30.0, "lat": 66.0, "alt": 400.0, "environment": "霧と霜の森。時が止まったような谷", "sample_region": "妖精郷", "sample_culture": "気まぐれな宮廷、取り立てと呪い", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/74.md"}, {"id": 75, "name": "エンピレオ", "kind": "国", "parent_id": 58, "parent_name": "アストラ", "parent_kind": "世界", "lon": 0.0, "lat": 40.0, "alt": 20000.0, "environment": "雲の上の光の都。地上からは見えない", "sample_region": "天上の都", "sample_culture": "序列と裁定、伝統と血筋", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/75.md"}, {"id": 76, "name": "リンドール", "kind": "国", "parent_id": 58, "parent_name": "アストラ", "parent_kind": "世界", "lon": 55.0, "lat": -3.0, "alt": 18000.0, "environment": "天上の森と塔", "sample_region": "天上のエルフの都", "sample_culture": "長命の学者と記録者", "sample_era": "近世(1500年代)", "start": null, "end": null, "path": "SFファンタジー/ノウル/地域/76.md"}]}];
+const COLORS = ["#c0392b", "#2471a3", "#1e8449", "#b9770e", "#7d3c98", "#148f77", "#a04000", "#5d6d7e", "#d4ac0d", "#884ea0"];
+const BEARINGS = ["北", "北北東", "北東", "東北東", "東", "東南東", "南東", "南南東", "南", "南南西", "南西", "西南西", "西", "西北西", "北西", "北北西"];
+const ML = 60, MT = 40, MR = 20, MB = 30, PAD = 10, GRID = 10, MIN_SCALE = 6, TARGET_WIDTH = 1400;
+const state = { planet: 0, hidden: new Set(), origin: null, zoom: 1 };
+
+function fitFrame(points) {
+  const fl = (v, s) => Math.floor(v / s) * s, ce = (v, s) => -fl(-v, s);
+  if (!points.length) return { lonMin: -180, lonMax: 180, latMin: -90, latMax: 90, scale: MIN_SCALE / 2 };
+  const lons = points.map(p => p.lon), lats = points.map(p => p.lat);
+  const f = { lonMin: Math.max(-180, fl(Math.min(...lons) - PAD, GRID)), lonMax: Math.min(180, ce(Math.max(...lons) + PAD, GRID)),
+              latMin: Math.max(-90, fl(Math.min(...lats) - PAD, GRID)), latMax: Math.min(90, ce(Math.max(...lats) + PAD, GRID)) };
+  f.scale = Math.max(MIN_SCALE, TARGET_WIDTH / (f.lonMax - f.lonMin)) * state.zoom;
+  const span = Math.max(f.lonMax - f.lonMin, f.latMax - f.latMin);
+  f.step = span > 180 ? 30 : span > 60 ? 10 : 5;
+  f.x = lon => ML + (lon - f.lonMin) * f.scale;
+  f.y = lat => MT + (f.latMax - lat) * f.scale;
+  return f;
+}
+const textWidth = (t, px = 11) => [...t].reduce((w, ch) => w + (ch.codePointAt(0) > 0x2E7F ? px : px * 0.55), 0);
+const CANDIDATES = [["start", 8, 4], ["end", -8, 4], ["middle", 0, -9], ["middle", 0, 15],
+                    ["start", 8, -8], ["start", 8, 16], ["end", -8, -8], ["end", -8, 16]];
+const overlaps = (a, b) => !(a[2] <= b[0] || b[2] <= a[0] || a[3] <= b[1] || b[3] <= a[1]);
+function placeLabels(items, px = 11) {
+  const placed = [];
+  return items.map(([x, y, text]) => {
+    const w = textWidth(text, px), h = px + 2;
+    for (const [anchor, dx, dy] of CANDIDATES) {
+      const lx = x + dx - (anchor === "end" ? w : anchor === "middle" ? w / 2 : 0);
+      const box = [lx, y + dy - h, lx + w, y + dy];
+      if (!placed.some(o => overlaps(box, o))) { placed.push(box); return [x + dx, y + dy, anchor]; }
+    }
+    placed.push([x + 8, y + 4 - h, x + 8 + w, y + 4]); return [x + 8, y + 4, "start"];
+  });
+}
+const rad = d => d * Math.PI / 180;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const parentOf = p => p.parent_name ?? "(親なし)";
+
+function angular(a, b) {
+  const p1 = rad(a.lat), p2 = rad(b.lat), dl = rad(b.lon - a.lon);
+  const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * Math.asin(Math.min(1, Math.sqrt(h))) * 180 / Math.PI;
+}
+function bearing(a, b) {
+  const p1 = rad(a.lat), p2 = rad(b.lat), dl = rad(b.lon - a.lon);
+  const x = Math.sin(dl) * Math.cos(p2);
+  const y = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
+}
+const bearingName = d => BEARINGS[Math.floor((d + 11.25) / 22.5) % 16];
+function distanceText(km, deg) {
+  if (km == null) return `約${deg.toFixed(1)}度`;
+  return km < 100 ? `約${Math.round(km).toLocaleString()} km` : `約${(Math.round(km / 10) * 10).toLocaleString()} km`;
+}
+function altText(alt) { return alt == null ? "" : ` (${alt >= 0 ? "+" : ""}${Math.round(alt).toLocaleString()} m)`; }
+function altDiffText(d) {
+  if (d == null) return "高低差は不明";
+  if (Math.abs(d) < 1) return "同じ高さ";
+  return `${d > 0 ? "上" : "下"}へ ${Math.round(Math.abs(d)).toLocaleString()} m`;
+}
+
+function layersOf(points) {
+  const kinds = new Map();
+  for (const p of points) if (!kinds.has(parentOf(p))) kinds.set(parentOf(p), p.parent_kind ?? "");
+  return [...kinds.keys()].sort((a, b) => (kinds.get(a) !== "大陸") - (kinds.get(b) !== "大陸") || (a < b ? -1 : a > b ? 1 : 0));
+}
+
+function renderTabs() {
+  const tabs = document.getElementById("tabs");
+  tabs.innerHTML = PLANETS.map((pl, i) =>
+    `<button class="${i === state.planet ? "on" : ""}" data-i="${i}">${esc(pl.planet.name)}</button>`).join("");
+  tabs.onclick = e => { const b = e.target.closest("button"); if (!b) return;
+    state.planet = +b.dataset.i; state.hidden.clear(); state.origin = null; render(); };
+}
+
+function renderLayers(layers, colorOf, points) {
+  const box = document.getElementById("layers");
+  box.innerHTML = layers.map(name => {
+    const kind = points.find(p => parentOf(p) === name)?.parent_kind;
+    return `<label><input type="checkbox" data-name="${esc(name)}" ${state.hidden.has(name) ? "" : "checked"}>` +
+      `<span class="swatch" style="background:${colorOf[name]}"></span>${esc(name)}${kind ? ` (${esc(kind)})` : ""}</label>`;
+  }).join("");
+  box.onchange = e => { const n = e.target.dataset.name; if (e.target.checked) state.hidden.delete(n); else state.hidden.add(n); render(); };
+}
+
+function marker(p, x, y, r, color, extra) {
+  if (p.parent_kind === "大陸") return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="#fff" ${extra}/>`;
+  return `<path d="M${x},${y - r} L${x + r},${y} L${x},${y + r} L${x - r},${y} Z" fill="${color}" stroke="#fff" ${extra}/>`;
+}
+
+function renderMap(planet, points, layers, colorOf) {
+  const f = fitFrame(points), X = f.x, Y = f.y;
+  const W = ML + (f.lonMax - f.lonMin) * f.scale + MR, H = MT + (f.latMax - f.latMin) * f.scale + MB;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-size="11">`;
+  s += `<rect width="${W}" height="${H}" fill="#fdfcf8"/>`;
+  s += `<rect x="${X(f.lonMin)}" y="${Y(f.latMax)}" width="${(f.lonMax - f.lonMin) * f.scale}" height="${(f.latMax - f.latMin) * f.scale}" fill="#eef3f7" stroke="#999"/>`;
+  for (let lon = f.lonMin; lon <= f.lonMax; lon += f.step) {
+    s += `<line x1="${X(lon)}" y1="${Y(f.latMax)}" x2="${X(lon)}" y2="${Y(f.latMin)}" stroke="${lon ? "#c8d0d8" : "#666"}" stroke-width="${lon ? .6 : 1.2}"/>`;
+    s += `<text x="${X(lon)}" y="${Y(f.latMin) + 14}" text-anchor="middle" fill="#555">${lon}°</text>`;
+  }
+  for (let lat = f.latMin; lat <= f.latMax; lat += f.step) {
+    s += `<line x1="${X(f.lonMin)}" y1="${Y(lat)}" x2="${X(f.lonMax)}" y2="${Y(lat)}" stroke="${lat ? "#c8d0d8" : "#666"}" stroke-width="${lat ? .6 : 1.2}"/>`;
+    s += `<text x="${X(f.lonMin) - 6}" y="${Y(lat) + 4}" text-anchor="end" fill="#555">${lat}°</text>`;
+  }
+  const r = planet.radius_km;
+  s += `<text x="${ML}" y="24" font-size="18" font-weight="bold">${esc(planet.name)}</text>`;
+  s += `<text x="${ML + 40 + planet.name.length * 18}" y="24" fill="#555">${r ? `半径 約${Math.round(r).toLocaleString()} km、緯度1度 ≒ ${Math.round(r * Math.PI / 180).toLocaleString()} km` : "半径は不明(area が無い)"}</text>`;
+
+  const shown = points.filter(p => !state.hidden.has(parentOf(p)));
+  const origin = shown.find(p => p.id === state.origin) ?? null;
+  if (origin) for (const p of shown) if (p !== origin)
+    s += `<line x1="${X(origin.lon)}" y1="${Y(origin.lat)}" x2="${X(p.lon)}" y2="${Y(p.lat)}" stroke="#333" stroke-width=".5" stroke-dasharray="3 3"/>`;
+
+  const groups = new Map();
+  for (const p of [...shown].sort((a, b) => layers.indexOf(parentOf(a)) - layers.indexOf(parentOf(b)) || a.id - b.id)) {
+    const k = `${p.lon},${p.lat}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p);
+  }
+  const drawn = [];
+  for (const members of groups.values()) members.forEach((p, i) => drawn.push([p, X(p.lon), Y(p.lat), i]));
+  const labels = placeLabels(drawn.map(([p, x, y, i]) => [x, y + 12 * i, p.name + altText(p.alt)]));
+  drawn.forEach(([p, x, y, i], n) => {
+    const [lx, ly, anchor] = labels[n], color = colorOf[parentOf(p)];
+    const sel = origin && origin.id === p.id;
+    s += `<g class="pt" data-id="${p.id}" style="cursor:pointer">`;
+    s += marker(p, x, y, (sel ? 7 : 4) + 2 * i, color, `stroke-width="${sel ? 2.5 : 1}"`);
+    s += `<text x="${lx}" y="${ly}" text-anchor="${anchor}" fill="${color}" stroke="#fdfcf8" stroke-width="3" paint-order="stroke" font-weight="${sel ? "bold" : "normal"}">${esc(p.name)}${esc(altText(p.alt))}</text></g>`;
+  });
+  s += "</svg>";
+  const map = document.getElementById("map");
+  map.innerHTML = s;
+  const tip = document.getElementById("tip");
+  map.querySelectorAll(".pt").forEach(g => {
+    const p = points.find(q => q.id === +g.dataset.id);
+    g.onclick = () => { state.origin = state.origin === p.id ? null : p.id; render(); };
+    g.onmousemove = e => { tip.style.display = "block"; tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY + 14) + "px";
+      tip.textContent = [`${p.name} (${p.kind ?? ""})`, `親: ${p.parent_name ?? "-"}`, `lon ${p.lon} / lat ${p.lat} / alt ${p.alt ?? "-"}`,
+        p.environment ? `環境: ${p.environment}` : null,
+        [p.sample_region, p.sample_culture, p.sample_era].filter(Boolean).join(" / ") || null,
+        (p.start || p.end) ? `期間: ${p.start ?? ""} 〜 ${p.end ?? ""}` : null].filter(Boolean).join("\n"); };
+    g.onmouseleave = () => { tip.style.display = "none"; };
+  });
+}
+
+function renderSide(planet, points) {
+  const side = document.getElementById("side");
+  const origin = points.find(p => p.id === state.origin);
+  if (!origin) { side.innerHTML = `<p class="hint">点をクリックすると、そこから見た他の場所の距離と方角を出す。</p>` +
+    `<p class="hint">経緯度を持つ場所 ${points.length} 件。面(大陸・世界)は座標を持たないので描かない。</p>`; return; }
+  const rows = points.filter(p => p !== origin && !state.hidden.has(parentOf(p))).map(p => {
+    const deg = angular(origin, p), km = planet.radius_km ? rad(deg) * planet.radius_km : null, b = bearing(origin, p);
+    const diff = (origin.alt != null && p.alt != null) ? p.alt - origin.alt : null;
+    return { p, deg, km, b, diff };
+  }).sort((a, b) => a.deg - b.deg);
+  side.innerHTML = `<h2>${esc(origin.name)} <span class="hint">(${esc(origin.kind)} / ${esc(origin.parent_name ?? "-")})</span></h2>` +
+    `<dl><dt>座標</dt><dd>lon ${origin.lon} / lat ${origin.lat} / alt ${origin.alt ?? "-"}</dd>` +
+    (origin.environment ? `<dt>環境</dt><dd>${esc(origin.environment)}</dd>` : "") +
+    `<dt>記事</dt><dd>${esc(origin.path)}</dd></dl>` +
+    `<table><tr><th>場所</th><th>方角</th><th>距離</th><th>高低差</th></tr>` +
+    rows.map(r => `<tr class="row" data-id="${r.p.id}"><td>${esc(r.p.name)}<br><span class="hint">${esc(r.p.parent_name ?? "")}</span></td>` +
+      (r.deg < 0.01 ? `<td colspan="2">同じ経緯度</td>` : `<td>${bearingName(r.b)}<br><span class="hint">${Math.round(r.b)}°</span></td><td class="num">${distanceText(r.km, r.deg)}</td>`) + `<td>${altDiffText(r.diff)}</td></tr>`).join("") +
+    `</table>`;
+  side.querySelectorAll("tr.row").forEach(tr => { tr.onclick = () => { state.origin = +tr.dataset.id; render(); }; });
+}
+
+function render() {
+  const { planet, points } = PLANETS[state.planet];
+  const layers = layersOf(points);
+  const colorOf = Object.fromEntries(layers.map((n, i) => [n, COLORS[i % COLORS.length]]));
+  renderTabs(); renderLayers(layers, colorOf, points); renderMap(planet, points, layers, colorOf); renderSide(planet, points);
+}
+document.getElementById("zoom").oninput = e => { state.zoom = +e.target.value; document.getElementById("zoomv").textContent = state.zoom + "×"; render(); };
+if (PLANETS.length) render(); else document.getElementById("map").innerHTML = '<p class="hint" style="padding:16px">経緯度を持つ場所が無い。</p>';
+</script>
+</body>
+</html>

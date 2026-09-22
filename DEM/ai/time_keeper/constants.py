@@ -23,15 +23,6 @@ NEARBY_CHARACTER_LIMIT = 20
 
 NON_PERSON_PROBABILITY = 0.3
 NON_PERSON_KINDS = ("国", "組織", "商会", "氏族", "集団", "物")
-# 人物以外の対象に AI へ選ばせる「どこまで届くか」と、それを落とす world_influence の値。
-# 数そのものを AI に決めさせない(尺度が決まっていないため)。
-SCALE_INFLUENCE = {
-    "集落内": 0,
-    "地域": 1,
-    "国": 2,
-    "大陸": 3,
-}
-DEFAULT_SCALE = "地域"
 
 # random_location_generator
 LOCATION_PROBABILITY = 0.01  # 1年に1度、1%の確率で

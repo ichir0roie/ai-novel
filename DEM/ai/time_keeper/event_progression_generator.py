@@ -421,7 +421,6 @@ def _progress_place(
     characters_payload = [
         {"character_id": c.id, "kind": c.kind, "name": c.name, "tone": c.tone, "text": c.text,
          "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
-         "world_influence": c.world_influence,
          "plot": [{"text": p.text, "span": _plot_span_label(p)}
                   for p in character_plots.get(c.id, [])] or "(指定なし)",
          "recent_events": _character_recent_event_names(session, c.id, time)}
