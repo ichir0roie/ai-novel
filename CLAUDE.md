@@ -45,8 +45,8 @@
   で、環境変数 `DEM_DB_PATH` で差し替えられる
 - コードから触るときは `from DEM.db.schema import get_session` で `Session` を開く。
   `engine` も同じモジュールにある
-- 作業として db を読み書きするときは `DEM/claude_interface/` の入口越しに行う
-  (一覧は `DEM/claude_interface/readme.md`)。下地(`DEM/db/` `DEM/data_access_logic/`)を直接呼ぶのは開発・調査のときだけ
+- 作業として db を読み書きするときは `DEM/ai/claude_code/interface/` の入口越しに行う
+  (一覧は `DEM/ai/claude_code/interface/readme.md`)。下地(`DEM/db/` `DEM/data_access_logic/`)を直接呼ぶのは開発・調査のときだけ
 - 引き方(`DEM/data_access_logic/query/*.py`)では、外部キーが `NULL` の行を
   「全体に効く」とみなして `or_(X.fk_id.in_(ids), X.fk_id.is_(None))` のように
   無理に拾わない。関係が無い行は「関係が無い」として扱う

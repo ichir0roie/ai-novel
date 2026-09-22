@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""世界観構成で確定する前に確かめる、数の整合。`DEM/claude_interface/randomizer/` と `DEM/local_ai/` から使う。"""
+"""世界観構成で確定する前に確かめる、数の整合。`DEM/ai/claude_code/interface/randomizer/` と `DEM/ai/local_ai/` から使う。"""
 from __future__ import annotations
 
 from sqlalchemy import Select, and_, func, or_, select
