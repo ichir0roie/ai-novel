@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 
-from DEM.db.schema import Base, MarkdownBase, StampType, get_session
+from DEM.db.schema import DB_PATH, Base, MarkdownBase, StampType, get_session
 from DEM.db.stamp import Stamp
 
 WORLDS_ROOT = "worlds"
@@ -84,6 +84,8 @@ def _upsert(
         for key, value in values.items():
             setattr(row, key, value)
     session.flush()
+    if row_id is None:
+        os.rename(path, os.path.join(os.path.dirname(path), f"{row.id}_{stem}.md"))
     return row
 
 
@@ -107,7 +109,7 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     date_str = datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = f"backup/{date_str}.db.bk"
     os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-    shutil.copy("novel.db", backup_path)
+    shutil.copy(DB_PATH, backup_path)
 
     models_by_table = _markdown_models()
 
