@@ -9,7 +9,7 @@ from DEM.data_access_logic.query.base import (
     character_time_condition, plot_time_condition,
 )
 from DEM.db.schema import (
-    Character, CharacterPlace, Event, EventCharacter, Location,
+    Character, CharacterPlace, CharacterPlot, Event, EventCharacter, Location,
     Plot, Session, Stamp,
 )
 
@@ -96,3 +96,13 @@ def check_has_plot(session: Session, place_id: int, label: str) -> None:
         raise ValueError(
             f"{label}: place_id={place_id} にはプロットが無い。"
             "先に CommitPlot でその場所(か祖先)へ筋書きを置いてから確定する")
+
+
+def active_character_plot_count_select(time) -> Select:
+    """時刻 `time` をカバーしている、生きている人物の筋書き(`CharacterPlot`)の件数。"""
+    return (select(func.count(CharacterPlot.id))
+            .join(Character, Character.id == CharacterPlot.character_id)
+            .where(or_(CharacterPlot.start.is_(None), CharacterPlot.start <= time),
+                   or_(CharacterPlot.end.is_(None), CharacterPlot.end > time),
+                   or_(Character.start.is_(None), Character.start <= time),
+                   or_(Character.end.is_(None), Character.end > time)))

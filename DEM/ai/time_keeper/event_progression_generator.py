@@ -301,16 +301,17 @@ def _judge_plot_completed(
     recent = session.scalars(
         common_query.events_of_select(character.id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
-    prompt = (
-        f"人物: {character.name}\n"
-        f"人物の説明: {character.text}\n"
-        f"筋書き:\n{plot.text}\n"
-        f"筋書きの期間: {_plot_span_label(plot)}\n"
-        f"現在の時刻: {format_time(time)}\n"
-        f"この人物が関わった直近の出来事(名前): {[e.name for e in recent]}\n"
-        f"いま起きた出来事: {event.name}\n{event.text}\n"
-        "この出来事で筋書きは完了したか判定してください。"
-    )
+    prompt = f"""\
+人物: {character.name}
+人物の説明: {character.text}
+筋書き:
+{plot.text}
+筋書きの期間: {_plot_span_label(plot)}
+現在の時刻: {format_time(time)}
+この人物が関わった直近の出来事(名前): {[e.name for e in recent]}
+いま起きた出来事: {event.name}
+{event.text}
+この出来事で筋書きは完了したか判定してください。"""
     decided = ai.try_generate_json(
         prompt, _PLOT_COMPLETION_SCHEMA, system=_PLOT_COMPLETION_SYSTEM_PROMPT)
     return bool(decided.get("completed"))
@@ -352,11 +353,9 @@ def _think_participants(
     """当事者ごとに思考・感情・望み・恐れ・行動を推測させる。出来事の候補はこれを土台に立てる。"""
     judgements: list[dict] = []
     for payload in characters_payload:
-        prompt = (
-            f"この当事者({payload['kind']}): {payload}\n"
-            f"{situation}"
-            "この当事者のいまの思考・感情・望み・恐れ・行動を推測してください。"
-        )
+        prompt = f"""\
+この当事者({payload['kind']}): {payload}
+{situation}この当事者のいまの思考・感情・望み・恐れ・行動を推測してください。"""
         decided = ai.try_generate_json(
             prompt, _JUDGEMENT_SCHEMA, system=_JUDGEMENT_SYSTEM_PROMPT)
         fields = {key: (decided.get(key) or "").strip() for key in _JUDGEMENT_KEYS}
@@ -370,11 +369,9 @@ def _roll_candidate(
     rng: random.Random, situation: str, judgements: list[dict], ai: AIClient,
 ) -> dict | None:
     """起こりうる出来事の候補をローカル AI に列挙させ、その中から一件をサイコロで選ぶ。"""
-    prompt = (
-        f"当事者ごとの思考・感情・望み・恐れ・行動: {judgements or '(無し)'}\n"
-        f"{situation}"
-        f"この場所にこの時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。"
-    )
+    prompt = f"""\
+当事者ごとの思考・感情・望み・恐れ・行動: {judgements or '(無し)'}
+{situation}この場所にこの時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。"""
     decided = ai.try_generate_json(
         prompt, _CANDIDATE_SCHEMA, system=_CANDIDATE_SYSTEM_PROMPT)
     candidates = [
@@ -433,41 +430,36 @@ def _progress_place(
     destinations = _move_destinations(session, place_id, time)
     plot_years = rng.randint(*constants.CHARACTER_PLOT_YEARS_RANGE)
 
-    situation = (
-        f"場所id: {place_id}\n"
-        f"場所の情報: {(place.name, place.kind, place.text) if place else None}\n"
-        f"居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。"
-        f"recent_events はその者自身が場所を問わず関わった直近の出来事): "
-        f"{characters_payload}\n"
-        f"直近の出来事(名前): {[e.name for e in recent_events]}\n"
-        f"進めたい筋書き(上位の場所のものから順につなげた本文):\n{plot_text or '(指定なし)'}\n"
-        f"筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): "
-        f"{plot_recent_events or '(無し)'}\n"
-        f"現在の時刻: {time}\n"
-        + (PLOT_PACING_INSTRUCTION + "\n" if any(character_plots.values()) else "")
-    )
+    pacing = f"{PLOT_PACING_INSTRUCTION}\n" if any(character_plots.values()) else ""
+    situation = f"""\
+場所id: {place_id}
+場所の情報: {(place.name, place.kind, place.text) if place else None}
+居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。recent_events はその者自身が場所を問わず関わった直近の出来事): {characters_payload}
+直近の出来事(名前): {[e.name for e in recent_events]}
+進めたい筋書き(上位の場所のものから順につなげた本文):
+{plot_text or '(指定なし)'}
+筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): {plot_recent_events or '(無し)'}
+現在の時刻: {time}
+{pacing}"""
     judgements = _think_participants(situation, characters_payload, ai)
     candidate = _roll_candidate(rng, situation, judgements, ai)
     if candidate is None:
         return None
 
     candidate_summary = {"name": candidate["name"], "summary": candidate["summary"]}
-    prompt = (
-        situation
-        + f"移動先の候補(character_moves の location_id はここからだけ選ぶ): "
-        f"{destinations or '(無し)'}\n"
-        f"当事者ごとの思考・感情・望み・恐れ・行動(先に推測したもの): "
-        f"{judgements or '(無し)'}\n"
-        f"サイコロで選ばれた出来事の候補: {candidate_summary}\n"
-        "この候補を、この場所にこの時点で起きた出来事として記録してください。"
-        "event_text 内では番号ではなく名前で書く。"
-        + ("進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。"
-           if plots else "")
-        + ("居合わせる人物・対象のうち plot を持つ者がいれば、その者個人について"
-           "進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
-           if any(character_plots.values()) else "")
-        + "character_plots に新しく書く筋書きについて: " + plot_span_instruction(plot_years)
-    )
+    hints = "\n".join(hint for hint in (
+        "進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。" if plots else "",
+        "居合わせる人物・対象のうち plot を持つ者がいれば、その者個人について進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
+        if any(character_plots.values()) else "",
+        f"character_plots に新しく書く筋書きについて: {plot_span_instruction(plot_years)}",
+    ) if hint)
+    prompt = f"""\
+{situation}移動先の候補(character_moves の location_id はここからだけ選ぶ): {destinations or '(無し)'}
+当事者ごとの思考・感情・望み・恐れ・行動(先に推測したもの): {judgements or '(無し)'}
+サイコロで選ばれた出来事の候補: {candidate_summary}
+この候補を、この場所にこの時点で起きた出来事として記録してください。
+event_text 内では番号ではなく名前で書く。
+{hints}"""
     decided = ai.try_generate_json(prompt, _PLACE_SCHEMA, system=_PLACE_SYSTEM_PROMPT)
 
     if not decided.get("event_name"):
