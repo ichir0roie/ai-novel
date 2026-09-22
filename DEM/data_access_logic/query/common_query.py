@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ストーリー生成(モード 2)のための問い合わせ。`DEM/claude_interface/story/` に加え、`DEM/local_ai/`(常駐ループ)からも使う。"""
+"""ストーリー生成(モード 2)のための問い合わせ。`DEM/ai/claude_code/interface/story/` に加え、`DEM/ai/local_ai/`(常駐ループ)からも使う。"""
 from __future__ import annotations
 
 import re

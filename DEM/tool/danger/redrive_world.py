@@ -1,6 +1,6 @@
 
 from DEM.db.schema import *
-from DEM.local_ai.time_keeper.main import loop_time
+from DEM.ai.local_ai.local_ai_time_keeper import loop_time
 from DEM.tool.danger import reset_world
 
 

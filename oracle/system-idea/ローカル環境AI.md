@@ -22,7 +22,7 @@ claudeにランダム生成とイベント生成をさせると、トークン�
 - **GPU PC(本番)**: [`gemma-4-12B-it`](https://huggingface.co/google/gemma-4-12B-it)。dense版・instruction-tuned。4bit量子化で10〜12GB VRAMに収まる規模感。**QAT(量子化を見込んで学習した)版が `Q4_K_M` と同等〜それ以上の品質のままメモリを切り詰められると報告されているため、Ollamaで動かすなら QAT 版を優先する**(下の「実際のタグ名」)
 - **ノートPC(テスト)**: `gemma4:e2b`(it版)。on-device向けに設計されたモデルで、実効パラメータ2.3B(埋め込み込みで5.1B、Per-Layer Embeddingsでメモリを切り詰めている)。llama.cpp/LM Studio/Jan/Ollama向けの量子化版が多数出ておりCPUでも動く。生成品質の検証ではなく、呼び出し処理そのもの(プロンプト・JSON整形・入口への受け渡し)が動くかの確認に使う
 - 出力は自由文ではなく **JSON スキーマに沿わせる**(`DEM/db/schema.py` の欄に合わせたプロンプト)。ダメならグラマー制約(後述の llama.cpp の GBNF)で型レベルに強制する
-- **num_ctx を明示する。** Ollama は既定で 2048〜4096 程度に context window を切り詰める。gemma4 系は数万〜数十万トークンに対応するモデルだが、Ollama 側は対応幅を見ずに黙って古い方から切り詰めるため、既定のままだと渡した人物・個体一覧の一部が見えないまま生成されうる(`DEM/local_ai/ai_client.py` の `_DEFAULT_OPTIONS` で対処済み)
+- **num_ctx を明示する。** Ollama は既定で 2048〜4096 程度に context window を切り詰める。gemma4 系は数万〜数十万トークンに対応するモデルだが、Ollama 側は対応幅を見ずに黙って古い方から切り詰めるため、既定のままだと渡した人物・個体一覧の一部が見えないまま生成されうる(`DEM/ai/local_ai/ai_client.py` の `_DEFAULT_OPTIONS` で対処済み)
 
 ### 実行環境
 - **まずはこれで**: [Ollama](https://ollama.com/) — `ollama pull gemma4:12b-it-qat`(GPU PC)/ `ollama pull gemma4:e2b`(ノートPC)だけでモデルが降ってきて即HTTP API化される。どちらの環境でもOllamaのHTTP APIを同じインターフェースで叩けるので、呼び出し側コードを共通化しやすい
@@ -31,7 +31,7 @@ claudeにランダム生成とイベント生成をさせると、トークン�
 
 ### 想定する呼び出しフロー
 1. ローカルサーバ(Ollama等)にプロンプト(世界観の断面・既存レコードの抜粋など)を渡し、JSON下書きを生成させる。呼び出し先のモデル名/エンドポイントは環境変数等で外出しし、ノートPC/GPU PCで同じコードパスを通す
-2. 返ってきたJSONを **そのまま db に書かない**。既存の設計通り、`DEM/claude_interface/randomizer/` の「作る」側の戻り値と同じ形に整形するだけに留める
+2. 返ってきたJSONを **そのまま db に書かない**。既存の設計通り、`DEM/ai/claude_code/interface/randomizer/` の「作る」側の戻り値と同じ形に整形するだけに留める
 3. claude(このセッション)が中身を軽くレビューし、必要なら `commit_event` / `commit_character` のような「確定する」入口を呼んでdbへ反映する
 
 ### 無料サービス(GPUなし/補助用)
