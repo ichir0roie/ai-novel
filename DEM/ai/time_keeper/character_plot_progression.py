@@ -15,7 +15,7 @@ from DEM.ai.time_keeper._format import format_time, next_month_start
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
-from DEM.db.schema import Character, Event, Session, Stamp, get_session
+from DEM.db.schema import Character, Event, Session, Stamp, get_env_session
 
 
 def _group_plot_holders_by_place(
@@ -59,7 +59,7 @@ def loop_character_plots(
     `max_months` を渡すと、その月数だけ進めて途中でも戻る。戻り値は最後に処理した時刻。
     """
     if start_time is None:
-        with get_session() as s:
+        with get_env_session() as s:
             latest = s.scalar(common_query.latest_time_select())
         start_time = next_month_start(latest) if latest else Stamp(1)
     current_time = start_time
@@ -71,14 +71,14 @@ def loop_character_plots(
                   f"{max_months} か月ぶん進めて区切る")
             return current_time
         print(f"[time_keepr/character_plot] {format_time(current_time)}")
-        with get_session() as s:
+        with get_env_session() as s:
             active_plots = s.scalar(
                 world_createion_query.active_character_plot_count_select(current_time))
         if not active_plots:
             print(f"[time_keepr/character_plot] {format_time(current_time)} をカバーする"
                   "人物の筋書きが無い。CommitCharacterPlot で筋書きを足すまでループを止める。")
             return current_time
-        with get_session() as s:
+        with get_env_session() as s:
             progress(s, current_time, ai)
 
         current_time = next_month_start(current_time)

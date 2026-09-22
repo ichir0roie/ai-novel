@@ -4,7 +4,8 @@ import os
 import pytest
 
 from DEM.tool.test import TEST_DB_PATH  # noqa: F401  schema より先に読む(db を novel.test.db に固定)
-from DEM.db.schema import Base, create_db, engine, get_session  # noqa: E402
+from DEM.db.schema import Base, create_db, engine, get_env_session, get_test_session  # noqa: E402
+from DEM.tool.markdown import export_db, import_db  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -25,7 +26,16 @@ def clean_tables():
     yield
 
 
+@pytest.fixture(autouse=True)
+def sync_tools_use_test_db(monkeypatch):
+    """`import_db` / `export_db` は novel.db 固定なので、テスト中だけ novel.test.db へ向ける。"""
+    monkeypatch.setattr(export_db, "get_novel_session", get_test_session)
+    monkeypatch.setattr(import_db, "get_novel_session", get_test_session)
+    monkeypatch.setattr(import_db, "NOVEL_DB_PATH", TEST_DB_PATH)
+    yield
+
+
 @pytest.fixture
 def session():
-    with get_session() as s:
+    with get_env_session() as s:
         yield s

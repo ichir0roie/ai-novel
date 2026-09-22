@@ -14,7 +14,7 @@ from DEM.ai.instructions.story_writing import EPISODE_WRITING_INSTRUCTION
 from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.story import _rows
 from DEM.data_access_logic.query import common_query
-from DEM.db.schema import Episode, Session, get_session
+from DEM.db.schema import Episode, Session, get_env_session
 
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
@@ -108,7 +108,7 @@ def write_next_episode(
 def write_story(story_id: int, episodes_to_write: int = 1, time=None) -> list[Episode]:
     """`episodes_to_write` 話ぶん続けて書く。途中で書けなければそこで止める。"""
     written: list[Episode] = []
-    with get_session() as session:
+    with get_env_session() as session:
         for _ in range(episodes_to_write):
             record = write_next_episode(session, story_id, time)
             if record is None:

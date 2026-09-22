@@ -41,3 +41,15 @@ def test_file_with_id_keeps_its_name(session, tmp_path):
     assert os.listdir(table_dir) == ["7_古い村.md"]
     session.expire_all()
     assert session.get(Location, 7).text == "直した本文"
+
+
+def test_fixed_sessions_ignore_env_db_path():
+    from DEM.db.schema import get_env_session, get_novel_session, get_test_session
+
+    def db_file(factory):
+        with factory() as s:
+            return os.path.basename(s.get_bind().url.database)
+
+    assert db_file(get_env_session) == "novel.test.db"
+    assert db_file(get_test_session) == "novel.test.db"
+    assert db_file(get_novel_session) == "novel.db"

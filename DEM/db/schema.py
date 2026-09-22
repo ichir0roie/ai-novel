@@ -406,8 +406,34 @@ def create_db(path=DB_PATH):
     return engine
 
 
-engine = create_engine(f"sqlite:///{os.path.abspath(DB_PATH)}")
+NOVEL_DB_PATH = "novel.db"
+TEST_DB_PATH = "novel.test.db"
 
 
-def get_session():
+def _make_engine(path):
+    return create_engine(f"sqlite:///{os.path.abspath(path)}")
+
+
+engine = _make_engine(DB_PATH)
+_fixed_engines = {}
+
+
+def _fixed_engine(path):
+    if path not in _fixed_engines:
+        _fixed_engines[path] = _make_engine(path)
+    return _fixed_engines[path]
+
+
+def get_env_session():
+    """`DEM_DB_PATH`(既定は novel.db)の db。普段の読み書きはこれ。"""
     return Session(engine)
+
+
+def get_novel_session():
+    """環境変数に関わらず本番の novel.db。`worlds/` との同期(import_db / export_db)用。"""
+    return Session(_fixed_engine(NOVEL_DB_PATH))
+
+
+def get_test_session():
+    """環境変数に関わらず novel.test.db。"""
+    return Session(_fixed_engine(TEST_DB_PATH))

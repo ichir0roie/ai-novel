@@ -13,7 +13,7 @@ delete_tables = [
 
 def reset_world():
 
-    with get_session() as s:
+    with get_env_session() as s:
         for t in delete_tables:
             s.execute(delete(t))
         s.commit()
