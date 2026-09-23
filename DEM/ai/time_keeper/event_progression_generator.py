@@ -336,7 +336,9 @@ def _move_destinations(
 def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], time: Stamp, rng: random.Random, ai: AIClient,
+    *, focus: Character | None = None, note: str = "",
 ) -> Event | None:
+    """`focus` は AI が選ばなくても当事者に入れる。`note` は状況の、時刻の直前に足す。"""
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
@@ -363,7 +365,7 @@ def _progress_place(
 進めたい筋書き(上位の場所のものから順につなげた作品の本文):
 {story_text or '(指定なし)'}
 筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): {story_recent_events or '(無し)'}
-現在の時刻: {time}
+{note}現在の時刻: {time}
 """
     judgements = _think_participants(situation, characters_payload, ai)
     candidate = _roll_candidate(rng, situation, judgements, ai)
@@ -404,6 +406,8 @@ event_text 内では番号ではなく名前で書く。
         return result
 
     involved_character_ids = _valid_ids(decided.get("character_ids"), character_ids)
+    if focus is not None and focus.id not in involved_character_ids:
+        involved_character_ids.insert(0, focus.id)
 
     destination_names = {d["location_id"]: d["name"] for d in destinations}
     move_notes = []

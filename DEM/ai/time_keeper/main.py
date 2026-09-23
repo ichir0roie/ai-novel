@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 import traceback
 
-from DEM.ai.time_keeper import event_progression_generator
+from DEM.ai.time_keeper import character_event_generator, event_progression_generator
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import Session, Stamp, Story, get_env_session
 from DEM.ai.time_keeper import (
@@ -64,6 +64,13 @@ def time_process(
 ):
     random_character_generator.generate_random(s, time, ai)
     event_progression_generator.generate_random(s, time, ai)
+
+
+def daily_event(ai: AIClient) -> int | None:
+    """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。"""
+    with get_env_session() as s:
+        record = character_event_generator.generate_next(s, ai)
+        return record.id if record is not None else None
 
 
 def loop_time_for_story(ai: AIClient, story_id: int, years: int = 5) -> Stamp:

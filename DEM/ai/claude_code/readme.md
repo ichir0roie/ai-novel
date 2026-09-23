@@ -45,6 +45,29 @@ claude_main(year=2027, max_days=30)
 `year` を省くと db の最新の時刻から続ける。プロット(`Plot`)が一件も掛かって
 いない時刻に来たら止まるのも local_ai と同じ。
 
+毎日のルーチン(サブキャラクター一人の次の出来事を一件起こす):
+
+```
+PYTHONUTF8=1 .venv/Scripts/python.exe -c "
+from DEM.ai.claude_code.interface.sync.import_db import ImportDb
+from DEM.ai.claude_code.interface.sync.export_db import ExportDb
+from DEM.ai.claude_code.claude_code_time_keeper import claude_daily_event_main
+ImportDb().run()
+claude_daily_event_main()
+ExportDb().run()
+"
+```
+
+- 生きているサブキャラクターからランダムに一人選び、その者の最新の出来事(終わりが一番新しいもの)の
+  終わりから 1〜7 日後(`constants.NEXT_EVENT_GAP_DAYS`)を始まりにする。出来事がまだ無ければ、
+  居場所に一番近く掛かる作品の `start`(生まれより後なら生まれ)から数える
+- その時刻に居場所が無い者・`active_random_generation` でない場所に居る者は選び直す
+  (常駐ループが出来事の対象にしない者は、ここでも対象にしない)
+- 組み立ては常駐ループの `event_progression_generator` と同じ(当事者ごとの推測 → 候補をサイコロ → 記録)。
+  選んだ者は必ず当事者に入る。居合わせる者のうち、自分の時間が既に先へ進んでいる者は加えない
+- 記録として起こしたあと、本文(`text`)だけを話と同じ小説の形、一話の三分の一(`EVENT_NOVEL_TARGET_LETTERS`)に
+  書き直す(`DEM/ai/instructions/event_writing.py` の `EVENT_NOVEL_INSTRUCTION`)。書けなければ記録のまま残す
+
 本文を書く(作品 `story_id` の次の話を 1 話。`episodes_to_write` で続けて書く):
 
 ```

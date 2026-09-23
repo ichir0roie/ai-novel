@@ -62,6 +62,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 | 「未同期の話は残ってる?」           | `story.list_unsynced_episodes.ListUnsyncedEpisodes(story_id=None)`           |
 | 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(story_id, number, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
+| 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。`ImportDb` → 「常駐ループ」の表の `daily_event` → `ExportDb` |
 
 **まだ入口が無いもの**(頼まれたら作ってから行う): 出来事の修正・削除、人物の削除。
 
@@ -107,6 +108,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 | -------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
 | 時間を進める                                 | `local_ai_time_keeper.loop_time()`         | `claude_code_time_keeper.claude_main()` / `story_writer.write_story()` |
 | ある作品の開始から指定年数ぶん進める         | `local_ai_time_keeper.loop_time_for_story()` | `claude_code_time_keeper.claude_story_years_main()`               |
+| サブキャラ一人の次の出来事を一件起こす(毎日のルーチン) | `local_ai_time_keeper.daily_event()`       | `claude_code_time_keeper.claude_daily_event_main()`                |
 
 (`DEM.ai.local_ai.` / `DEM.ai.claude_code.` を頭に付ける)
 

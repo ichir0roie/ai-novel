@@ -20,6 +20,11 @@ def loop_time_for_story(story_id: int, years: int = 5) -> Stamp:
     return main.loop_time_for_story(ai_client, story_id, years)
 
 
+def daily_event() -> int | None:
+    """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。"""
+    return main.daily_event(ai_client)
+
+
 if __name__ == "__main__":
     year = int(input("year>>"))
     stamp = Stamp(

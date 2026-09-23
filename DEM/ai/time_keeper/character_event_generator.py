@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""ランダムに選んだサブキャラクター一人について、その者の最新の出来事の次の出来事を一件起こす。毎日のルーチンから呼ぶ。
+
+出来事は `event_progression_generator` の場所ごとの進め方でそのまま記録として起こし、本文だけを話と同じ小説の形に書き直す。
+"""
+from __future__ import annotations
+
+import json
+import random
+
+from sqlalchemy import select
+
+from DEM.ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION
+from DEM.ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS
+from DEM.ai.time_keeper import constants
+from DEM.ai.time_keeper import event_progression_generator as progression
+from DEM.ai.time_keeper._ai import AIClient
+from DEM.ai.time_keeper._format import add_days, format_time
+from DEM.data_access_logic.query import common_query
+from DEM.data_access_logic.query.base import character_active_condition
+from DEM.db.schema import Character, Event, EventCharacter, Location, Session, Stamp
+
+_NOVEL_SYSTEM_PROMPT = f"""\
+あなたは日本語のライトノベルを書く作家です。
+ある人物(主役)の身に起きた出来事の記録と、場所・当事者・主役の直前の出来事を渡すので、この出来事を小説の本文に書き起こしてください。
+{EVENT_NOVEL_INSTRUCTION}
+JSON で答えてください。キーは text(本文)だけ。"""
+
+_NOVEL_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+    "additionalProperties": False,
+}
+
+
+def _dump(value) -> str:
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _finished(event: Event) -> Stamp:
+    return event.end or event.start or event.time
+
+
+def _latest_event(session: Session, character_id: int) -> Event | None:
+    return session.scalars(common_query.latest_character_event_select(character_id)).first()
+
+
+def _first_base(session: Session, character: Character) -> Stamp | None:
+    """出来事がまだ無い人物の起点。最後に移った居場所に一番近く掛かる作品の start(生まれより前なら生まれ)。"""
+    residence = session.scalars(
+        common_query.latest_character_place_select(character.id)).first()
+    if residence is not None:
+        stories = [story for story in session.scalars(common_query.stories_select()).all()
+                   if story.start is not None]
+        for step in reversed(common_query.place_path(session, residence.location_id)):
+            starts = [story.start for story in stories if story.place_id == step["id"]]
+            if starts:
+                return max(min(starts), character.start) if character.start else min(starts)
+    return character.start
+
+
+def _place_of(
+    session: Session, character: Character, time: Stamp,
+) -> tuple[int, list[Character]] | None:
+    """`time` にその人物が居る場所と、そこに居合わせる者。出来事の対象にならなければ None。"""
+    for place_id, members in progression._group_by_place(session, time).items():
+        if any(member.id == character.id for member in members):
+            return place_id, members
+    return None
+
+
+def _free_after(session: Session, character: Character, time: Stamp) -> bool:
+    """`time` より後に終わる出来事を持たないか。人物ごとに時間が進むので、先の出来事と重ねない。"""
+    latest = _latest_event(session, character.id)
+    return latest is None or _finished(latest) <= time
+
+
+def _previous_row(previous: Event | None) -> dict | str:
+    # 場所は noload の関連なので、commit で期限切れになる前(読んだ直後)に組んでおく
+    if previous is None:
+        return "(無し。主役の最初の出来事)"
+    return {"name": previous.name,
+            "start": str(previous.start) if previous.start else None,
+            "end": str(previous.end) if previous.end else None,
+            "place": previous.location.name if previous.location else None,
+            "text": previous.text}
+
+
+def _note(character: Character, previous_row: dict | str) -> str:
+    focus = {"character_id": character.id, "name": character.name}
+    return (f"この出来事の主役(主役の身に起きる次の出来事として考え、当事者に必ず含める): {focus}\n"
+            f"主役の直前の出来事(これが終わった後に起きる出来事として考える): {previous_row}\n")
+
+
+def _sheet(character: Character) -> dict:
+    return {"name": character.name, "kind": character.kind, "sex": character.sex,
+            "first_person": character.first_person, "second_person": character.second_person,
+            "third_person": character.third_person, "tone": character.tone,
+            "text": character.text}
+
+
+def _novelize(
+    session: Session, record: Event, focus: Character, participants: list[Character],
+    previous_row: dict | str, ai: AIClient,
+) -> None:
+    """記録として起こした本文を、話と同じ小説の形に書き直す。書けなければ記録のまま残す。"""
+    involved_ids = set(session.scalars(
+        select(EventCharacter.character_id).where(EventCharacter.event_id == record.id)).all())
+    place = session.get(Location, record.location_id) if record.location_id else None
+    others = [_sheet(c) for c in participants if c.id in involved_ids and c.id != focus.id]
+    prompt = "\n".join([
+        f"場所: {_dump({'name': place.name, 'kind': place.kind, 'text': place.text} if place else None)}",
+        f"時刻: {record.start}〜{record.end}",
+        f"主役: {_dump(_sheet(focus))}",
+        f"ほかの当事者: {_dump(others) if others else '(無し)'}",
+        f"主役の直前の出来事: {_dump(previous_row)}",
+        f"この出来事の記録: {_dump({'name': record.name, 'text': record.text})}",
+        f"この出来事を、{focus.name}を視点人物にした"
+        f"{EVENT_NOVEL_TARGET_LETTERS[0]}〜{EVENT_NOVEL_TARGET_LETTERS[1]}字の小説の本文に書き起こしてください。",
+    ])
+    decided = ai.try_generate_json(
+        prompt, _NOVEL_SCHEMA, system=_NOVEL_SYSTEM_PROMPT, timeout=constants.EVENT_NOVEL_TIMEOUT)
+    text = (decided.get("text") or "").strip()
+    if not text:
+        print(f"[time_keepr/daily] {record.name}(id={record.id}): 本文を小説にできなかったので記録のまま残す")
+        return
+    record.text = text
+    session.commit()
+    print(f"[time_keepr/daily] {record.name}(id={record.id}): 本文を小説にした({len(text)}字)")
+
+
+def generate_next(
+    session: Session, ai: AIClient, rng: random.Random | None = None,
+) -> Event | None:
+    """生きているサブキャラクターをランダムに一人選び、その者の次の出来事を起こす。起こせなければ None。
+
+    始まりは直前の出来事の終わりから `constants.NEXT_EVENT_GAP_DAYS` 日後。その時刻に
+    `_group_by_place` が拾わない者(居場所が無い・ランダム生成の対象でない場所に居る等)は選び直す。
+    """
+    if rng is None:
+        rng = random.Random(random.randrange(10 ** 9))
+    candidates = list(session.scalars(
+        select(Character).where(character_active_condition()).order_by(Character.id)).all())
+    rng.shuffle(candidates)
+
+    for character in candidates:
+        previous = _latest_event(session, character.id)
+        base = _finished(previous) if previous is not None else _first_base(session, character)
+        if base is None:
+            continue
+        time = add_days(base, rng.randint(*constants.NEXT_EVENT_GAP_DAYS))
+        found = _place_of(session, character, time)
+        if found is None:
+            print(f"[time_keepr/daily] {character.name}(id={character.id}): "
+                  f"{format_time(time)} に出来事の対象にならないので選び直す")
+            continue
+        place_id, members = found
+        participants = [character, *(
+            member for member in members
+            if member.id != character.id and _free_after(session, member, time))]
+        print(f"[time_keepr/daily] {character.name}(id={character.id}) の次の出来事: "
+              f"{format_time(time)} 場所id={place_id} / "
+              + (f"直前: {previous.name}" if previous is not None else "最初の出来事"))
+        previous_row = _previous_row(previous)
+        record = progression._progress_place(
+            session, place_id, participants, time, rng, ai,
+            focus=character, note=_note(character, previous_row))
+        if record is not None:
+            _novelize(session, record, character, participants, previous_row, ai)
+        return record
+
+    print("[time_keepr/daily] 出来事を起こせるサブキャラクターがいない")
+    return None
