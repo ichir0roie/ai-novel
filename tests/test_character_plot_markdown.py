@@ -1,4 +1,4 @@
-"""`character_plot` の md 名は `{start年}_{end年}_{name}.md`、id と正確な日付は `# data`。import は `# data` を優先して読み戻す。"""
+"""`character_plot` の md 名は `{start年}_{end年}_{name}_{id}.md`、正確な日付は `# data`。import は `# data` を優先して読み戻す。"""
 import os
 
 from DEM.db.schema import Character, CharacterPlot
@@ -20,20 +20,29 @@ def _character(session):
     return c
 
 
-def test_markdown_name_has_start_end_and_name():
+def test_markdown_name_has_start_end_name_and_id():
     plot = CharacterPlot(id=3, character_id=1, text="", filename="誕生",
                          start=Stamp(1572), end=Stamp(1575, 3, 5))
-    assert plot.markdown_name == "1572_1575_誕生.md"
-    assert CharacterPlot(id=4, character_id=1, text="").markdown_name == "_.md"
-    assert CharacterPlot(id=5, character_id=1, text="", start=Stamp(1572, 1, 1, 9, 30)).markdown_name == "1572_.md"
-    assert CharacterPlot(id=6, character_id=1, text="", filename="誕生").markdown_name == "__誕生.md"
+    assert plot.markdown_name == "1572_1575_誕生_3.md"
+    assert CharacterPlot(id=4, character_id=1, text="").markdown_name == "__4.md"
+    assert CharacterPlot(id=5, character_id=1, text="", start=Stamp(1572, 1, 1, 9, 30)).markdown_name == "1572__5.md"
+    assert CharacterPlot(id=6, character_id=1, text="", filename="誕生").markdown_name == "__誕生_6.md"
 
 
 def test_parse_markdown_stem():
-    assert CharacterPlot.parse_markdown_stem("3_1572_1575_誕生") == (
+    # 現行形式: 末尾に id
+    assert CharacterPlot.parse_markdown_stem("1572_1575_誕生_3") == (
         3, {"start": Stamp(1572), "end": Stamp(1575), "filename": "誕生"})
+    assert CharacterPlot.parse_markdown_stem("__4") == (4, {"start": None, "end": None, "filename": None})
+    assert CharacterPlot.parse_markdown_stem("__誕生_6") == (6, {"start": None, "end": None, "filename": "誕生"})
+    assert CharacterPlot.parse_markdown_stem("1572__幼少_前_5") == (
+        5, {"start": Stamp(1572, 1, 1), "end": None, "filename": "幼少_前"})
+
+    # 旧形式(id 無し・id が先頭)も import で読み戻せるよう残す
     assert CharacterPlot.parse_markdown_stem("1572_1575_誕生") == (
         None, {"start": Stamp(1572), "end": Stamp(1575), "filename": "誕生"})
+    assert CharacterPlot.parse_markdown_stem("3_1572_1575_誕生") == (
+        3, {"start": Stamp(1572), "end": Stamp(1575), "filename": "誕生"})
     assert CharacterPlot.parse_markdown_stem("4__") == (4, {"start": None, "end": None, "filename": None})
     assert CharacterPlot.parse_markdown_stem("6___誕生") == (6, {"start": None, "end": None, "filename": "誕生"})
     assert CharacterPlot.parse_markdown_stem("__誕生") == (None, {"start": None, "end": None, "filename": "誕生"})
@@ -54,8 +63,9 @@ def test_export_writes_start_end_in_name_and_data(session, tmp_path):
     export_db(str(tmp_path / "worlds"))
 
     table_dir = tmp_path / "worlds" / "character_plot"
-    assert os.listdir(table_dir) == ["1572_1575_誕生.md"]
-    content = (table_dir / "1572_1575_誕生.md").read_text(encoding="utf-8")
+    expected_name = f"1572_1575_誕生_{plot_id}.md"
+    assert os.listdir(table_dir) == [expected_name]
+    content = (table_dir / expected_name).read_text(encoding="utf-8")
     assert '"start": "1572/01/01 00:00:00"' in content and '"end": "1575/01/01 00:00:00"' in content
     assert f'"id": {plot_id}' in content and f'"character_id": {c.id}' in content
 
@@ -68,7 +78,8 @@ def test_export_writes_null_columns_in_data(session, tmp_path):
 
     export_db(str(tmp_path / "worlds"))
 
-    content = (tmp_path / "worlds" / "character_plot" / "__幼少.md").read_text(encoding="utf-8")
+    expected_name = f"__幼少_{plot_id}.md"
+    content = (tmp_path / "worlds" / "character_plot" / expected_name).read_text(encoding="utf-8")
     assert '"start": null' in content and '"end": null' in content
     assert f'"id": {plot_id}' in content and f'"character_id": {c.id}' in content
 
@@ -84,8 +95,9 @@ def test_import_reads_start_end_from_name_and_renames(session, tmp_path):
 
     plot = session.query(CharacterPlot).one()
     assert (plot.start, plot.end, plot.filename, plot.directory_path) == (Stamp(1572), Stamp(1575), "誕生", "ノア")
-    assert os.listdir(table_dir) == ["1572_1575_誕生.md"]
-    content = (tmp_path / "worlds" / "character_plot" / "ノア" / "1572_1575_誕生.md").read_text(encoding="utf-8")
+    expected_name = f"1572_1575_誕生_{plot.id}.md"
+    assert os.listdir(table_dir) == [expected_name]
+    content = (tmp_path / "worlds" / "character_plot" / "ノア" / expected_name).read_text(encoding="utf-8")
     assert f'"id": {plot.id}' in content and content.endswith("# text\n本文\n")
 
 
@@ -126,7 +138,7 @@ def test_import_data_end_overrides_dates_in_name(session, tmp_path):
     assert session.query(CharacterPlot).count() == 1
 
 
-def test_import_new_file_without_id_writes_assigned_id_into_data(session, tmp_path):
+def test_import_new_file_without_id_writes_assigned_id_into_name_and_data(session, tmp_path):
     c = _character(session)
     root = str(tmp_path / "worlds")
     table_dir = os.path.join(root, "character_plot")
@@ -136,8 +148,9 @@ def test_import_new_file_without_id_writes_assigned_id_into_data(session, tmp_pa
 
     plot = session.query(CharacterPlot).one()
     assert (plot.start, plot.end, plot.filename) == (None, None, None)
-    assert os.listdir(table_dir) == ["_.md"]
-    assert f'"id": {plot.id}' in open(os.path.join(table_dir, "_.md"), encoding="utf-8").read()
+    expected_name = f"__{plot.id}.md"
+    assert os.listdir(table_dir) == [expected_name]
+    assert f'"id": {plot.id}' in open(os.path.join(table_dir, expected_name), encoding="utf-8").read()
 
     import_db(root)
     assert session.query(CharacterPlot).count() == 1
@@ -176,10 +189,10 @@ def test_import_name_only_file_registers_null_dates(session, tmp_path):
     assert (new.start, new.end) == (None, None)
     old = session.get(CharacterPlot, 9)
     assert (old.start, old.end, old.filename) == (None, None, "幼少")
-    assert sorted(os.listdir(table_dir)) == sorted(["__誕生.md", "9_幼少.md"])
+    assert sorted(os.listdir(table_dir)) == sorted([f"__誕生_{new.id}.md", "9_幼少.md"])
 
 
-def test_export_prefixes_id_when_names_collide_and_import_reads_both(session, tmp_path):
+def test_export_appends_id_and_import_reads_it_back(session, tmp_path):
     c = _character(session)
     session.add_all([CharacterPlot(id=1, character_id=c.id, text="一つ目", filename="誕生"),
                      CharacterPlot(id=2, character_id=c.id, text="二つ目", filename="誕生")])
@@ -188,7 +201,7 @@ def test_export_prefixes_id_when_names_collide_and_import_reads_both(session, tm
     table_dir = os.path.join(root, "character_plot")
 
     export_db(root)
-    assert sorted(os.listdir(table_dir)) == sorted(["__誕生.md", "2___誕生.md"])
+    assert sorted(os.listdir(table_dir)) == sorted(["__誕生_1.md", "__誕生_2.md"])
 
     import_db(root)
     session.expire_all()

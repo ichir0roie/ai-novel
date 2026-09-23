@@ -292,6 +292,12 @@ class Character(MarkdownBase):
         String, default=CHARACTER_KIND_PERSON, nullable=False,
         comment="種別。「人物」か、人物以外の対象(国・組織・商会・氏族・集団・物など)", sort_order=230)
 
+    sub_character: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="メインキャラクター以外のサブキャラクターか。"
+        "出来事・筋書きのランダム生成は、この列が true の人物・対象だけを対象にする",
+        sort_order=240)
+
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
@@ -373,12 +379,15 @@ class CharacterPlot(MarkdownBase):
         ed_st = self.end.year if self.end else ""
         head = f"{st_st}_{ed_st}"
         name = self.filename or self.default_filename()
-        return f"{head}_{name.replace('/', '／')}.md" if name else f"{head}.md"
+        body = f"{head}_{name.replace('/', '／')}" if name else head
+        return f"{body}_{self.id}.md"
 
     @classmethod
     def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
         parts = stem.split("_")
-        if len(parts) >= 3 and parts[0].isdigit() and _is_stamp_stem(parts[1]) and _is_stamp_stem(parts[2]):
+        if len(parts) >= 3 and parts[-1].isdigit() and _is_stamp_stem(parts[0]) and _is_stamp_stem(parts[1]):
+            row_id, start, end, rest = int(parts[-1]), parts[0], parts[1], parts[2:-1]
+        elif len(parts) >= 3 and parts[0].isdigit() and _is_stamp_stem(parts[1]) and _is_stamp_stem(parts[2]):
             row_id, start, end, rest = int(parts[0]), parts[1], parts[2], parts[3:]
         elif len(parts) >= 2 and _is_stamp_stem(parts[0]) and _is_stamp_stem(parts[1]):
             row_id, start, end, rest = None, parts[0], parts[1], parts[2:]

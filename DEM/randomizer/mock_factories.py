@@ -136,6 +136,7 @@ class CharacterFactory(_ModelFactory):
 
     name = factory.Faker("name", locale=_LOCALE)
     kind = factory.Faker("random_element", elements=_CHARACTER_KINDS)
+    sub_character = factory.Faker("pybool")
     text = _text()
 
     start = _optional_stamp()

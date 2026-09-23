@@ -4,6 +4,7 @@
 `loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続け、その時刻をカバーする
 筋書き(`Plot`)が一件も無くなったら止まる。再開するには `CommitPlot` で筋書きを足す。
 生成に使う AI は `ai`(`AIClient` の形を満たすモジュール)として受け取り、ここでは選ばない。
+一歩(1日ぶん)進めるごとに `worlds/` へ書き出す(`_export.export_step`)。
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from DEM.ai.time_keeper import (
     random_character_generator,
 )
 from DEM.ai.time_keeper._ai import AIClient
+from DEM.ai.time_keeper._export import export_step
 from DEM.ai.time_keeper._format import add_days, format_time
 
 
@@ -50,6 +52,7 @@ def loop_time(
             return current_time
         with get_env_session() as s:
             time_process(s, current_time, ai)
+        export_step(format_time(current_time))
 
         next_process_day = random.randint(1, 5)
         current_time = add_days(current_time, next_process_day)

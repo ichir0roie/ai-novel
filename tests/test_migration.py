@@ -6,6 +6,7 @@
 - c3a1f0d2b4e6: location に polygon を足す
 - bacc670e4a5f: character_relation に start/end を足す
 - e849a5b683f6: character の read を外す
+- 5d316428a6aa: character に sub_character を足す
 """
 import sqlite3
 
@@ -16,7 +17,7 @@ from alembic.config import Config
 from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "e849a5b683f6"
+HEAD_REVISION = "5d316428a6aa"
 
 
 @pytest.fixture
@@ -36,8 +37,10 @@ def old_style_db():
         create_sql = create_sql.replace(f"\t{column} VARCHAR NOT NULL", f"\t{column} INTEGER NOT NULL DEFAULT 0")
     create_sql = (create_sql
                   .replace("\ttext VARCHAR, ", "\ttext VARCHAR NOT NULL, ")
-                  .replace("\tname VARCHAR, ", "\tname VARCHAR, \n\tread VARCHAR, \n\tworld_influence INTEGER NOT NULL, "))
+                  .replace("\tname VARCHAR, ", "\tname VARCHAR, \n\tread VARCHAR, \n\tworld_influence INTEGER NOT NULL, ")
+                  .replace("\n\tsub_character BOOLEAN NOT NULL, ", ""))
     assert "world_influence" in create_sql and "text VARCHAR NOT NULL" in create_sql
+    assert "sub_character" not in create_sql
     conn.execute("DROP TABLE character")
     conn.execute(create_sql)
     conn.execute("DROP TABLE character_relation")

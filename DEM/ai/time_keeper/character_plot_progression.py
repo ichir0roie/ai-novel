@@ -4,6 +4,7 @@
 `loop_time` と違い、人物・場所は増やさず、場所の筋書き(`Plot`)も要らない。
 月に一度、有効な筋書きを持つ人物が居る場所ごとに出来事を一件起こし、
 その時刻をカバーする人物の筋書きが一件も無くなったら止まる。
+一歩(1か月ぶん)進めるごとに `worlds/` へ書き出す(`_export.export_step`)。
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ import random
 
 from DEM.ai.time_keeper import event_progression_generator
 from DEM.ai.time_keeper._ai import AIClient
+from DEM.ai.time_keeper._export import export_step
 from DEM.ai.time_keeper._format import format_time, next_month_start
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
@@ -80,6 +82,7 @@ def loop_character_plots(
             return current_time
         with get_env_session() as s:
             progress(s, current_time, ai)
+        export_step(format_time(current_time))
 
         current_time = next_month_start(current_time)
         months_done += 1

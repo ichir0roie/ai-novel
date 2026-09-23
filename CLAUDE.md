@@ -56,6 +56,7 @@
   `engine` も同じモジュールにある
 - 作業として db を読み書きするときは `DEM/ai/claude_code/interface/` の入口越しに行う
   (一覧は `DEM/ai/claude_code/interface/readme.md`)。下地(`DEM/db/` `DEM/data_access_logic/`)を直接呼ぶのは開発・調査のときだけ
+- 各作業前に、`DEM/tool/markdown/sync_db.py`を実行する。
 - 引き方(`DEM/data_access_logic/query/*.py`)では、外部キーが `NULL` の行を
   「全体に効く」とみなして `or_(X.fk_id.in_(ids), X.fk_id.is_(None))` のように
   無理に拾わない。関係が無い行は「関係が無い」として扱う

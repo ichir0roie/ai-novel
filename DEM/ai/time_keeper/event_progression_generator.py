@@ -27,7 +27,9 @@ from DEM.ai.instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
-from DEM.data_access_logic.query.base import location_active_condition
+from DEM.data_access_logic.query.base import (
+    character_active_condition, location_active_condition,
+)
 from DEM.db.schema import (
     Character, CharacterPlace, CharacterPlot, Event, EventCharacter,
     Location, Session, Stamp,
@@ -241,7 +243,8 @@ def _current_place_id(session: Session, character: Character, time: Stamp) -> in
 
 
 def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]:
-    """その時点で生きている人物・対象を、いま居る場所ごとにまとめる。進行中の出来事に関わる者は外す。"""
+    """その時点で生きているサブキャラクターを、いま居る場所ごとにまとめる。
+    メインキャラクター(`sub_character` が false)と、進行中の出来事に関わる者は外す。"""
     grouped: dict[int, list[Character]] = defaultdict(list)
 
     busy_character_ids = set(session.scalars(
@@ -251,7 +254,8 @@ def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]
         select(Location.id).where(location_active_condition(time))).all())
 
     characters = session.scalars(
-        world_createion_query.alive_characters_select(time)).all()
+        world_createion_query.alive_characters_select(time)
+        .where(character_active_condition())).all()
     for character in characters:
         if character.id in busy_character_ids:
             continue
