@@ -53,3 +53,9 @@ TRAIT_COLUMNS = (
 
 # 一つの場所に置く人物・対象の上限。これ以上居る場所はランダム生成の候補から外す。
 MAX_CHARACTER_PER_LOCATION = 5
+
+# character_event_generator
+# 前の出来事の終わりから、次の出来事の始まりまでに空ける日数(両端を含む)。
+NEXT_EVENT_GAP_DAYS = (1, 7)
+# 本文を小説の形で書かせるので、記録の JSON より長く待つ秒数。
+EVENT_NOVEL_TIMEOUT = 300.0

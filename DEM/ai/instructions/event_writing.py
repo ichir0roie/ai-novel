@@ -10,11 +10,14 @@ Claude が `commit_event` の `text` を書くときも、`DEM/ai/local_ai/`(`ai
 (本文)は話(`Episode`)の側で別に書くので、出来事で文体・セリフの言い回しを
 決めない。出来事が持つのは、物事がどう変わったか・人物が何を感じたか・誰と
 どの組織が何をしたか、という後から引ける中身だけ。
+ただし毎日のルーチン(`character_event_generator.py`)が起こす出来事だけは、記録として
+起こしたあと、`EVENT_NOVEL_INSTRUCTION` で話と同じ小説の形に書き直す。
 **ルールの文面を変えるときはここだけを直す。**
 """
 from __future__ import annotations
 
 from DEM.ai.instructions.naming import NAME_PLACEHOLDER
+from DEM.ai.instructions.style import EVENT_NOVEL_STYLE_INSTRUCTION, EVENT_NOVEL_TARGET_LETTERS
 
 # 出来事を考えるとき、判断材料として渡す「直近の出来事」の件数
 # (場所ごと・人物ごと・筋書きごとの三つの窓すべてに使う)。
@@ -50,6 +53,17 @@ text は小説ではなく、世界に何が起きて何が変わったかを後
 - 人物・対象・場所の text に既に書いてある説明の写し。
 - 同じ内容を言い方を変えて二度書くこと。
 全体で400〜800文字程度。"""
+
+EVENT_NOVEL_INSTRUCTION = f"""\
+text は、渡された出来事の記録を、話(episode)と同じ小説の本文に書き起こしたもの。\
+{EVENT_NOVEL_TARGET_LETTERS[0]}〜{EVENT_NOVEL_TARGET_LETTERS[1]}字で書く。
+記録の筋から外れず、記録に無い出来事を足さない。
+場面で実際に起きる会話・動作・やりとりを省いて要約せず、場面を最後まで書き切って字数の目安を下回らない。
+主役を視点人物に置き、主役の直前の出来事が終わった後の場面から書き始める。直前の出来事の中身をなぞり直さない。
+記録に書かれた変化(立場・取り決め・居場所など)は、説明の地の文でまとめず、人物の言動と、視点人物が見聞きしたものとして書く。
+人物は名前で書き、口調・一人称・二人称は渡された人物の情報に合わせる。
+見出し・番号・出来事の名前の写しは入れない。
+{EVENT_NOVEL_STYLE_INSTRUCTION}"""
 
 EVENT_PROGRESSION_INSTRUCTION = """\
 直近の出来事の一覧(名前)を見て検討する。

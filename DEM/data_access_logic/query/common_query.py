@@ -265,6 +265,24 @@ def character_place_select(character_id: int, until: Stamp) -> Select:
             .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc()))
 
 
+def latest_character_event_select(character_id: int) -> Select:
+    """**その人物が当事者の出来事のうち、終わりが一番新しい一件。** `end` が空ならその始まりで比べる。"""
+    finished = func.coalesce(Event.end, Event.start, Event.time)
+    return (select(Event)
+            .options(*EVENT_LOAD_OPTIONS)
+            .where(Event.event_characters.any(EventCharacter.character_id == character_id))
+            .order_by(finished.desc(), Event.id.desc())
+            .limit(1))
+
+
+def latest_character_place_select(character_id: int) -> Select:
+    """その人物の居場所のうち、一番新しく始まった行(時刻は問わない)。"""
+    return (select(CharacterPlace)
+            .where(CharacterPlace.character_id == character_id)
+            .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc())
+            .limit(1))
+
+
 def resident_character_ids_select(place_ids, until: Stamp) -> Select:
     """その時点でその場所(群)に居る人物の id。"""
     return (select(CharacterPlace.character_id).distinct()

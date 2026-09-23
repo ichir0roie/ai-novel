@@ -40,6 +40,19 @@ def claude_story_years_main(story_id: int, years: int = 5) -> Stamp:
     return loop_time_for_story(story_id, years)
 
 
+def daily_event() -> int | None:
+    """終わりに Claude Code の呼び出し回数とトークンを出す。"""
+    try:
+        return _main.daily_event(ai_client)
+    finally:
+        print(f"[claude_ai] {ai_client.usage_summary()}")
+
+
+def claude_daily_event_main() -> int | None:
+    """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。"""
+    return daily_event()
+
+
 if __name__ == "__main__":
     year = int(input("year>>"))
     loop_time(Stamp(year))

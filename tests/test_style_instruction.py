@@ -17,7 +17,7 @@ def test_text_is_empty_without_both():
     assert style.StyleInstruction().text == ""
 
 
-@pytest.mark.parametrize("target", ["episode", "story", "event", "term"])
+@pytest.mark.parametrize("target", ["episode", "event_novel", "story", "event", "term"])
 def test_style_instruction_has_shared_and_own_base(target):
     text = style.style_instruction(target)
     assert style.SHARED_STYLE_BASE.strip() in text
@@ -34,6 +34,26 @@ def test_episode_style_states_the_blank_line_rule():
     assert "空行は、言動の主体が変わるとき" in base
     assert "改行だけで続ける" in base
     assert "一話に数回まで" in base
+
+
+def test_event_novel_is_a_third_of_an_episode():
+    assert style.EVENT_NOVEL_TARGET_LETTERS == (1700, 2700)
+    text = style.EVENT_NOVEL_STYLE_INSTRUCTION
+    assert "出来事一件は1700〜2700字" in text
+    assert "一話は5000〜8000字" not in text
+    assert "種(key)" not in text
+
+
+def test_event_novel_shares_the_episode_novel_style():
+    assert style.NOVEL_STYLE_BASE in style.EPISODE_STYLE_BASE
+    assert style.NOVEL_STYLE_BASE in style.EVENT_NOVEL_STYLE_INSTRUCTION
+    assert style.EPISODE_STYLE_EXTRACTED in style.EVENT_NOVEL_STYLE_INSTRUCTION
+
+
+def test_episode_style_keeps_its_length_rule():
+    base = style.EPISODE_STYLE_BASE
+    assert "一話は5000〜8000字。4〜6個の場面に分け、一場面は1200〜1600字を目安にする。" in base
+    assert base.endswith("種(key)に場面が足りないときは、足りないぶんを場面として立ててから書く。")
 
 
 def test_episode_prompt_embeds_the_episode_style():
