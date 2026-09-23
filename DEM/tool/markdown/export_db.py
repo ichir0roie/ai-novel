@@ -70,7 +70,7 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
             table_dir = os.path.join(root, table_name)
             os.makedirs(table_dir, exist_ok=True)
 
-            ignore_columns = {"text", "directory_path", "filename", "id"}
+            ignore_columns = {"text", "directory_path", "filename", }
 
             for row in rows:
                 dir_path = os.path.join(table_dir, row.directory_path) if row.directory_path else table_dir

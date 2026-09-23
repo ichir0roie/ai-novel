@@ -129,9 +129,3 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
         session.commit()
 
     return counts
-
-
-if __name__ == "__main__":
-    import_db()
-    shutil.rmtree(WORLDS_ROOT)
-    export_db.export_db()

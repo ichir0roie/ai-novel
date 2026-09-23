@@ -186,7 +186,6 @@ class Location(MarkdownBase):
         remote_side="Location.id", viewonly=True, lazy="noload")
     children: Mapped[list[Location]] = relationship(viewonly=True)
 
-
     def default_filename(self) -> str | None:
         return self.name
 
@@ -375,7 +374,7 @@ class CharacterPlot(MarkdownBase):
 
     @property
     def markdown_name(self) -> str:
-        head = f"{self.id}_{_stamp_stem(self.start)}_{_stamp_stem(self.end)}"
+        head = f"{_stamp_stem(self.start)}_{_stamp_stem(self.end)}"
         name = self.filename or self.default_filename()
         return f"{head}_{name.replace('/', '／')}.md" if name else f"{head}.md"
 

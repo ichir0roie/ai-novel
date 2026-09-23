@@ -1,0 +1,15 @@
+
+import shutil
+
+from DEM.tool.markdown import export_db, import_db
+WORLDS_ROOT = "worlds"
+
+
+def run():
+    import_db.import_db()
+    shutil.rmtree(WORLDS_ROOT)
+    export_db.export_db()
+
+
+if __name__ == "__main__":
+    run()

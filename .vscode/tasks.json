@@ -2,13 +2,10 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "import_db (worlds/ md -> novel.db)",
+      "label": "markdown sync",
       "type": "shell",
       "command": ".venv/bin/python",
-      "args": [
-        "-c",
-        "from DEM.ai.claude_code.interface.sync.import_db import ImportDb; print(ImportDb().run())"
-      ],
+      "args": ["-c", "from DEM.tool.markdown import sync_db; sync_db.run()"],
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {
@@ -29,7 +26,7 @@
       }
     },
     {
-      "label": "git commit & push (timestamp)",
+      "label": "git push",
       "type": "shell",
       "command": "git add -A && git commit -m \"$(date '+%Y-%m-%d %H:%M:%S')\" && git pull --rebase && git push",
       "windows": {

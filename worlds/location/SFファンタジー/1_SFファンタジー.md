@@ -2,6 +2,7 @@
 ```json
 {
   "active_random_generation": false,
+  "id": 1,
   "name": "SFファンタジー",
   "kind": "世界線",
   "parent_id": null,
