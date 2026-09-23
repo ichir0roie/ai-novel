@@ -40,3 +40,15 @@ def test_episode_prompt_embeds_the_episode_style():
     from DEM.ai.claude_code import story_writer
 
     assert style.EPISODE_STYLE_INSTRUCTION in story_writer._SYSTEM_PROMPT
+
+
+def test_episode_style_carries_the_extracted_habits():
+    extracted = style.EPISODE_STYLE_EXTRACTED
+    assert "話し言葉" in extracted
+    assert "「？」" in extracted and "「！」" in extracted and "「…」" in extracted
+    assert extracted in style.EPISODE_STYLE_INSTRUCTION
+
+
+def test_shared_extracted_reaches_every_target():
+    for target in style.STYLE_INSTRUCTIONS:
+        assert style.SHARED_STYLE_EXTRACTED in style.style_instruction(target)
