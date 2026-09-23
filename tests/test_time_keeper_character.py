@@ -5,7 +5,7 @@ from DEM.ai.time_keeper.random_character_generator import (
     _CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
 )
 from DEM.db.schema import (
-    PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlot, Location, Plot,
+    PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, Location, Story,
 )
 from DEM.db.stamp import Stamp
 from DEM.tool.test.mock_ai_client import MockAIClient
@@ -36,7 +36,8 @@ def _place(session) -> Location:
     place = Location(name="村", kind="村", text="山あいの村", start=Stamp(2000))
     session.add(place)
     session.flush()
-    session.add(Plot(location_id=place.id, text="村の筋書き", start=Stamp(2000), end=Stamp(2300)))
+    session.add(Story(name="村の話", place_id=place.id, text="村の筋書き", narration="", state="構想中",
+                      start=Stamp(2000), end=Stamp(2300)))
     session.commit()
     return place
 
@@ -60,7 +61,6 @@ def test_generate_person_passes_personality_to_ai_and_keeps_it(session):
     session.expire_all()
     stored = session.get(Character, record.id)
     assert {name: getattr(stored, name) for name in PERSONALITY_COLUMNS} == levels
-    assert session.query(CharacterPlot).filter_by(character_id=record.id).count() == 1
 
 
 def test_generate_non_person_has_no_personality_line(session):

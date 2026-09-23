@@ -51,7 +51,5 @@ TRAIT_COLUMNS = (
     "flexibility_of_values", "sensitivity", "imagination",
 )
 
-# 人物の筋書き(CharacterPlot)一件が結に至るまでの年数。生成時にこの範囲で引き、end に置く。
-CHARACTER_PLOT_YEARS_RANGE = (1, 50)
-
-MAX_CHARACTER_PLOT_PER_LOCATION = 5
+# 一つの場所に置く人物・対象の上限。これ以上居る場所はランダム生成の候補から外す。
+MAX_CHARACTER_PER_LOCATION = 5

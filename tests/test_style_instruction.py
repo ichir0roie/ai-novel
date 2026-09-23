@@ -17,7 +17,7 @@ def test_text_is_empty_without_both():
     assert style.StyleInstruction().text == ""
 
 
-@pytest.mark.parametrize("target", ["episode", "plot", "event", "term"])
+@pytest.mark.parametrize("target", ["episode", "story", "event", "term"])
 def test_style_instruction_has_shared_and_own_base(target):
     text = style.style_instruction(target)
     assert style.SHARED_STYLE_BASE in text

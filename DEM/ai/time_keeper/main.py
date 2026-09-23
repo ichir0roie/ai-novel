@@ -2,7 +2,7 @@
 """世界の側を、時の流れの中で自動的に進める常駐ループの本体。`DEM/ai/local_ai/` と `DEM/ai/claude_code/` が共用する。
 
 `loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続け、その時刻をカバーする
-筋書き(`Plot`)が一件も無くなったら止まる。再開するには `CommitPlot` で筋書きを足す。
+作品(`Story`)が一件も無くなったら止まる。再開するには `CommitStory` で作品を足す。
 生成に使う AI は `ai`(`AIClient` の形を満たすモジュール)として受け取り、ここでは選ばない。
 一歩(1日ぶん)進めるごとに `worlds/` へ書き出す(`_export.export_step`)。
 """
@@ -13,7 +13,7 @@ import traceback
 
 from DEM.ai.time_keeper import event_progression_generator
 from DEM.data_access_logic.query import common_query, world_createion_query
-from DEM.db.schema import Plot, Session, Stamp, get_env_session
+from DEM.db.schema import Session, Stamp, Story, get_env_session
 from DEM.ai.time_keeper import (
     random_character_generator,
 )
@@ -26,7 +26,7 @@ def loop_time(
     ai: AIClient, start_time: Stamp | None = None, max_days: int | None = None,
 ) -> Stamp:
     """`max_days` を渡すと、その日数だけ進めて途中でも戻る
-    (省けばプロットが尽きるまで進め続ける)。
+    (省けば作品が尽きるまで進め続ける)。
     戻り値は最後に処理した時刻。
     """
     if start_time is None:
@@ -44,11 +44,11 @@ def loop_time(
             return current_time
         print(f"[time_keepr] {format_time(current_time)}")
         with get_env_session() as s:
-            active_plots = s.scalar(
-                world_createion_query.active_plot_count_select(current_time))
-        if not active_plots:
+            active_stories = s.scalar(
+                world_createion_query.active_story_count_select(current_time))
+        if not active_stories:
             print(f"[time_keepr] {format_time(current_time)} をカバーする"
-                  "プロットが無い。CommitPlot で筋書きを足すまでループを止める。")
+                  "作品が無い。CommitStory で作品を足すまでループを止める。")
             return current_time
         with get_env_session() as s:
             time_process(s, current_time, ai)
@@ -66,14 +66,14 @@ def time_process(
     event_progression_generator.generate_random(s, time, ai)
 
 
-def loop_time_for_plot(ai: AIClient, plot_id: int, years: int = 5) -> Stamp:
-    """筋書き `plot_id` の開始時刻(`start`)から、`years` 年ぶん `loop_time` を回す。"""
+def loop_time_for_story(ai: AIClient, story_id: int, years: int = 5) -> Stamp:
+    """作品 `story_id` の開始時刻(`start`)から、`years` 年ぶん `loop_time` を回す。"""
     with get_env_session() as s:
-        plot = s.get(Plot, plot_id)
-        if plot is None:
-            raise ValueError(f"筋書き id={plot_id} が見つからない")
-        if plot.start is None:
-            raise ValueError(f"筋書き id={plot_id} に start が無い")
-        start_time = plot.start
+        story = s.get(Story, story_id)
+        if story is None:
+            raise ValueError(f"作品 id={story_id} が見つからない")
+        if story.start is None:
+            raise ValueError(f"作品 id={story_id} に start が無い")
+        start_time = story.start
     max_days = days_between(start_time, add_years(start_time, years))
     return loop_time(ai, start_time, max_days)

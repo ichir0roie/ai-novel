@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from DEM.ai.claude_code import ai_client
 from DEM.db.schema import Session, Stamp
-from DEM.ai.time_keeper import character_plot_progression, main as _main
+from DEM.ai.time_keeper import main as _main
 
 
 def loop_time(start_time: Stamp | None = None, max_days: int | None = None) -> Stamp:
@@ -27,30 +27,17 @@ def claude_main(year: int | None = None, max_days: int | None = None) -> Stamp:
     return loop_time(Stamp(year) if year is not None else None, max_days)
 
 
-def loop_time_for_plot(plot_id: int, years: int = 5) -> Stamp:
+def loop_time_for_story(story_id: int, years: int = 5) -> Stamp:
     """終わりに Claude Code の呼び出し回数とトークンを出す。"""
     try:
-        return _main.loop_time_for_plot(ai_client, plot_id, years)
+        return _main.loop_time_for_story(ai_client, story_id, years)
     finally:
         print(f"[claude_ai] {ai_client.usage_summary()}")
 
 
-def claude_plot_years_main(plot_id: int, years: int = 5) -> Stamp:
-    """筋書き `plot_id` の開始時刻から、`years` 年ぶん進める(既定 5 年)。"""
-    return loop_time_for_plot(plot_id, years)
-
-
-def loop_character_plots(start_time: Stamp | None = None, max_months: int | None = None) -> Stamp:
-    """既にいる人物とその筋書きだけで出来事を進め続ける。終わりに呼び出し回数とトークンを出す。"""
-    try:
-        return character_plot_progression.loop_character_plots(ai_client, start_time, max_months)
-    finally:
-        print(f"[claude_ai] {ai_client.usage_summary()}")
-
-
-def claude_character_plots_main(year: int | None = None, max_months: int | None = None) -> Stamp:
-    """`year` を省くと db の最新の出来事の翌月から続ける。`max_months` を渡すとその月数で区切る。"""
-    return loop_character_plots(Stamp(year) if year is not None else None, max_months)
+def claude_story_years_main(story_id: int, years: int = 5) -> Stamp:
+    """作品 `story_id` の開始時刻から、`years` 年ぶん進める(既定 5 年)。"""
+    return loop_time_for_story(story_id, years)
 
 
 if __name__ == "__main__":

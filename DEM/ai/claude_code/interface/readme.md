@@ -1,54 +1,97 @@
-claudeが実行するスクリプト群を配置する。
+claude が db を触るときに呼ぶ入口を置く場所。**操作前にこの readme を引く。**
 
-各ファイルは単純な仕組みで、基本**一つの呼び出しクラスだけ**を記述する。
-呼び出し側(claude)は、そのクラスをインスタンス化して `run()` を呼ぶだけでよい
+各ファイルは**一つの呼び出しクラスだけ**を持つ。呼び出し側(claude)は、
+そのクラスをインスタンス化して `run()` を呼ぶだけでよい
 (CLI 引数のパースはしない。`if __name__ == "__main__"` も置かない)。
 
     from DEM.ai.claude_code.interface.world.list_places import ListPlaces
     ListPlaces(kind="村").run()
 
-**db に触れるのはここ越しだけ。** `DEM/db/` `DEM/randomizer/`
-`DEM/data_access_logic/` は下地の実装であって、claude が直接呼ぶ入口ではない。
-**この下に無い操作は「まだ無い」。** 推測で呼び出そうとせず、必要になったら
-下の作り方に沿って足すか、作者に相談する(CLAUDE.md)。
+## 鉄則
 
-(例外: 常駐ループ(`DEM/ai/time_keeper/`)の起動だけは、運用タスクとして
-`DEM.ai.local_ai.local_ai_time_keeper.loop_time()`(ローカル AI)か
-`DEM.ai.claude_code.claude_code_time_keeper.claude_main()`・`DEM.ai.claude_code.story_writer.write_story()`(Claude Code)を直接呼んでよい。
-既にいる人物とその筋書きだけで出来事を進め続けるループは、同じく
-`local_ai_time_keeper.loop_character_plots()` / `claude_code_time_keeper.claude_character_plots_main()`。
-特定の筋書き(`plot_id`)の開始時刻から指定した年数ぶんだけ進めるなら
-`local_ai_time_keeper.loop_time_for_plot()` / `claude_code_time_keeper.claude_plot_years_main()`)
+- **db に触れるのはここ越しだけ。** `DEM/db/` `DEM/randomizer/`
+  `DEM/data_access_logic/` は下地の実装であって、claude が直接呼ぶ入口ではない
+- **下の表に無い操作は「まだ無い」。** 推測で呼び出さず、「作り方」に沿って
+  入口を足すか、作者に相談する(CLAUDE.md)
+- **入口を足したら、同じ作業のうちに下の表へ行を足す。** 表に無い入口は
+  次のセッションから見えない
+- db を触る作業は `ImportDb` で始め、片付いてから `ExportDb` で閉じる。
+  **`ExportDb` を単独で呼ばない**(手で直している md を潰す)
 
-**世界の生成(出来事・人物・場所・本文)は `DEM/ai/local_ai/` の常駐ループが
-主に行う。** `randomizer/` `story/` の「作る」「確定する」入口を使えば、
-Claude も対話の中で人物・場所・出来事の内容を決めて確定してよい。
+## 依頼内容 → 呼ぶコード
+
+`DEM.ai.claude_code.interface.` を頭に付けて import する。
+
+| 依頼内容(言い回しの例)           | 呼ぶコード                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| 「同期して」「sync_db」             | `sync.import_db.ImportDb()` → (作業) → `sync.export_db.ExportDb()`。件数を辞書で返す |
+| 「どんな場所がある?」「村の一覧」   | `world.list_places.ListPlaces(kind=None)`                                    |
+| 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
+| 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
+| 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
+| 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か `ReadEvents(record_id=…)` |
+| 「この語は何?」「用語を調べて」     | `world.search_terms.SearchTerms(keyword)`                                    |
+| 「場所を足して」                     | `randomizer.create_random_place.CreateRandomPlace()` で下書き → 内容を決めて `randomizer.commit_place.CommitPlace(place)` |
+| 「人物を足して」                     | `randomizer.create_random_character.CreateRandomCharacter()` → `randomizer.commit_character.CommitCharacter(character)` |
+| 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
+| 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
+| 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
+| 「語を足して」                       | `randomizer.commit_term.CommitTerm(term)`                                    |
+| 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
+| 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
+| 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
+| 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
+| 「話を書き始める」「次の話を書く」   | `story.start_story.StartStory(story_id)`。同期確認・見出し・直前の話・断面・顔ぶれを一度に出す |
+| 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)` |
+| 「その時点の顔ぶれは?」             | `story.read_cast.ReadCast(story_id, time=None)`                              |
+| 「その場所・その時点の様子は?」     | `story.read_brief.ReadBrief(place_id, time)`                                 |
+| 「この人物の周りで何が起きている?」 | `story.read_surroundings.ReadSurroundings(character_id, time)`               |
+| 「この人物を本文用にそろえて」       | `story.read_character.ReadCharacter(character_id, time=None)`                |
+| 「作品を作る」「筋書きを足して」     | `story.commit_story.CommitStory(story)`。筋書きは作品の `text` に書く        |
+| 「作品を直して」「筋書きを直して」   | `story.update_story.UpdateStory(story)`                                      |
+| 「作品を消して」                     | `story.delete_story.DeleteStory(story_id)`。話が残っていれば止まる           |
+| 「本文を確定する」                   | `story.commit_episode.CommitEpisode(episode)`                                |
+| 「未同期の話は残ってる?」           | `story.list_unsynced_episodes.ListUnsyncedEpisodes(story_id=None)`           |
+| 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(story_id, number, synced=True)`   |
+| 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
+
+**まだ入口が無いもの**(頼まれたら作ってから行う): 出来事の修正・削除、人物の削除、
+語の修正・削除。
+
+筋書き(`plot` / `character_plot`)のテーブルは無い。場所に掛かる筋書きは作品(`story`)の
+`text` に、人物に掛かる筋書きはその人物の `text` の `# plot` の節に書く。
+
+補足:
+
+- `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`worlds/maps/map.html`・
+  人物相関の `worlds/maps/relation.html` も描く。`ImportDb` は md → db の逆向き
+- 場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば
+  閉じて揃える)で `CommitPlace` / `UpdatePlace` から入れる。経緯度が無い面の場所
+  (大陸など)にも持たせられ、地図では薄い面として描く
+
+## 常駐ループ
+
+世界の生成(出来事・人物・場所・本文)は主に `DEM/ai/local_ai/` の常駐ループが行う。
+その起動だけは運用タスクとして直接呼んでよい。
+
+| したいこと                                   | ローカル AI                                | Claude Code                                                        |
+| -------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| 時間を進める                                 | `local_ai_time_keeper.loop_time()`         | `claude_code_time_keeper.claude_main()` / `story_writer.write_story()` |
+| ある作品の開始から指定年数ぶん進める         | `local_ai_time_keeper.loop_time_for_story()` | `claude_code_time_keeper.claude_story_years_main()`               |
+
+(`DEM.ai.local_ai.` / `DEM.ai.claude_code.` を頭に付ける)
+
+上の表の「作る」「確定する」入口を使えば、Claude も対話の中で人物・場所・出来事の
+内容を決めて確定してよい。
+
+## 作り方
 
 置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の四つ。
 
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
-- `story/` — 話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
+- `story/` — 作品・話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
 - `sync/` — db と md の同期
-- `world/` — 場所・人物・語・出来事・筋書きの一覧(読む専用)
-
-## 今ある入口
-
-| 領域         | 入口                                                                                                                             |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `randomizer/` | `create_random_character` `create_random_place` `create_random_event`(db に触れない下書き)                |
-|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term` `commit_character_place` `commit_character_relation`(確定する。`commit_character_place` は既にいる人物に出自・居場所を足す。`commit_character_relation` は人物同士の相関を一件足す) |
-|              | `update_character` `update_place` `update_plot` `update_character_plot` `update_character_place` `update_character_relation` `delete_place` `delete_plot`(確定済みを直す・消す)       |
-| `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
-|              | `commit_story` `commit_episode` `set_episode_synced`                                                                              |
-| `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `list_character_relations`(人物同士の相関。人物 id で絞れる) `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
-| `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/maps/map.html`、人物相関の `worlds/maps/relation.html` も描く) `import_db`(md → db。逆向き) |
-
-`term`(語)は `commit_term` で確定し、`search_terms` で引く。直す入口はまだ無い。
-
-場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば閉じて揃える)で
-`commit_place` / `update_place` から入れる。経緯度が無い面の場所(大陸など)にも持たせられ、地図では薄い面として描く。
-
-## 作り方
+- `world/` — 場所・人物・語・出来事の一覧(読む専用)
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ
@@ -69,7 +112,7 @@ Entrypoint(interface/_base.py)
 ├─ SessionEntrypoint            db セッションを開いて execute(session) へ渡す
 │   ├─ CommitEntrypoint         「確定する」系の共通処理(parse/check_columns/check_exists)
 │   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_place.py
-│   │   └─ story.StoryCommit        → commit_episode.py / set_episode_synced.py
+│   │   └─ story.StoryCommit        → commit_*.py / update_story.py / delete_story.py / set_episode_synced.py
 │   ├─ world.WorldQuery          → list_*.py / search_terms.py
 │   └─ story.StoryQuery          → list_*.py / read_*.py / start_story.py
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
@@ -86,7 +129,7 @@ Entrypoint(interface/_base.py)
 | `common_query.py`              | 時刻の扱い・断面・顔ぶれ・場所の道筋                         |
 | `character_simulation_query.py` | 人物を軸に周辺を読む(`read_surroundings`)                   |
 | `dictionary_query.py`          | 語(辞書)のキーワード検索                                     |
-| `story_createion_query.py`     | 場所に掛かる筋書き(`plot`)・人物に掛かる筋書き(`character_plot`)の読み出し |
+| `story_createion_query.py`     | 場所に掛かる作品(`story`)の読み出し                          |
 | `world_createion_query.py`     | 生きている人物、広さの整合、進行中の判定               |
 
 ここのファイルはその薄い呼び出し面で、**SQL は組み立てない。**

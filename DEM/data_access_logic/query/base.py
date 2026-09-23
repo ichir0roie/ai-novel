@@ -35,15 +35,8 @@ def character_time_condition(time: Stamp):
     )
 
 
-def plot_time_condition(time: Stamp):
+def story_time_condition(time: Stamp):
     return and_(
-        or_(Plot.start.is_(None), Plot.start <= time),
-        or_(Plot.end.is_(None), Plot.end > time),
-    )
-
-
-def character_plot_time_condition(time: Stamp):
-    return and_(
-        or_(CharacterPlot.start.is_(None), CharacterPlot.start <= time),
-        or_(CharacterPlot.end.is_(None), CharacterPlot.end > time),
+        or_(Story.start.is_(None), Story.start <= time),
+        or_(Story.end.is_(None), Story.end > time),
     )

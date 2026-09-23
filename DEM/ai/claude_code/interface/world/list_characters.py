@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""人物の一覧を出す、claude が呼ぶ入口。筋書きを持つかどうかも返す。"""
+"""人物の一覧を出す、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from DEM.ai.claude_code.interface.world._base import WorldQuery
@@ -16,5 +16,4 @@ class ListCharacters(WorldQuery):
             "id": row.id, "name": row.name, "kind": row.kind, "text": row.text,
             "sex": row.sex, "tone": row.tone,
             "place_id": place.location_id if place else None,
-            "plot_count": len(row.plots),
         }

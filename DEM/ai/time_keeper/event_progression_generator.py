@@ -18,12 +18,8 @@ from DEM.ai.instructions.event_writing import (
     RECENT_EVENT_LIMIT,
 )
 from DEM.ai.instructions.naming import (
-    NAME_PLACEHOLDER, PLACE_NAMING_INSTRUCTION, fill_name_placeholder,
+    PLACE_NAMING_INSTRUCTION, fill_name_placeholder,
 )
-from DEM.ai.instructions.plot_writing import (
-    CHARACTER_PLOT_INSTRUCTION, PLOT_PACING_INSTRUCTION, plot_span_instruction,
-)
-from DEM.ai.instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
 from DEM.data_access_logic.query import (
     common_query, story_createion_query, world_createion_query,
 )
@@ -31,7 +27,7 @@ from DEM.data_access_logic.query.base import (
     character_active_condition, location_active_condition,
 )
 from DEM.db.schema import (
-    Character, CharacterPlace, CharacterPlot, Event, EventCharacter,
+    Character, CharacterPlace, Event, EventCharacter,
     Location, Session, Stamp,
 )
 from DEM.ai.time_keeper._ai import AIClient
@@ -44,15 +40,6 @@ _EVENT_TEXT_INSTRUCTION = f"""\
 候補の筋から外れない。
 {EVENT_RECORD_INSTRUCTION}"""
 
-
-_PLOT_TEXT_INSTRUCTION = f"""\
-text はその人物の信念・思考の核になる情報として扱う。
-日常の細かな出来事では character_plots 自体を空リストのままにし、信念・立場が大きく動いたときだけ書く。
-渡した plot に既にある筋書きを書き写したり言い換えたりして返さない。書くのは新しい筋書きだけ。
-一人の人物につき要素は一つだけにし、起・承・転・結を別々の要素に分けない。
-書くときは一文で済ませず、次の書き方に従う。
-{CHARACTER_PLOT_INSTRUCTION}
-この人物自身を指すときは名前を書かず、必ず「{NAME_PLACEHOLDER}」とだけ書く。"""
 
 _INVOLVEMENT_INSTRUCTION = """\
 関わった人物・対象があれば、その id を渡した一覧の中からだけ選んで character_ids に入れる(複数可)。"""
@@ -97,7 +84,6 @@ _CANDIDATE_SYSTEM_PROMPT = f"""\
 笑いや祝い、取り決めや対立が動くなど、種類の違うものを混ぜてください。
 各候補は当事者の action と矛盾しない範囲で立てる。
 {EVENT_PROGRESSION_INSTRUCTION}
-{AVOID_NARO_TEMPLATE_INSTRUCTION}
 JSON で答えてください。キーは candidates(候補のリスト。各要素は name(出来事の名前)と summary(何が起きて誰が関わるか。2〜3文)の二つ)だけ。"""
 
 _CANDIDATE_SCHEMA = {
@@ -127,13 +113,11 @@ _PLACE_SYSTEM_PROMPT = f"""\
 {_INVOLVEMENT_INSTRUCTION}
 {_CHARACTER_MOVE_INSTRUCTION}
 {_LOCATION_CHANGE_INSTRUCTION}
-{AVOID_NARO_TEMPLATE_INSTRUCTION}
-JSON で答えてください。キーは次の九つだけ。
+JSON で答えてください。キーは次の八つだけ。
 - event_name: 出来事の名前。
 - event_text: 出来事の内容。書き方は後述の「event_text の書き方」に従う。
 - character_ids: 関わった人物・対象の id のリスト。渡した「居合わせる人物・対象」の character_id からだけ選ぶ。
 - character_moves: 居場所が変わった人物のリスト。各要素は character_id と location_id。
-- character_plots: 関わった人物のうち、信念・立場が大きく動いた者だけのリスト。各要素は character_id(対象の人物 id)と text の二つ。text は後述の「character_plots の text の書き方」に従う。
 - character_updates: 関わった人物・対象のうち、この出来事でレコード自体が変わった者だけのリスト。各要素は character_id(対象の id)と text の二つ。text は後述の「character_updates の text の書き方」に従う。
 - location_abolished: bool。この出来事でこの場所自体が消滅・放棄されたか。
 - location_founded: この出来事でこの場所の配下に新しい場所が生まれたなら {{name, kind, text, environment}}。無ければ null。
@@ -141,9 +125,6 @@ JSON で答えてください。キーは次の九つだけ。
 
 event_text の書き方:
 {_EVENT_TEXT_INSTRUCTION}
-
-character_plots の text の書き方:
-{_PLOT_TEXT_INSTRUCTION}
 
 character_updates の text の書き方:
 {CHARACTER_TEXT_UPDATE_INSTRUCTION}"""
@@ -178,18 +159,6 @@ _PLACE_SCHEMA = {
                 "additionalProperties": False,
             },
         },
-        "character_plots": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "character_id": {"type": "integer"},
-                    "text": {"type": "string"},
-                },
-                "required": ["character_id", "text"],
-                "additionalProperties": False,
-            },
-        },
         "character_updates": {
             "type": "array",
             "items": {
@@ -213,7 +182,7 @@ _PLACE_SCHEMA = {
     "required": [
         "event_name", "event_text", "character_ids",
         "character_moves",
-        "character_plots", "character_updates",
+        "character_updates",
         "location_abolished", "location_founded",
         "event_duration_days",
     ],
@@ -281,60 +250,6 @@ def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]
     return grouped
 
 
-_PLOT_COMPLETION_SYSTEM_PROMPT = """\
-あなたは物語の進行を見届ける編集者です。
-人物一人の筋書き(起・承・転・結)と、その人物が関わった直近の出来事、そしていま起きたばかりの出来事を渡します。
-いま起きた出来事によって、筋書きの「結」に相当する到達点まで至ったかどうかを判定してください。
-転機(転)を迎えただけ、結へ向かう途中、という段階では完了と見なさない。
-結に書かれた行き着き先(成功・失敗・変質など)が、出来事の記録として実際に起きたときだけ完了とする。
-筋書きには期間(start〜end)があり、end が結に至る予定の時点。
-現在の時刻が期間の終わりにまだ遠いうちは、結に似た出来事が起きても通過点と見なして完了としない。
-JSON で答えてください。キーは completed(bool)と reason(一〜二文の根拠)の二つ。"""
-
-_PLOT_COMPLETION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "completed": {"type": "boolean"},
-        "reason": {"type": "string"},
-    },
-    "required": ["completed", "reason"],
-    "additionalProperties": False,
-}
-
-
-def _plot_key(text: str | None) -> str:
-    return "".join((text or "").split())
-
-
-def _plot_span_label(plot: CharacterPlot) -> str:
-    start = format_time(plot.start) if plot.start else "不明"
-    end = format_time(plot.end) if plot.end else "未定"
-    return f"{start}〜{end}"
-
-
-def _judge_plot_completed(
-    session: Session, plot: CharacterPlot, character: Character,
-    event: Event, time: Stamp, ai: AIClient,
-) -> bool:
-    recent = session.scalars(
-        common_query.events_of_select(character.id, until=time, limit=RECENT_EVENT_LIMIT)
-    ).all()
-    prompt = f"""\
-人物: {character.name}
-人物の説明: {character.text}
-筋書き:
-{plot.text}
-筋書きの期間: {_plot_span_label(plot)}
-現在の時刻: {format_time(time)}
-この人物が関わった直近の出来事(名前): {[e.name for e in recent]}
-いま起きた出来事: {event.name}
-{event.text}
-この出来事で筋書きは完了したか判定してください。"""
-    decided = ai.try_generate_json(
-        prompt, _PLOT_COMPLETION_SCHEMA, system=_PLOT_COMPLETION_SYSTEM_PROMPT)
-    return bool(decided.get("completed"))
-
-
 def _character_recent_event_names(
     session: Session, character_id: int, time: Stamp,
 ) -> list[str]:
@@ -345,12 +260,12 @@ def _character_recent_event_names(
     return [e.name for e in events]
 
 
-def _plot_recent_event_names(
+def _story_recent_event_names(
     session: Session, top_location_id: int | None, place_id: int, time: Stamp,
 ) -> list[str]:
-    """その場所と、そこから筋書きの掛かる最上位の場所 `top_location_id` までの上位の場所で直近使われた出来事の名前。
+    """その場所と、そこから作品の掛かる最上位の場所 `top_location_id` までの上位の場所で直近使われた出来事の名前。
 
-    横(兄弟の場所)の出来事は含めない。筋書きの配下全体を渡すと、他の国の
+    横(兄弟の場所)の出来事は含めない。作品の配下全体を渡すと、他の国の
     展開まで持ち込まれて場所ごとの差が消えるため(2026-09 に観測)。
     """
     place_ids = []
@@ -426,38 +341,30 @@ def _progress_place(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
     place = session.get(Location, place_id)
-    plots = story_createion_query.load_location_plot(session, place_id, time)
-    plot_text = story_createion_query.join_plot_text(plots)
-    plot_recent_events = (
-        _plot_recent_event_names(session, plots[0].location_id, place_id, time)
-        if plots else []
+    stories = story_createion_query.load_location_story(session, place_id, time)
+    story_text = story_createion_query.join_story_text(stories)
+    story_recent_events = (
+        _story_recent_event_names(session, stories[0].place_id, place_id, time)
+        if stories else []
     )
-    character_plots = {
-        c.id: story_createion_query.load_character_plot(session, c.id, time)
-        for c in characters[:20]
-    }
     characters_payload = [
         {"character_id": c.id, "kind": c.kind, "name": c.name, "tone": c.tone, "text": c.text,
          "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
-         "plot": [{"text": p.text, "span": _plot_span_label(p)}
-                  for p in character_plots.get(c.id, [])] or "(指定なし)",
          "recent_events": _character_recent_event_names(session, c.id, time)}
         for c in characters[:20]
     ]
     destinations = _move_destinations(session, place_id, time)
-    plot_years = rng.randint(*constants.CHARACTER_PLOT_YEARS_RANGE)
 
-    pacing = f"{PLOT_PACING_INSTRUCTION}\n" if any(character_plots.values()) else ""
     situation = f"""\
 場所id: {place_id}
 場所の情報: {(place.name, place.kind, place.text) if place else None}
 居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。recent_events はその者自身が場所を問わず関わった直近の出来事): {characters_payload}
 直近の出来事(名前): {[e.name for e in recent_events]}
-進めたい筋書き(上位の場所のものから順につなげた本文):
-{plot_text or '(指定なし)'}
-筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): {plot_recent_events or '(無し)'}
+進めたい筋書き(上位の場所のものから順につなげた作品の本文):
+{story_text or '(指定なし)'}
+筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): {story_recent_events or '(無し)'}
 現在の時刻: {time}
-{pacing}"""
+"""
     judgements = _think_participants(situation, characters_payload, ai)
     candidate = _roll_candidate(rng, situation, judgements, ai)
     if candidate is None:
@@ -465,10 +372,8 @@ def _progress_place(
 
     candidate_summary = {"name": candidate["name"], "summary": candidate["summary"]}
     hints = "\n".join(hint for hint in (
-        "進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。" if plots else "",
-        "居合わせる人物・対象のうち plot を持つ者がいれば、その者個人について進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
-        if any(character_plots.values()) else "",
-        f"character_plots に新しく書く筋書きについて: {plot_span_instruction(plot_years)}",
+        "進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。" if stories else "",
+        "居合わせる人物・対象の text に筋書きが書かれていれば、その者個人について進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。",
     ) if hint)
     prompt = f"""\
 {situation}移動先の候補(character_moves の location_id はここからだけ選ぶ): {destinations or '(無し)'}
@@ -546,38 +451,6 @@ event_text 内では番号ではなく名前で書く。
     ]
     session.add(record)
 
-    plot_done_notes = []
-    for cid in involved_character_ids:
-        for plot in character_plots.get(cid, []):
-            # end は結に至る予定の時点として常に入っているので、有効な筋書きは全部判定にかける
-            if _judge_plot_completed(session, plot, character_ids[cid], record, time, ai):
-                plot.end = record.time
-                plot_done_notes.append(f"{character_ids[cid].name}: id={plot.id} 完了")
-
-    # 同じ人物について起・承・転・結が別要素で返ることがあるので、人物ごとに一つの text にまとめる
-    plot_texts: dict[int, list[str]] = defaultdict(list)
-    for item in decided.get("character_plots") or []:
-        if not isinstance(item, dict):
-            continue
-        try:
-            character_id = int(item.get("character_id") or 0)
-        except (TypeError, ValueError):
-            continue
-        text = item.get("text")
-        if character_id not in character_ids or not text:
-            continue
-        plot_texts[character_id].append(text.strip())
-
-    plot_notes = []
-    for character_id, texts in plot_texts.items():
-        text = fill_name_placeholder("\n".join(texts), character_ids[character_id].name or "")
-        existing = {_plot_key(p.text) for p in character_plots.get(character_id, [])}
-        if _plot_key(text) in existing:
-            continue
-        plot_end = Stamp(time.year + plot_years, time.month, time.day)
-        session.add(CharacterPlot(character_id=character_id, text=text, start=time, end=plot_end))
-        plot_notes.append(f"{character_ids[character_id].name}({plot_years}年、〜{format_time(plot_end)}): {text}")
-
     update_notes = []
     for update in decided.get("character_updates") or []:
         if not isinstance(update, dict):
@@ -629,8 +502,6 @@ event_text 内では番号ではなく名前で書く。
           + (f" / 関わった: {', '.join(involved_names)}" if involved_names else "")
           + f" / 候補 {candidate['rolled']}: {candidate['name']}"
           + (f" / 移動: {'; '.join(move_notes)}" if move_notes else "")
-          + (f" / 筋書き完了: {'; '.join(plot_done_notes)}" if plot_done_notes else "")
-          + (f" / 人物の筋書き: {'; '.join(plot_notes)}" if plot_notes else "")
           + (f" / 人物・対象更新: {'; '.join(update_notes)}" if update_notes else "")
           + (f" / 場所: {'; '.join(location_notes)}" if location_notes else ""))
     return record

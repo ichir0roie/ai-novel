@@ -5,7 +5,7 @@
 抽出して書き換える枠で、本文がまだ無いあいだは空。二つを足したものが
 `*_STYLE_INSTRUCTION` で、プロンプトに埋めるのはこの定数の方。
 
-共通(`SHARED_*`)はどの文にも効き、対象ごと(episode / plot / event / term)は
+共通(`SHARED_*`)はどの文にも効き、対象ごと(episode / story / event / term)は
 その対象の文にだけ足す。対象ごとの土台と特徴は共通とは別に持っているので、
 あとから対象ごとに別の文面を用意できる。
 """
@@ -52,11 +52,11 @@ EPISODE_STYLE_BASE = """\
 
 EPISODE_STYLE_EXTRACTED = ""
 
-PLOT_STYLE_BASE = """\
-筋書きは読ませる文ではなく、後から段階を測るための文として書く。
+STORY_STYLE_BASE = """\
+作品の筋書きは読ませる文ではなく、後から段階を測るための文として書く。
 段階ごとに一〜二文で、誰と何を巡ってか分かる言い方にする。"""
 
-PLOT_STYLE_EXTRACTED = ""
+STORY_STYLE_EXTRACTED = ""
 
 EVENT_STYLE_BASE = """\
 出来事の記録は情景も語り口も持たせず、事実と関係だけで書く。
@@ -72,14 +72,14 @@ TERM_STYLE_EXTRACTED = ""
 
 STYLE_INSTRUCTIONS: dict[str, StyleInstruction] = {
     "episode": StyleInstruction(base=EPISODE_STYLE_BASE, extracted=EPISODE_STYLE_EXTRACTED),
-    "plot": StyleInstruction(base=PLOT_STYLE_BASE, extracted=PLOT_STYLE_EXTRACTED),
+    "story": StyleInstruction(base=STORY_STYLE_BASE, extracted=STORY_STYLE_EXTRACTED),
     "event": StyleInstruction(base=EVENT_STYLE_BASE, extracted=EVENT_STYLE_EXTRACTED),
     "term": StyleInstruction(base=TERM_STYLE_BASE, extracted=TERM_STYLE_EXTRACTED),
 }
 
 
 def style_instruction(target: str) -> str:
-    """`target`(episode / plot / event / term)の文へ埋め込む文体の指示。"""
+    """`target`(episode / story / event / term)の文へ埋め込む文体の指示。"""
     if target not in STYLE_INSTRUCTIONS:
         raise ValueError(f"文体の指示が無い対象: {target}")
     return "\n".join(
@@ -88,6 +88,6 @@ def style_instruction(target: str) -> str:
 
 SHARED_STYLE_INSTRUCTION = SHARED_STYLE.text
 EPISODE_STYLE_INSTRUCTION = style_instruction("episode")
-PLOT_STYLE_INSTRUCTION = style_instruction("plot")
+STORY_STYLE_INSTRUCTION = style_instruction("story")
 EVENT_STYLE_INSTRUCTION = style_instruction("event")
 TERM_STYLE_INSTRUCTION = style_instruction("term")

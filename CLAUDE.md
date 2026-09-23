@@ -56,8 +56,13 @@
   で、環境変数 `DEM_DB_PATH` で差し替えられる
 - コードから触るときは `from DEM.db.schema import get_env_session` で `Session` を開く。
   `engine` も同じモジュールにある
-- 作業として db を読み書きするときは `DEM/ai/claude_code/interface/` の入口越しに行う
-  (一覧は `DEM/ai/claude_code/interface/readme.md`)。下地(`DEM/db/` `DEM/data_access_logic/`)を直接呼ぶのは開発・調査のときだけ
+- 作業として db を読み書きするときは `DEM/ai/claude_code/interface/` の入口越しに、
+  既存の python コードを呼んで行う。下地(`DEM/db/` `DEM/data_access_logic/`)を
+  直接呼んだり、その場限りのスクリプトを書いたりするのは開発・調査のときだけ
+- **`DEM/ai/claude_code/interface/readme.md` を操作前のマニュアルとする。**
+  操作の前にその「依頼内容 → 呼ぶコード」の対応表を引き、依頼に当たる入口を呼ぶ
+- 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
+  **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
 - 各作業前に、`DEM/tool/markdown/sync_db.py`を実行する。
 - 引き方(`DEM/data_access_logic/query/*.py`)では、外部キーが `NULL` の行を
   「全体に効く」とみなして `or_(X.fk_id.in_(ids), X.fk_id.is_(None))` のように

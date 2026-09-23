@@ -5,12 +5,8 @@ from __future__ import annotations
 from sqlalchemy import Select, and_, func, or_, select
 
 from DEM.data_access_logic.query import common_query
-from DEM.data_access_logic.query.base import (
-    character_active_condition, plot_time_condition,
-)
 from DEM.db.schema import (
-    Character, CharacterPlot, Event, EventCharacter, Location,
-    Plot, Session, Stamp,
+    Character, Event, EventCharacter, Location, Session, Stamp, Story,
 )
 
 
@@ -49,11 +45,11 @@ def alive_characters_select(time) -> Select:
                    or_(Character.end.is_(None), Character.end > time)))
 
 
-def active_plot_count_select(time) -> Select:
-    """時刻 `time` をカバーしている筋書き(`Plot`)の件数(`location_id` は問わない)。"""
-    return (select(func.count(Plot.id))
-            .where(or_(Plot.start.is_(None), Plot.start <= time),
-                   or_(Plot.end.is_(None), Plot.end > time)))
+def active_story_count_select(time) -> Select:
+    """時刻 `time` をカバーしている作品(`Story`)の件数(`place_id` は問わない)。"""
+    return (select(func.count(Story.id))
+            .where(or_(Story.start.is_(None), Story.start <= time),
+                   or_(Story.end.is_(None), Story.end > time)))
 
 
 def check_within_parent_span(parent: Location, child_start, child_end, label: str) -> None:
@@ -77,31 +73,19 @@ def check_within_parent_span(parent: Location, child_start, child_end, label: st
                 f"end={parent.end} を超える")
 
 
-def location_has_plot(session: Session, place_id: int) -> bool:
-    """その場所(か祖先)に `Plot` が一件でもあるか。時期は問わない。"""
+def location_has_story(session: Session, place_id: int) -> bool:
+    """その場所(か祖先)に `Story` が一件でもあるか。時期は問わない。"""
     ancestor_ids = [node["id"] for node in common_query.place_path(session, place_id)]
     return session.scalar(
-        select(Plot.id)
-        .where(Plot.location_id.in_(ancestor_ids))
+        select(Story.id)
+        .where(Story.place_id.in_(ancestor_ids))
         .limit(1)
     ) is not None
 
 
-def check_has_plot(session: Session, place_id: int, label: str) -> None:
-    """その場所(か祖先)に筋書き(`Plot`)が一件も無ければ止める。"""
-    if not location_has_plot(session, place_id):
+def check_has_story(session: Session, place_id: int, label: str) -> None:
+    """その場所(か祖先)に作品(`Story`)が一件も無ければ止める。"""
+    if not location_has_story(session, place_id):
         raise ValueError(
-            f"{label}: place_id={place_id} にはプロットが無い。"
-            "先に CommitPlot でその場所(か祖先)へ筋書きを置いてから確定する")
-
-
-def active_character_plot_count_select(time) -> Select:
-    """時刻 `time` をカバーしている、生きているサブキャラクターの筋書き(`CharacterPlot`)の件数。
-    ランダム生成の対象外のメインキャラクター(`sub_character` が false)の筋書きは数えない。"""
-    return (select(func.count(CharacterPlot.id))
-            .join(Character, Character.id == CharacterPlot.character_id)
-            .where(or_(CharacterPlot.start.is_(None), CharacterPlot.start <= time),
-                   or_(CharacterPlot.end.is_(None), CharacterPlot.end > time),
-                   or_(Character.start.is_(None), Character.start <= time),
-                   or_(Character.end.is_(None), Character.end > time),
-                   character_active_condition()))
+            f"{label}: place_id={place_id} には作品が無い。"
+            "先に CommitStory でその場所(か祖先)へ作品を置いてから確定する")

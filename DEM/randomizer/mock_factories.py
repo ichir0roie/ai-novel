@@ -18,8 +18,8 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from DEM.db.schema import (
     CHARACTER_KIND_PERSON,
-    Character, CharacterPlace, CharacterPlot, Episode, Event, EventCharacter,
-    Location, Plot, Story, Term,
+    Character, CharacterPlace, Episode, Event, EventCharacter,
+    Location, Story, Term,
 )
 from DEM.db.stamp import Stamp
 from DEM.randomizer.random_character_generator import (
@@ -187,32 +187,12 @@ class EventCharacterFactory(_ModelFactory):
     character_id = _pool(Character, "CharacterFactory")
 
 
-class PlotFactory(_ModelFactory):
-    class Meta:
-        model = Plot
-
-    text = _text()
-    location_id = _pool(Location, "LocationFactory", p_none=0.1)
-    start = _optional_stamp()
-    end = _end_after_start()
-
-
 class CharacterPlaceFactory(_ModelFactory):
     class Meta:
         model = CharacterPlace
 
     character_id = _pool(Character, "CharacterFactory")
     location_id = _pool(Location, "LocationFactory")
-    start = _optional_stamp()
-    end = _end_after_start()
-
-
-class CharacterPlotFactory(_ModelFactory):
-    class Meta:
-        model = CharacterPlot
-
-    text = _text()
-    character_id = _pool(Character, "CharacterFactory")
     start = _optional_stamp()
     end = _end_after_start()
 
@@ -262,9 +242,7 @@ ALL_FACTORIES = (
     CharacterFactory,
     EventFactory,
     EventCharacterFactory,
-    PlotFactory,
     CharacterPlaceFactory,
-    CharacterPlotFactory,
     TermFactory,
     StoryFactory,
     EpisodeFactory,

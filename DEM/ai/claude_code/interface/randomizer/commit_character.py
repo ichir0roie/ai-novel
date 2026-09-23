@@ -25,7 +25,7 @@ class CommitCharacter(CommitDraft):
 
         self.check_exists(session, Location, place_id, "place_id")
         self._check_span(session, place_id, data)
-        self._check_plot(session, place_id)
+        self._check_story(session, place_id)
 
         record = Character(**data)
         session.add(record)
@@ -46,7 +46,7 @@ class CommitCharacter(CommitDraft):
             place, data.get("start"), data.get("end"), "character")
 
     @staticmethod
-    def _check_plot(session, place_id: int | None) -> None:
+    def _check_story(session, place_id: int | None) -> None:
         if place_id is None:
             return
-        world_createion_query.check_has_plot(session, place_id, "character")
+        world_createion_query.check_has_story(session, place_id, "character")

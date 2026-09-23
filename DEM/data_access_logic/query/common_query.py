@@ -8,9 +8,9 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
-    Character, CharacterPlace, CharacterPlot, CharacterRelation, Episode,
+    Character, CharacterPlace, CharacterRelation, Episode,
     Event, EventCharacter, Location,
-    Plot, Story, Term,
+    Story, Term,
 )
 from DEM.db.stamp import Stamp, StampError
 
@@ -180,7 +180,7 @@ def events_at_select(when, *, place_ids=None, limit=None) -> Select:
 def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
     """**複数の場所にまたがる出来事を新しい順に。** `place_ids` が空/None なら場所を問わず全件。
 
-    一つの筋書き(`Plot`)が指す範囲(場所の配下全体、無指定なら世界全体)で
+    一つの作品(`Story`)が指す範囲(場所の配下全体、無指定なら世界全体)で
     「直近どんな出来事が使われたか」を見るのに使う。単一の id で引く
     `events_of_select` と違い、場所の集合をそのまま渡す。
     """
@@ -223,24 +223,6 @@ def events_select() -> Select:
             .order_by(Event.time.desc(), Event.id.desc()))
 
 
-def plots_select() -> Select:
-    """筋書きの一覧。新しい順。
-
-    場所に紐づけて絞る読み方(親の場所までたどって拾う)は
-    `story_createion_query.load_location_plot` を使う。
-    """
-    return select(Plot).order_by(Plot.id.desc())
-
-
-def character_plots_select() -> Select:
-    """人物の筋書き(`CharacterPlot`)の一覧。新しい順。
-
-    ある人物・時刻に有効なものだけに絞る読み方は
-    `story_createion_query.load_character_plot` を使う。
-    """
-    return select(CharacterPlot).order_by(CharacterPlot.id.desc())
-
-
 def open_events_select(place_ids, until: Stamp) -> Select:
     """**まだ終わっていない出来事**(`end` が空か、その先)。張っているもの。
 
@@ -256,13 +238,6 @@ def open_events_select(place_ids, until: Stamp) -> Select:
 
 
 # ---------------------------------------------------------------- 人物
-
-def character_plots_at_select(character_id: int, until: Stamp) -> Select:
-    """その時点で生きている、その人物の筋書き(欲・恐れ・嘘・必要を含む方向づけ)。"""
-    return (select(CharacterPlot)
-            .where(CharacterPlot.character_id == character_id, *_alive(CharacterPlot, until))
-            .order_by(CharacterPlot.start.desc(), CharacterPlot.id.desc()))
-
 
 def character_place_select(character_id: int, until: Stamp) -> Select:
     """その時点の居場所(`character_place` の生きている行、新しい順)。"""
@@ -286,7 +261,7 @@ def character_select(character_id: int) -> Select:
 def characters_select() -> Select:
     """人物の一覧。既存キャラクターを一括で見渡すのに使う。"""
     return (select(Character)
-            .options(selectinload(Character.plots), selectinload(Character.places))
+            .options(selectinload(Character.places))
             .order_by(Character.id.asc()))
 
 

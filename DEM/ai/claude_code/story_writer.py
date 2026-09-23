@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import json
 
-from DEM.ai.instructions.principles import AVOID_NARO_TEMPLATE_INSTRUCTION
-from DEM.ai.instructions.story_writing import EPISODE_WRITING_INSTRUCTION
 from DEM.ai.instructions.style import EPISODE_STYLE_INSTRUCTION
 from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.story import _rows
@@ -23,9 +21,7 @@ EPISODE_TIMEOUT = 900.0
 _SYSTEM_PROMPT = f"""\
 あなたは日本語のライトノベルを書く作家です。
 作品の見出し・直前の話・世界の断面・顔ぶれを渡すので、この作品の次の話を一話ぶん書いてください。
-{EPISODE_WRITING_INSTRUCTION}
 {EPISODE_STYLE_INSTRUCTION}
-{AVOID_NARO_TEMPLATE_INSTRUCTION}
 JSON で答えてください。キーは title(サブタイトル。短く)と text(本文)の二つだけ。"""
 
 _SCHEMA = {

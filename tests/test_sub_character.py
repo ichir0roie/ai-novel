@@ -1,13 +1,10 @@
-"""サブキャラクターフラグ(`Character.sub_character`)。出来事・筋書きのランダム生成は
+"""サブキャラクターフラグ(`Character.sub_character`)。出来事のランダム生成は
 サブキャラクター(true)だけを対象にし、メインキャラクター(false)は外す。"""
-from DEM.ai.time_keeper import character_plot_progression, event_progression_generator, main
+from DEM.ai.time_keeper import event_progression_generator, main
 from DEM.ai.time_keeper._export import export_step
 from DEM.ai.time_keeper.random_character_generator import _generate_one
-from DEM.data_access_logic.query import world_createion_query
 from DEM.data_access_logic.query.base import character_active_condition
-from DEM.db.schema import (
-    Character, CharacterPlace, CharacterPlot, Location, Plot,
-)
+from DEM.db.schema import Character, CharacterPlace, Location, Story
 from DEM.db.stamp import Stamp
 from DEM.tool.test.mock_ai_client import MockAIClient
 
@@ -16,7 +13,8 @@ def _place(session) -> Location:
     place = Location(name="村", kind="村", text="", start=Stamp(2000), active_random_generation=True)
     session.add(place)
     session.flush()
-    session.add(Plot(location_id=place.id, text="村の筋書き", start=Stamp(2000), end=Stamp(2300)))
+    session.add(Story(name="村の話", place_id=place.id, text="村の筋書き", narration="", state="構想中",
+                      start=Stamp(2000), end=Stamp(2300)))
     session.commit()
     return place
 
@@ -52,20 +50,6 @@ def test_group_by_place_keeps_only_sub_characters(session):
     assert main_character.id not in ids
 
 
-def test_active_character_plot_count_select_ignores_main_characters(session):
-    place = _place(session)
-    main_character = _character(session, place, sub_character=False)
-    sub_character = _character(session, place, sub_character=True)
-    session.add(CharacterPlot(character_id=main_character.id, text="主役の筋書き",
-                               start=Stamp(2000), end=Stamp(2300)))
-    session.add(CharacterPlot(character_id=sub_character.id, text="脇役の筋書き",
-                               start=Stamp(2000), end=Stamp(2300)))
-    session.commit()
-
-    count = session.scalar(world_createion_query.active_character_plot_count_select(Stamp(2100)))
-    assert count == 1
-
-
 def test_generated_character_is_marked_sub_character(session):
     place = _place(session)
     ai = MockAIClient(seed=1)
@@ -98,19 +82,3 @@ def test_loop_time_exports_after_every_step(session, monkeypatch):
     main.loop_time(MockAIClient(seed=2), start_time=Stamp(2100), max_days=3)
 
     assert len(calls) == 3
-
-
-def test_loop_character_plots_exports_after_every_step(session, monkeypatch):
-    place = _place(session)
-    sub = _character(session, place, sub_character=True)
-    session.add(CharacterPlot(character_id=sub.id, text="脇役の筋書き",
-                               start=Stamp(2100), end=Stamp(2400)))
-    session.commit()
-
-    calls: list[str] = []
-    monkeypatch.setattr(character_plot_progression, "export_step", lambda when: calls.append(when))
-
-    character_plot_progression.loop_character_plots(
-        MockAIClient(seed=3), start_time=Stamp(2100), max_months=2)
-
-    assert len(calls) == 2

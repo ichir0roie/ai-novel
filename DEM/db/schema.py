@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import enum
-import re
 import os
 
 from sqlalchemy import (
@@ -234,20 +233,6 @@ class EventCharacter(Base):
     character: Mapped["Character"] = relationship(lazy="noload")
 
 
-class Plot(MarkdownBase):
-    """その場所の出来事生成に指示したい筋書き。"""
-
-    __tablename__ = "plot"
-
-    location_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("location.id"), index=True,
-        comment="この筋書きが掛かる場所", sort_order=100)
-    location: Mapped["Location | None"] = relationship(lazy="noload")
-
-    start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
-    end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
-
-
 CHARACTER_KIND_PERSON = "人物"
 
 
@@ -337,9 +322,6 @@ class Character(MarkdownBase):
     places: Mapped[list[CharacterPlace]] = relationship(
         back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
     )
-    plots: Mapped[list[CharacterPlot]] = relationship(
-        back_populates="character", lazy="noload", order_by="CharacterPlot.start.desc()")
-
     events: Mapped[list[Event]] = relationship(
         secondary="event_character", viewonly=True, lazy="noload",
         order_by="Event.start.desc()"
@@ -358,75 +340,6 @@ class CharacterPlace(Base):
 
     character: Mapped[Character | None] = relationship(back_populates="places", lazy="noload")
     place: Mapped[Location] = relationship(lazy="noload")
-
-
-class CharacterPlot(MarkdownBase):
-    """その人物の出来事生成に指示したい筋書き。`Plot`(場所側)の人物版。"""
-
-    __tablename__ = "character_plot"
-
-    character_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("character.id"), index=True, nullable=True,
-        comment="この筋書きが掛かる人物。手書きの md から入れた直後は空のことがある", sort_order=100)
-    character: Mapped["Character | None"] = relationship(back_populates="plots", lazy="noload")
-
-    start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
-    end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
-
-    @property
-    def markdown_name(self) -> str:
-        st_st = self.start.year if self.start else ""
-        ed_st = self.end.year if self.end else ""
-        head = f"{st_st}_{ed_st}"
-        name = self.filename or self.default_filename()
-        body = f"{head}_{name.replace('/', '／')}" if name else head
-        return f"{body}_{self.id}.md"
-
-    @classmethod
-    def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
-        parts = stem.split("_")
-        if len(parts) >= 3 and parts[-1].isdigit() and _is_stamp_stem(parts[0]) and _is_stamp_stem(parts[1]):
-            row_id, start, end, rest = int(parts[-1]), parts[0], parts[1], parts[2:-1]
-        elif len(parts) >= 3 and parts[0].isdigit() and _is_stamp_stem(parts[1]) and _is_stamp_stem(parts[2]):
-            row_id, start, end, rest = int(parts[0]), parts[1], parts[2], parts[3:]
-        elif len(parts) >= 2 and _is_stamp_stem(parts[0]) and _is_stamp_stem(parts[1]):
-            row_id, start, end, rest = None, parts[0], parts[1], parts[2:]
-        else:
-            row_id, values = super().parse_markdown_stem(stem)
-            return row_id, {"start": None, "end": None, **values}
-        name = "_".join(rest)
-        return row_id, {"start": _stamp_from_stem(start), "end": _stamp_from_stem(end),
-                        "filename": name or None}
-
-
-def _stamp_stem(stamp: Stamp | None) -> str:
-    if stamp is None:
-        return ""
-    if (stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second) == (1, 1, 0, 0, 0):
-        return str(stamp.year)
-    head = f"{stamp.year}-{stamp.month:02d}-{stamp.day:02d}"
-    if (stamp.hour, stamp.minute, stamp.second) == (0, 0, 0):
-        return head
-    return f"{head}T{stamp.hour:02d}{stamp.minute:02d}{stamp.second:02d}"
-
-
-_STAMP_STEM = re.compile(r"\A(\d{1,6}(-\d{1,2}-\d{1,2}(T\d{6})?)?)?\Z")
-
-
-def _is_stamp_stem(text: str) -> bool:
-    return bool(_STAMP_STEM.match(text))
-
-
-def _stamp_from_stem(text: str) -> Stamp | None:
-    if text == "":
-        return None
-    head, _, clock = text.partition("T")
-    stamp = Stamp.parse(head)
-    if stamp is None:
-        return None
-    if clock:
-        stamp = Stamp(stamp.year, stamp.month, stamp.day, int(clock[0:2]), int(clock[2:4]), int(clock[4:6]))
-    return stamp
 
 
 class CharacterRelation(MarkdownBase):

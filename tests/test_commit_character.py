@@ -8,17 +8,17 @@ from DEM.ai.claude_code.interface.randomizer.commit_character import CommitChara
 from DEM.ai.claude_code.interface.randomizer.commit_place import CommitPlace
 from DEM.ai.claude_code.interface.randomizer.create_random_character import CreateRandomCharacter
 from DEM.ai.claude_code.interface.randomizer.update_character import UpdateCharacter
-from DEM.ai.claude_code.interface.randomizer.update_plot import UpdatePlot
+from DEM.ai.claude_code.interface.story.update_story import UpdateStory
 from DEM.ai.claude_code.interface.story.read_character import ReadCharacter
 from DEM.db.schema import (
-    PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlace, Location, Plot,
+    PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlace, Location, Story,
 )
 from DEM.db.stamp import Stamp
 
 
 @pytest.fixture
 def world(session):
-    """期間の無い親(世界)と、その下に期間 2100〜2200 の村。どちらにも筋書きを置く。"""
+    """期間の無い親(世界)と、その下に期間 2100〜2200 の村。どちらにも作品を置く。"""
     root = Location(name="世界", kind="世界", text="")
     session.add(root)
     session.flush()
@@ -26,8 +26,8 @@ def world(session):
                        start=Stamp(2100), end=Stamp(2200))
     session.add(village)
     session.flush()
-    session.add(Plot(location_id=root.id, text="世界の筋書き"))
-    session.add(Plot(location_id=village.id, text="村の筋書き"))
+    session.add(Story(name="世界の話", place_id=root.id, text="世界の筋書き", narration="", state="構想中"))
+    session.add(Story(name="村の話", place_id=village.id, text="村の筋書き", narration="", state="構想中"))
     session.commit()
     return {"root": root.id, "village": village.id}
 
@@ -63,11 +63,11 @@ def test_commit_rejects_unknown_field(world):
         CommitCharacter(_draft(place_id=world["root"], start="2100", charisma="高")).run()
 
 
-def test_commit_requires_plot_on_place(session):
+def test_commit_requires_story_on_place(session):
     lonely = Location(name="孤島", kind="島", text="")
     session.add(lonely)
     session.commit()
-    with pytest.raises(ValueError, match="プロットが無い"):
+    with pytest.raises(ValueError, match="作品が無い"):
         CommitCharacter(_draft(place_id=lonely.id, start="2100")).run()
 
 
@@ -128,11 +128,11 @@ def test_update_accepts_stamp_string_with_five_digit_year(session, world):
     session.expire_all()
     assert session.get(Character, committed["id"]).start == Stamp(11556)
 
-    plot_id = session.query(Plot).filter_by(location_id=world["root"]).one().id
-    updated = UpdatePlot({"id": plot_id, "start": "11572"}).run()
+    story_id = session.query(Story).filter_by(place_id=world["root"]).one().id
+    updated = UpdateStory({"id": story_id, "start": "11572"}).run()
     assert updated["start"] == "11572/01/01 00:00:00"
     session.expire_all()
-    assert session.get(Plot, plot_id).start == Stamp(11572)
+    assert session.get(Story, story_id).start == Stamp(11572)
 
 
 def test_update_requires_id():

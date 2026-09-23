@@ -7,7 +7,6 @@ delete_tables = [
     EventCharacter,
     Character,
     CharacterPlace,
-    CharacterPlot,
     CharacterRelation,
 ]
 
