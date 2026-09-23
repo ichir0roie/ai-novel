@@ -52,7 +52,7 @@ def loop_time(
             return current_time
         with get_env_session() as s:
             time_process(s, current_time, ai)
-        export_step(format_time(current_time))
+        # export_step(format_time(current_time))
 
         next_process_day = random.randint(1, 5)
         current_time = add_days(current_time, next_process_day)
