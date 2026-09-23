@@ -7,7 +7,6 @@ WORLDS_ROOT = "worlds"
 
 def run():
     import_db.import_db()
-    shutil.rmtree(WORLDS_ROOT)
     export_db.export_db()
 
 

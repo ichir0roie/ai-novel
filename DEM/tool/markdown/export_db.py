@@ -60,8 +60,8 @@ def _write(path: str, data: dict, text: str) -> None:
 
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
     """db を md へ書き出して、テーブル名ごとの件数を辞書で返す。"""
-    # if os.path.exists(root):
-    #     shutil.rmtree(root)
+    if os.path.exists(root):
+        shutil.rmtree(root)
 
     counts: dict[str, int] = {}
     with get_novel_session() as session:
