@@ -416,8 +416,10 @@ def _stamp_from_stem(text: str) -> Stamp | None:
         return None
     head, _, clock = text.partition("T")
     stamp = Stamp.parse(head)
+    if stamp is None:
+        return None
     if clock:
-        stamp = Stamp(stamp.year, stamp.month, stamp.day, clock[0:2], clock[2:4], clock[4:6])
+        stamp = Stamp(stamp.year, stamp.month, stamp.day, int(clock[0:2]), int(clock[2:4]), int(clock[4:6]))
     return stamp
 
 
