@@ -190,6 +190,10 @@ class Location(MarkdownBase):
     children: Mapped[list[Location]] = relationship(viewonly=True)
 
 
+    def default_filename(self) -> str | None:
+        return self.name
+
+
 class Event(MarkdownBase):
 
     __tablename__ = "event"

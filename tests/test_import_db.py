@@ -53,3 +53,23 @@ def test_fixed_sessions_ignore_env_db_path():
     assert db_file(get_env_session) == "novel.test.db"
     assert db_file(get_test_session) == "novel.test.db"
     assert db_file(get_novel_session) == "novel.db"
+
+
+def test_location_markdown_name_uses_name():
+    assert Location(id=71, name="パンデム", text="").markdown_name == "71_パンデム.md"
+    assert Location(id=72, text="").markdown_name == "72.md"
+    assert Location(id=73, name="町", text="", filename="別名").markdown_name == "73_別名.md"
+
+
+def test_import_location_id_only_file_gets_named_on_export(session, tmp_path):
+    session.add(Location(id=71, name="パンデム", text=""))
+    session.commit()
+    root = str(tmp_path / "worlds")
+    _write(os.path.join(root, "location", "71.md"), "# data\n```json\n{\"name\": \"パンデム\"}\n```\n\n# text\n本文\n")
+
+    import_db(root)
+    assert session.get(Location, 71).filename is None
+
+    from DEM.tool.markdown.export_db import export_db
+    export_db(root)
+    assert sorted(os.listdir(os.path.join(root, "location"))) == ["71.md", "71_パンデム.md"]
