@@ -29,6 +29,12 @@ LOCATION_PROBABILITY = 0.01  # 1年に1度、1%の確率で
 
 # event_progression_generator
 PLACE_PROBABILITY = 0.75
+# 直近 PLACE_COOLDOWN_MONTHS ヶ月以内に同じ場所で出来事が起きていたら、
+# ロール確率に PLACE_PROBABILITY_COOLDOWN_FACTOR を掛けて下げる。プロットが
+# 集中する場所へ出来事・登場人物・語彙が偏り続けるのを緩和する
+# (2026-09 の観測: 一部の場所・人物・言い回しへの偏り)。
+PLACE_COOLDOWN_MONTHS = 2
+PLACE_PROBABILITY_COOLDOWN_FACTOR = 0.4
 # 移動先候補(_move_destinations)をどこまで拾うか。read_cast の既定
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
 REACH_LEVELS = 1

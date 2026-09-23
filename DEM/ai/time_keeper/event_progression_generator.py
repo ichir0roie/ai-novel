@@ -36,7 +36,7 @@ from DEM.db.schema import (
 )
 from DEM.ai.time_keeper._ai import AIClient
 from DEM.ai.time_keeper import constants
-from DEM.ai.time_keeper._format import add_days, format_time
+from DEM.ai.time_keeper._format import add_days, days_between, format_time
 from DEM.randomizer.random_location_generator import build_location
 
 _EVENT_TEXT_INSTRUCTION = f"""\
@@ -223,6 +223,19 @@ _PLACE_SCHEMA = {
 def _should_roll(time: Stamp) -> bool:
     """月に一度、月初(1日)にだけロールする。"""
     return time.day == 1
+
+
+def _place_roll_probability(session: Session, place_id: int, time: Stamp) -> float:
+    """直近でこの場所に出来事が集中しているほど、この回のロール確率を下げる。"""
+    last_event = session.scalars(
+        common_query.events_of_select(place_id, until=time, limit=1)
+    ).first()
+    if last_event is None:
+        return constants.PLACE_PROBABILITY
+    months_since = days_between(last_event.time, time) / 30
+    if months_since >= constants.PLACE_COOLDOWN_MONTHS:
+        return constants.PLACE_PROBABILITY
+    return constants.PLACE_PROBABILITY * constants.PLACE_PROBABILITY_COOLDOWN_FACTOR
 
 
 def _append_note(record: Character, note: str) -> None:
@@ -634,9 +647,10 @@ def generate_random(session: Session, time: Stamp, ai: AIClient) -> list[Event]:
     grouped = _group_by_place(session, time)
     total_places = len(grouped)
     for i, (place_id, characters) in enumerate(grouped.items(), start=1):
+        probability = _place_roll_probability(session, place_id, time)
         print(f"[time_keepr/event] 場所 {i}/{total_places} id={place_id}: "
-              f"人物・対象{len(characters)}件")
-        if rng.random() < constants.PLACE_PROBABILITY:
+              f"人物・対象{len(characters)}件 / ロール確率={probability:.2f}")
+        if rng.random() < probability:
             event = _progress_place(session, place_id, characters, time, rng, ai)
             if event is not None:
                 created.append(event)
