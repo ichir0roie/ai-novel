@@ -24,7 +24,10 @@ class ImportDbError(ValueError):
 
 
 _DATA_RE = re.compile(r"#\s*data\s*```json\s*(.*?)\s*```", re.S)
-_TEXT_RE = re.compile(r"#\s*text\s*\n(.*)\Z", re.S)
+
+
+def _section_re(names: tuple[str, ...]) -> re.Pattern:
+    return re.compile(r"^#[ \t]*(" + "|".join(re.escape(n) for n in names) + r")[ \t]*$", re.M)
 
 
 def _markdown_models() -> dict[str, type]:
@@ -35,14 +38,24 @@ def _markdown_models() -> dict[str, type]:
     }
 
 
-def _parse(content: str, path: str) -> tuple[dict, str]:
+def _parse(content: str, names: tuple[str, ...]) -> tuple[dict, dict[str, str]]:
+    sections = {name: "" for name in names}
     data_match = _DATA_RE.search(content)
     if not data_match:
-        return {}, content.rstrip("\n")
+        sections["text"] = content.rstrip("\n")
+        return {}, sections
     data = json.loads(data_match.group(1))
-    text_match = _TEXT_RE.search(content)
-    text = text_match.group(1).rstrip("\n") if text_match else ""
-    return data, text
+
+    rest = content[data_match.end():]
+    # 同じ見出しが本文中に再び出ても節の切れ目にしない(最初の一つだけを見出しとして扱う)
+    heads = []
+    for match in _section_re(names).finditer(rest):
+        if match.group(1) not in {name for name, _ in heads}:
+            heads.append((match.group(1), match))
+    for index, (name, match) in enumerate(heads):
+        stop = heads[index + 1][1].start() if index + 1 < len(heads) else len(rest)
+        sections[name] = rest[match.end():stop].strip("\n")
+    return data, sections
 
 
 def _upsert(
@@ -55,7 +68,7 @@ def _upsert(
     stem = os.path.basename(path)[: -len(".md")]
     row_id, stem_values = model.parse_markdown_stem(stem)
 
-    data, text = _parse(content, path)
+    data, sections = _parse(content, model.TEXT_SECTIONS)
     data_id = data.pop("id", None)
     if row_id is None and data_id is not None:
         row_id = int(data_id)
@@ -72,7 +85,7 @@ def _upsert(
         if key in stamp_columns and value not in (None, ""):
             value = Stamp.parse(value)
         values[key] = value
-    values["text"] = text
+    values.update(sections)
 
     row = session.get(model, row_id) if row_id is not None else None
     if row is None:
@@ -89,7 +102,7 @@ def _upsert(
         # 採番した id を md 側にも残す(名前か `# data` のどちらかに入る)
         os.remove(path)
         export_db._write(os.path.join(os.path.dirname(path), row.markdown_name),
-                         export_db._row_data(model, row, export_db.IGNORE_COLUMNS), text)
+                         export_db._row_data(model, row, export_db.IGNORE_COLUMNS), sections)
     return row
 
 

@@ -50,7 +50,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 | 「作品を作る」「筋書きを足して」     | `story.commit_story.CommitStory(story)`。筋書きは作品の `text` に書く        |
 | 「作品を直して」「筋書きを直して」   | `story.update_story.UpdateStory(story)`                                      |
 | 「作品を消して」                     | `story.delete_story.DeleteStory(story_id)`。話が残っていれば止まる           |
-| 「本文を確定する」                   | `story.commit_episode.CommitEpisode(episode)`                                |
+| 「本文を確定する」「話の種を入れる」 | `story.commit_episode.CommitEpisode(episode)`。`key`(種)か `text`(本文)のどちらかがあればよい |
 | 「未同期の話は残ってる?」           | `story.list_unsynced_episodes.ListUnsyncedEpisodes(story_id=None)`           |
 | 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(story_id, number, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
@@ -63,6 +63,9 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 
 補足:
 
+- 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
+  入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
+  `# data` の `start` / `end` / `place` / `viewpoint` に入る
 - `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`worlds/maps/map.html`・
   人物相関の `worlds/maps/relation.html` も描く。`ImportDb` は md → db の逆向き
 - 場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば

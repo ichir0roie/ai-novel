@@ -8,6 +8,7 @@
 - e849a5b683f6: character の read を外す
 - 5d316428a6aa: character に sub_character を足す
 - 5c15aeb8dd47: plot / character_plot を畳んで落とす
+- 052069310f38: 話に start/end・視点・場所・キーテキストを足す
 """
 import sqlite3
 
@@ -19,7 +20,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "5c15aeb8dd47"
+HEAD_REVISION = "052069310f38"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -42,7 +43,8 @@ _PLOT_TABLE_SQL = (
 def old_style_db():
     """性格列を旧来の INTEGER、text を NOT NULL に戻し、read と world_influence を持つ人物を並べた db。
 
-    あとのリビジョンで足す character_relation と location.polygon も無い形にする。
+    あとのリビジョンで足す character_relation・location.polygon・話の
+    start/end/viewpoint/place/key も無い形にする。
     """
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -66,6 +68,13 @@ def old_style_db():
     assert "\tpolygon JSON, " in location_sql
     conn.execute("DROP TABLE location")
     conn.execute(location_sql.replace("\tpolygon JSON, ", ""))
+    episode_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'episode'").fetchone()[0]
+    for column in ('start BIGINT', '"end" BIGINT', 'viewpoint VARCHAR', 'place VARCHAR',
+                   '"key" VARCHAR DEFAULT \'\' NOT NULL'):
+        assert f"\t{column}, " in episode_sql, column
+        episode_sql = episode_sql.replace(f"\n\t{column}, ", "")
+    conn.execute("DROP TABLE episode")
+    conn.execute(episode_sql)
     # plot / character_plot は schema.py から消えたので、旧 db の形を手で張り直す
     for sql in _PLOT_TABLE_SQL:
         conn.execute(sql)
@@ -244,4 +253,55 @@ def test_upgrade_folds_plots_into_story_text(old_style_db):
 
     assert "plot" not in {
         row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    conn.close()
+
+
+def _seed_episode_skeleton():
+    """骨組みだけの話を、列を足す前の形(`text` に三行と節が入った形)で入れる。"""
+    conn = sqlite3.connect(TEST_DB_PATH)
+    conn.execute("INSERT INTO location (name, kind, text, active_random_generation) "
+                 "VALUES ('ノウル', '星', '', 0)")
+    conn.execute("INSERT INTO story (name, narration, state, text) "
+                 "VALUES ('遥かなる幻想郷まで', '三人称', '構想中', '')")
+    story_id = conn.execute("SELECT id FROM story").fetchone()[0]
+    skeleton = ("- 時期: 1586年 春\n"
+                "- 場所: ヴァレンツァ 外れの川\n"
+                "- 視点: ノア(十四歳)\n"
+                "\n"
+                "## 出来事\n\n川へ飛び込む。\n\n## 狙い\n\n力の持て余しを見せる。")
+    conn.execute("INSERT INTO episode (story_id, number, title, text, letters, synced) "
+                 "VALUES (?, 1, '十四の春', ?, ?, 0)", (story_id, skeleton, len(skeleton)))
+    conn.commit()
+    conn.close()
+
+
+def test_upgrade_splits_episode_skeleton_into_columns(old_style_db):
+    _seed_episode_skeleton()
+
+    command.upgrade(_config(), "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    start, viewpoint, place, key, text, letters = conn.execute(
+        "SELECT start, viewpoint, place, key, text, letters FROM episode").fetchone()
+    # 「1586年 春」は台帳の五桁の年と、春=3月へ寄せる
+    assert Stamp.from_int(start) == Stamp(11586, 3, 1)
+    assert viewpoint == "ノア(十四歳)"
+    assert place == "ヴァレンツァ 外れの川"
+    assert key.startswith("## 出来事") and "## 狙い" in key
+    # 骨組みは種なので、本文は空のまま残す
+    assert (text, letters) == ("", 0)
+    conn.close()
+
+
+def test_downgrade_puts_episode_key_back_into_text(old_style_db):
+    _seed_episode_skeleton()
+    cfg = _config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "5c15aeb8dd47")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert "key" not in _columns(conn, "episode")
+    text = conn.execute("SELECT text FROM episode").fetchone()[0]
+    assert text.startswith("- 時期: 1586年\n- 場所: ヴァレンツァ 外れの川\n- 視点: ノア(十四歳)")
+    assert "## 出来事" in text
     conn.close()

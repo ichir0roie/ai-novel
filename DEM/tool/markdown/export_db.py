@@ -17,7 +17,7 @@ WORLDS_ROOT = "worlds"
 
 __all__ = ["WORLDS_ROOT", "ExportError", "export_db"]
 
-IGNORE_COLUMNS = {"text", "directory_path", "filename"}
+IGNORE_COLUMNS = {"directory_path", "filename"}
 
 
 class ExportError(ValueError):
@@ -39,23 +39,29 @@ def _serialize(value):
     return value
 
 
-def _render(data: dict, text: str) -> str:
+def _render(data: dict, sections: dict[str, str]) -> str:
     data_json = json.dumps(data, ensure_ascii=False, indent=2)
-    return f"# data\n```json\n{data_json}\n```\n\n# text\n{text}\n"
+    body = "".join(f"\n# {name}\n{value}\n" for name, value in sections.items())
+    return f"# data\n```json\n{data_json}\n```\n{body}"
 
 
 def _row_data(model: type, row, ignore_columns: set[str]) -> dict:
+    ignored = ignore_columns | set(model.TEXT_SECTIONS)
     return {
         column.key: _serialize(getattr(row, column.key))
         for column in model.__table__.columns
-        if column.key not in ignore_columns
+        if column.key not in ignored
     }
 
 
-def _write(path: str, data: dict, text: str) -> None:
+def _sections(model: type, row) -> dict[str, str]:
+    return {name: getattr(row, name) or "" for name in model.TEXT_SECTIONS}
+
+
+def _write(path: str, data: dict, sections: dict[str, str]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        f.write(_render(data, text))
+        f.write(_render(data, sections))
 
 
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
@@ -80,7 +86,7 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                     # 名前に id を含まないテーブルで同名になったら、id を頭に付けた(import が読める)名前へ逃がす
                     path = os.path.join(dir_path, f"{row.id}_{row.markdown_name}")
                 written.add(path)
-                _write(path, _row_data(model, row, IGNORE_COLUMNS), row.text or "")
+                _write(path, _row_data(model, row, IGNORE_COLUMNS), _sections(model, row))
 
             counts[table_name] = len(rows)
 

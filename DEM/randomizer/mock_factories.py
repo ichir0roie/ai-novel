@@ -231,9 +231,14 @@ class EpisodeFactory(_ModelFactory):
     story_id = _pool(Story, "StoryFactory")
     number = factory.Sequence(lambda n: n + 1)
     title = factory.Faker("sentence", nb_words=4, locale=_LOCALE)
+    key = factory.Faker("text", max_nb_chars=200, locale=_LOCALE)
     text = factory.Faker("text", max_nb_chars=1000, locale=_LOCALE)
     letters = factory.LazyAttribute(lambda o: len(o.text))
     synced = factory.Faker("pybool")
+    start = _optional_stamp()
+    end = _end_after_start()
+    viewpoint = factory.Faker("name", locale=_LOCALE)
+    place = factory.Faker("city", locale=_LOCALE)
 
 
 # 外部キーの参照先が先に埋まる順

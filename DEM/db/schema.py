@@ -110,6 +110,9 @@ class Base(DeclarativeBase):
 class MarkdownBase(Base):
     __abstract__ = True
 
+    # md 側で `# <名前>` の節として出し入れする列。`# data` には出さない
+    TEXT_SECTIONS: tuple[str, ...] = ("text",)
+
     text: Mapped[str] = mapped_column(String,  nullable=False, sort_order=10000)
 
     directory_path: Mapped[str | None] = mapped_column(
@@ -412,6 +415,8 @@ class Episode(MarkdownBase):
 
     __tablename__ = "episode"
 
+    TEXT_SECTIONS = ("key", "text")
+
     story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"), sort_order=200)
     story: Mapped[Story] = relationship(back_populates="episodes", lazy="noload")
     number: Mapped[int | None] = mapped_column(
@@ -426,23 +431,37 @@ class Episode(MarkdownBase):
                 "オフの話があるあいだは、次の話の材料を読み出せない",
         sort_order=240)
 
+    start: Mapped[Stamp | None] = mapped_column(StampType, comment="話が立つ時刻", sort_order=250)
+    end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
+    viewpoint: Mapped[str | None] = mapped_column(
+        String, comment="視点。誰に寄って語るか(「ノア(十四歳)」「アウレア / ミレア」)", sort_order=270)
+    place: Mapped[str | None] = mapped_column(
+        String, comment="場所。自由記述(「ヴァレンツァ 外れの川」)", sort_order=280)
+
+    key: Mapped[str] = mapped_column(
+        String, nullable=False, default="", server_default="",
+        comment="キーテキスト。作者が入れる、AI 生成前の種。md では `# key` の節",
+        sort_order=9990)
+
     def default_filename(self) -> str | None:
         return self.title or None
 
     @property
     def markdown_name(self) -> str:
-        name = self.filename or self.default_filename()
-        head = f"{self.story_id}_{self.id}"
-        return f"{head}_{name.replace('/', '／')}.md" if name else f"{head}.md"
+        head = f"{self.story_id}_{self.number}" if self.number is not None else f"{self.story_id}"
+        return f"{head}_{self.title.replace('/', '／')}.md" if self.title else f"{head}.md"
 
     @classmethod
     def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
+        # 名前は id を持たない({story_id}_{number}_{title})。行の取り違えを避けるため id は `# data` から読む
         story_part, _, rest = stem.partition("_")
-        id_part, _, filename_part = rest.partition("_")
-        if story_part.isdigit() and id_part.isdigit():
-            return int(id_part), {"story_id": int(story_part),
-                                  "filename": filename_part or None}
-        return super().parse_markdown_stem(stem)
+        if not story_part.isdigit():
+            return super().parse_markdown_stem(stem)
+        number_part, _, title_part = rest.partition("_")
+        if number_part.isdigit():
+            return None, {"story_id": int(story_part), "number": int(number_part),
+                          "title": title_part or None}
+        return None, {"story_id": int(story_part), "title": rest or None}
 
 
 DB_PATH = os.environ.get("DEM_DB_PATH", "novel.db")

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """話を一件、db へ確定する、claude が呼ぶ入口。同じ作品の同じ話数があれば上書きする。
 
-    CommitEpisode({"story_id": 1, "number": 6, "title": "…", "text": "…"}).run()
+    CommitEpisode({"story_id": 1, "number": 6, "title": "…", "key": "…"}).run()   種だけ
+    CommitEpisode({"story_id": 1, "number": 6, "title": "…", "text": "…"}).run()  本文
 """
 from __future__ import annotations
 
@@ -23,11 +24,15 @@ class CommitEpisode(StoryCommit):
         data.pop("id", None)
         data.pop("synced", None)
         self.check_columns(data)
-        for required in ("story_id", "number", "text"):
+        for required in ("story_id", "number"):
             if data.get(required) in (None, ""):
                 raise ValueError(f"{required} は必須")
+        if data.get("key") in (None, "") and data.get("text") in (None, ""):
+            raise ValueError("key(種)か text(本文)のどちらかは必須")
 
         data["number"] = int(data["number"])
+        data.setdefault("key", "")
+        data.setdefault("text", "")
         data["letters"] = len(str(data["text"]))
         data.setdefault("title", "")
 
