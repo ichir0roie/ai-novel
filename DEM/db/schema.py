@@ -131,9 +131,6 @@ class MarkdownBase(Base):
         name = self.filename or self.default_filename()
         return f"{self.id}_{name.replace('/', '／')}.md" if name else f"{self.id}.md"
 
-    # md 名に含めるので `# data` には書かない列
-    markdown_name_columns: tuple[str, ...] = ()
-
     @classmethod
     def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
         """md 名(拡張子抜き)を id と列の値に分ける。id が無い(手で作った)名前は id を None で返す。"""
@@ -373,8 +370,8 @@ class CharacterPlot(MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
 
     # md 名は `{id}_{start}_{end}_{name}.md`。時は年だけ(1 月 1 日 0 時でなければ y-mm-dd)、空なら空文字。
-    # 名前だけの md(`誕生.md` / `7_誕生.md`)は start/end を空として読む
-    markdown_name_columns = ("start", "end")
+    # 名前だけの md(`誕生.md` / `7_誕生.md`)は start/end を空として読む。
+    # `# data` にも start/end は出すが、import では名前側が勝つ
 
     @property
     def markdown_name(self) -> str:

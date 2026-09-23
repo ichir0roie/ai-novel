@@ -42,7 +42,7 @@ def test_parse_markdown_stem():
     assert CharacterPlot.parse_markdown_stem("誕生") == (None, {"start": None, "end": None, "filename": "誕生"})
 
 
-def test_export_writes_start_end_in_name_not_in_data(session, tmp_path):
+def test_export_writes_start_end_in_name_and_data(session, tmp_path):
     c = _character(session)
     session.add(CharacterPlot(character_id=c.id, text="本文", filename="誕生", start=Stamp(1572), end=Stamp(1575)))
     session.commit()
@@ -53,7 +53,20 @@ def test_export_writes_start_end_in_name_not_in_data(session, tmp_path):
     table_dir = tmp_path / "worlds" / "character_plot"
     assert os.listdir(table_dir) == [f"{plot_id}_1572_1575_誕生.md"]
     content = (table_dir / f"{plot_id}_1572_1575_誕生.md").read_text(encoding="utf-8")
-    assert '"start"' not in content and '"end"' not in content
+    assert '"start": "1572/01/01 00:00:00"' in content and '"end": "1575/01/01 00:00:00"' in content
+    assert f'"character_id": {c.id}' in content
+
+
+def test_export_writes_null_columns_in_data(session, tmp_path):
+    c = _character(session)
+    session.add(CharacterPlot(character_id=c.id, text="本文", filename="幼少"))
+    session.commit()
+    plot_id = session.query(CharacterPlot).one().id
+
+    export_db(str(tmp_path / "worlds"))
+
+    content = (tmp_path / "worlds" / "character_plot" / f"{plot_id}___幼少.md").read_text(encoding="utf-8")
+    assert '"start": null' in content and '"end": null' in content
     assert f'"character_id": {c.id}' in content
 
 

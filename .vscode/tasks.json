@@ -1,0 +1,48 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "import_db (worlds/ md -> novel.db)",
+      "type": "shell",
+      "command": ".venv/bin/python",
+      "args": [
+        "-c",
+        "from DEM.ai.claude_code.interface.sync.import_db import ImportDb; print(ImportDb().run())"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PYTHONUTF8": "1"
+        }
+      },
+      "windows": {
+        "command": ".venv/Scripts/python.exe"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "git commit & push (timestamp)",
+      "type": "shell",
+      "command": "git add -A && git commit -m \"$(date '+%Y-%m-%d %H:%M:%S')\" && git pull --rebase && git push",
+      "windows": {
+        "command": "git add -A; git commit -m (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); git pull --rebase; git push"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}
