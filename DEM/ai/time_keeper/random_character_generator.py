@@ -88,28 +88,27 @@ _NON_PERSON_CONTENT_SCHEMA = {
 
 _NAME_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観を構築する設定作家です。
-内容が決まっている人物1件に、名前と読みだけを付けます。
+内容が決まっている人物1件に、名前だけを付けます。
 {CHARACTER_NAMING_INSTRUCTION}
 渡す人物説明・年齢・筋書き・体格や口調から連想できる、この人物に似合う名前にしてください。
 居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、同じ場所の人物として馴染む名にしてください(固有名詞をそのまま持ち込まない)。
-キーは name(名前), read(読み)の二つだけ。"""
+キーは name(名前)だけ。"""
 
 _NON_PERSON_NAME_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観を構築する設定作家です。
-内容が決まっている人物以外の対象(国・組織・集団・物など)1件に、名前と読みだけを付けます。
+内容が決まっている人物以外の対象(国・組織・集団・物など)1件に、名前だけを付けます。
 {TERM_NAMING_INSTRUCTION}
 組織の名は場所名か役割名で呼べる形にする。
 居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、同じ場所のものとして馴染む名にしてください(固有名詞をそのまま持ち込まない)。
 「既にいる人物・対象の名」が渡されているときは、それらと紛らわしい名にしない。
-キーは name(名前), read(読み)の二つだけ。"""
+キーは name(名前)だけ。"""
 
 _NAME_SCHEMA = {
     "type": "object",
     "properties": {
         "name": {"type": "string"},
-        "read": {"type": "string"},
     },
-    "required": ["name", "read"],
+    "required": ["name"],
     "additionalProperties": False,
 }
 
@@ -208,10 +207,10 @@ def _record_context(records: list[Character]) -> str:
 
 
 def _character_names(characters: list[Character]) -> str:
-    """人物・対象のリストを、名前(読み)の一覧にする。命名時の重複回避に使う。"""
+    """人物・対象のリストを、名前の一覧にする。命名時の重複回避に使う。"""
     if not characters:
         return "(無し)"
-    return "、".join(f"{c.name}({c.read})" if c.read else (c.name or "") for c in characters)
+    return "、".join(c.name or "" for c in characters)
 
 
 def _location_context(place: Location | None) -> str:
@@ -311,13 +310,12 @@ def _generate_one(
         f"場所の特徴:\n{_location_context(born_place)}\n"
         f"所属する地域: {region_label}\n"
         f"既にいる人物・対象の名: {_character_names(nearby_characters)}\n"
-        f"この{subject}に似合う名前と読みを決めてください。"
+        f"この{subject}に似合う名前を決めてください。"
     )
     named = ai.try_generate_json(
         name_prompt, _NAME_SCHEMA,
         system=_NAME_SYSTEM_PROMPT if person else _NON_PERSON_NAME_SYSTEM_PROMPT)
     draft["name"] = named.get("name") or draft["name"]
-    draft["read"] = named.get("read") or draft["read"]
     draft["text"] = fill_name_placeholder(draft["text"], draft["name"])
     plot_text = fill_name_placeholder(plot_text, draft["name"])
 
@@ -337,7 +335,7 @@ def _generate_one(
     session.commit()
     when = format_time(time)
     place_label = f"{born_place.name}(id={born_place.id})" if born_place else "不明"
-    print(f"[time_keepr/character] {when} 生成: {record.name}({record.read})"
+    print(f"[time_keepr/character] {when} 生成: {record.name}"
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
           + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
              f"    性格: {_personality_label(record)}\n"

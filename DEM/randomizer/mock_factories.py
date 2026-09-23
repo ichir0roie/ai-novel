@@ -135,7 +135,6 @@ class CharacterFactory(_ModelFactory):
         rename = {"build_": "build"}
 
     name = factory.Faker("name", locale=_LOCALE)
-    read = factory.Faker("kana_name", locale=_LOCALE)
     kind = factory.Faker("random_element", elements=_CHARACTER_KINDS)
     text = _text()
 

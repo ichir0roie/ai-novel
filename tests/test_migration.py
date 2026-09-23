@@ -5,6 +5,7 @@
 - 5546b82c7972: character_relation を足す
 - c3a1f0d2b4e6: location に polygon を足す
 - bacc670e4a5f: character_relation に start/end を足す
+- e849a5b683f6: character の read を外す
 """
 import sqlite3
 
@@ -15,12 +16,12 @@ from alembic.config import Config
 from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "a3cb4c2069e0"
+HEAD_REVISION = "e849a5b683f6"
 
 
 @pytest.fixture
 def old_style_db():
-    """性格列を旧来の INTEGER、text を NOT NULL に戻し、world_influence を持つ人物を並べた db。
+    """性格列を旧来の INTEGER、text を NOT NULL に戻し、read と world_influence を持つ人物を並べた db。
 
     あとのリビジョンで足す character_relation と location.polygon も無い形にする。
     """
@@ -35,7 +36,7 @@ def old_style_db():
         create_sql = create_sql.replace(f"\t{column} VARCHAR NOT NULL", f"\t{column} INTEGER NOT NULL DEFAULT 0")
     create_sql = (create_sql
                   .replace("\ttext VARCHAR, ", "\ttext VARCHAR NOT NULL, ")
-                  .replace("\tread VARCHAR, ", "\tread VARCHAR, \n\tworld_influence INTEGER NOT NULL, "))
+                  .replace("\tname VARCHAR, ", "\tname VARCHAR, \n\tread VARCHAR, \n\tworld_influence INTEGER NOT NULL, "))
     assert "world_influence" in create_sql and "text VARCHAR NOT NULL" in create_sql
     conn.execute("DROP TABLE character")
     conn.execute(create_sql)
@@ -87,6 +88,7 @@ def test_upgrade_drops_world_influence_and_allows_null_text(old_style_db):
     conn = sqlite3.connect(TEST_DB_PATH)
     columns = _columns(conn)
     assert "world_influence" not in columns
+    assert "read" not in columns
     assert columns["text"][1] == 0
     conn.execute("INSERT INTO character (name, kind) VALUES ('無説明', '人物')")
     assert conn.execute("SELECT text FROM character WHERE name = '無説明'").fetchone() == (None,)

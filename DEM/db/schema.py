@@ -288,7 +288,6 @@ class Character(MarkdownBase):
     text: Mapped[str | None] = mapped_column(String, nullable=True, sort_order=10000)
 
     name: Mapped[str | None] = mapped_column(String, sort_order=210)
-    read: Mapped[str | None] = mapped_column(String, sort_order=220)
     kind: Mapped[str] = mapped_column(
         String, default=CHARACTER_KIND_PERSON, nullable=False,
         comment="種別。「人物」か、人物以外の対象(国・組織・商会・氏族・集団・物など)", sort_order=230)
