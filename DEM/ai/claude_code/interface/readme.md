@@ -20,10 +20,9 @@ claudeが実行するスクリプト群を配置する。
 特定の筋書き(`plot_id`)の開始時刻から指定した年数ぶんだけ進めるなら
 `local_ai_time_keeper.loop_time_for_plot()` / `claude_code_time_keeper.claude_plot_years_main()`)
 
-**世界の生成(出来事・人物・場所・本文)はもう `DEM/ai/local_ai/` の
-常駐ループだけが行う。** `randomizer/` `story/` の「作る」「確定する」入口も
-残っているが、Claude が対話の中でこれらを呼んで内容を直接決めることは
-しない。
+**世界の生成(出来事・人物・場所・本文)は `DEM/ai/local_ai/` の常駐ループが
+主に行う。** `randomizer/` `story/` の「作る」「確定する」入口を使えば、
+Claude も対話の中で人物・場所・出来事の内容を決めて確定してよい。
 
 置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の四つ。
 

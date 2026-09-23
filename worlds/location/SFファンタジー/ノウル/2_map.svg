@@ -69,7 +69,7 @@
 <path d="M1094.4,364.0 L1095.0,353.2 L1084.2,347.8 L1075.2,337.6 L1061.4,341.8 L1051.2,347.2 L1036.8,352.0 L1035.0,364.0 L1037.4,376.0 L1048.2,383.8 L1062.6,383.2 L1074.0,385.6 L1083.6,380.2 L1098.0,375.4 L1094.4,364.0 Z" fill="#1e8449" fill-opacity="0.15" fill-rule="evenodd" stroke="#1e8449" stroke-width="1.2" stroke-linejoin="round"/>
 </g>
 <g class="shape"><title>ローザ諸都市同盟 / 国 / ハルディア</title>
-<path d="M1227.6,400.0 L1225.8,389.2 L1219.8,378.4 L1205.4,379.0 L1194.6,378.4 L1180.8,379.6 L1175.4,389.8 L1174.2,400.0 L1176.0,410.2 L1184.4,417.4 L1194.6,419.8 L1206.6,425.2 L1220.4,422.2 L1227.6,411.4 L1227.6,400.0 Z" fill="#1e8449" fill-opacity="0.15" fill-rule="evenodd" stroke="#1e8449" stroke-width="1.2" stroke-linejoin="round"/>
+<path d="M1212.0,528.4 L1260.0,526.0 L1308.0,518.8 L1356.0,511.0 L1404.0,487.6 L1419.0,451.0 L1404.0,412.0 L1356.0,388.0 L1296.0,394.0 L1236.0,418.0 L1212.0,472.0 L1212.0,528.4 Z" fill="#1e8449" fill-opacity="0.15" fill-rule="evenodd" stroke="#1e8449" stroke-width="1.2" stroke-linejoin="round"/>
 </g>
 <g class="shape"><title>ドヴェルグ山王国 / 国 / ヴォルド</title>
 <path d="M927.0,208.0 L907.8,199.6 L897.0,191.8 L882.0,182.8 L859.2,186.4 L830.4,184.6 L816.0,196.0 L808.2,208.0 L825.0,218.2 L832.2,230.2 L858.0,232.6 L883.8,235.6 L899.4,225.4 L918.0,218.8 L927.0,208.0 Z" fill="#b9770e" fill-opacity="0.15" fill-rule="evenodd" stroke="#b9770e" stroke-width="1.2" stroke-linejoin="round"/>
@@ -92,6 +92,24 @@
 <g class="shape"><title>ヴォルド / 大陸 / ノウル</title>
 <path d="M60.0,284.8 L151.8,349.0 L279.6,374.2 L408.0,361.6 L510.6,310.6 L600.6,284.8 L715.8,284.8 L818.4,271.6 L921.0,259.0 L997.8,259.0 L1062.0,233.2 L1087.8,182.2 L1049.4,118.0 L946.8,66.4 L792.6,46.0 L536.4,46.0 L279.6,53.8 L87.6,92.2 L60.0,156.4 L60.0,284.8 Z" fill="#5d6d7e" fill-opacity="0.15" fill-rule="evenodd" stroke="#5d6d7e" stroke-width="1.2" stroke-linejoin="round"/>
 <text x="598.2" y="212.3" text-anchor="middle" font-size="13" font-weight="bold" fill="#5d6d7e" fill-opacity="0.7">ヴォルド</text>
+</g>
+<g class="shape"><title>ヴァレンツァ / 都市 / ローザ諸都市同盟</title>
+<path d="M1241.4,505.6 L1248.6,505.6 L1248.6,498.4 L1241.4,498.4 L1241.4,505.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
+</g>
+<g class="shape"><title>カプレオ / 都市 / ローザ諸都市同盟</title>
+<path d="M1298.4,496.6 L1305.6,496.6 L1305.6,489.4 L1298.4,489.4 L1298.4,496.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
+</g>
+<g class="shape"><title>ドラージョ / 都市 / ローザ諸都市同盟</title>
+<path d="M1364.4,469.6 L1371.6,469.6 L1371.6,462.4 L1364.4,462.4 L1364.4,469.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
+</g>
+<g class="shape"><title>ミラベル / 都市 / ローザ諸都市同盟</title>
+<path d="M1253.4,457.6 L1260.6,457.6 L1260.6,450.4 L1253.4,450.4 L1253.4,457.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
+</g>
+<g class="shape"><title>ソラーナ / 都市 / ローザ諸都市同盟</title>
+<path d="M1307.4,433.6 L1314.6,433.6 L1314.6,426.4 L1307.4,426.4 L1307.4,433.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
+</g>
+<g class="shape"><title>フォンターレ / 都市 / ローザ諸都市同盟</title>
+<path d="M1379.4,430.6 L1386.6,430.6 L1386.6,423.4 L1379.4,423.4 L1379.4,430.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
 </g>
 <g><title>パルサ交易王国 / 国 / ザハラ / lon 25 lat -18 (+600 m)</title>
 <circle cx="1290.0" cy="688.0" r="4.0" fill="#c0392b" stroke="#fff" stroke-width="1" />
@@ -129,9 +147,9 @@
 <circle cx="1068.0" cy="364.0" r="4.0" fill="#1e8449" stroke="#fff" stroke-width="1" />
 <text x="1076.0" y="368.0" text-anchor="start" fill="#1e8449" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">リオネ王国 (+80 m)</text>
 </g>
-<g><title>ローザ諸都市同盟 / 国 / ハルディア / lon 10 lat 30 (+10 m)</title>
-<circle cx="1200.0" cy="400.0" r="4.0" fill="#1e8449" stroke="#fff" stroke-width="1" />
-<text x="1208.0" y="404.0" text-anchor="start" fill="#1e8449" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ローザ諸都市同盟 (+10 m)</text>
+<g><title>ローザ諸都市同盟 / 国 / ハルディア / lon 29 lat 19 (+10 m)</title>
+<circle cx="1314.0" cy="466.0" r="4.0" fill="#1e8449" stroke="#fff" stroke-width="1" />
+<text x="1322.0" y="470.0" text-anchor="start" fill="#1e8449" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ローザ諸都市同盟 (+10 m)</text>
 </g>
 <g><title>ドヴェルグ山王国 / 国 / ヴォルド / lon -45 lat 62 (+1,800 m)</title>
 <circle cx="870.0" cy="208.0" r="4.0" fill="#b9770e" stroke="#fff" stroke-width="1" />
@@ -165,6 +183,30 @@
 <path d="M1248.0,792.0 L1252.0,796.0 L1248.0,800.0 L1244.0,796.0 Z" fill="#a04000" stroke="#fff" stroke-width="1" />
 <text x="1256.0" y="800.0" text-anchor="start" fill="#a04000" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ホロウ (-750 m)</text>
 </g>
+<g><title>ヴァレンツァ / 都市 / ローザ諸都市同盟 / lon 17.5 lat 13</title>
+<path d="M1245.0,498.0 L1249.0,502.0 L1245.0,506.0 L1241.0,502.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="1253.0" y="506.0" text-anchor="start" fill="#d4ac0d" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ヴァレンツァ</text>
+</g>
+<g><title>カプレオ / 都市 / ローザ諸都市同盟 / lon 27 lat 14.5</title>
+<path d="M1302.0,489.0 L1306.0,493.0 L1302.0,497.0 L1298.0,493.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="1302.0" y="484.0" text-anchor="middle" fill="#d4ac0d" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">カプレオ</text>
+</g>
+<g><title>ドラージョ / 都市 / ローザ諸都市同盟 / lon 38 lat 19</title>
+<path d="M1368.0,462.0 L1372.0,466.0 L1368.0,470.0 L1364.0,466.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="1368.0" y="457.0" text-anchor="middle" fill="#d4ac0d" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ドラージョ</text>
+</g>
+<g><title>ミラベル / 都市 / ローザ諸都市同盟 / lon 19.5 lat 21</title>
+<path d="M1257.0,450.0 L1261.0,454.0 L1257.0,458.0 L1253.0,454.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="1265.0" y="458.0" text-anchor="start" fill="#d4ac0d" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ミラベル</text>
+</g>
+<g><title>ソラーナ / 都市 / ローザ諸都市同盟 / lon 28.5 lat 25</title>
+<path d="M1311.0,426.0 L1315.0,430.0 L1311.0,434.0 L1307.0,430.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="1319.0" y="434.0" text-anchor="start" fill="#d4ac0d" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ソラーナ</text>
+</g>
+<g><title>フォンターレ / 都市 / ローザ諸都市同盟 / lon 40.5 lat 25.5</title>
+<path d="M1383.0,423.0 L1387.0,427.0 L1383.0,431.0 L1379.0,427.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="1391.0" y="431.0" text-anchor="start" fill="#d4ac0d" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">フォンターレ</text>
+</g>
 <text x="2240" y="52" font-weight="bold">親ごとの色</text>
 <circle cx="2246.0" cy="68.0" r="5.0" fill="#c0392b" stroke="#fff" stroke-width="1" />
 <text x="2258" y="72">ザハラ (大陸)</text>
@@ -182,7 +224,9 @@
 <text x="2258" y="180">ネザル (世界)</text>
 <path d="M2246.0,189.0 L2251.0,194.0 L2246.0,199.0 L2241.0,194.0 Z" fill="#5d6d7e" stroke="#fff" stroke-width="1" />
 <text x="2258" y="198">ノウル (星)</text>
-<text x="2240" y="228" fill="#555">● 大陸の子  ◆ それ以外の子</text>
-<text x="2240" y="244" fill="#555">同じ経緯度は印を重ね、名を下に積む</text>
-<text x="2240" y="260" fill="#555">薄い面は輪郭(polygon)を持つ場所</text>
+<path d="M2246.0,207.0 L2251.0,212.0 L2246.0,217.0 L2241.0,212.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />
+<text x="2258" y="216">ローザ諸都市同盟 (国)</text>
+<text x="2240" y="246" fill="#555">● 大陸の子  ◆ それ以外の子</text>
+<text x="2240" y="262" fill="#555">同じ経緯度は印を重ね、名を下に積む</text>
+<text x="2240" y="278" fill="#555">薄い面は輪郭(polygon)を持つ場所</text>
 </svg>

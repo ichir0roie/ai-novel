@@ -1,8 +1,8 @@
 {
-  "model": "sonnet",
+  "model": "opus",
   "effortLevel": "high",
   "modelSettings": {
-    "sonnet": {
+    "opus": {
       "effortLevel": "high"
     }
   }

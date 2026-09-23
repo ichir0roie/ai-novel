@@ -54,7 +54,7 @@ def loop_time(
             time_process(s, current_time, ai)
         # export_step(format_time(current_time))
 
-        next_process_day = random.randint(1, 5)
+        next_process_day = random.randint(1, 60)
         current_time = add_days(current_time, next_process_day)
         days_done += 1
 
