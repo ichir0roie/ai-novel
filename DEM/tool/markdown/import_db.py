@@ -52,18 +52,12 @@ def _upsert(
         content = f.read()
 
     stem = os.path.basename(path)[: -len(".md")]
-    id_part, _, filename_part = stem.partition("_")
-    if id_part.isdigit():
-        row_id = int(id_part)
-        filename = filename_part or None
-    else:
-        row_id = None
-        filename = stem
+    row_id, stem_values = model.parse_markdown_stem(stem)
 
     data, text = _parse(content, path)
     data.pop("id", None)
     data["directory_path"] = directory_path
-    data["filename"] = filename
+    data.update(stem_values)
 
     unknown = set(data) - columns
     if unknown:

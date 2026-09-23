@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import enum
+import re
 import os
 
 from sqlalchemy import (
@@ -129,6 +130,17 @@ class MarkdownBase(Base):
     def markdown_name(self) -> str:
         name = self.filename or self.default_filename()
         return f"{self.id}_{name.replace('/', '／')}.md" if name else f"{self.id}.md"
+
+    # md 名に含めるので `# data` には書かない列
+    markdown_name_columns: tuple[str, ...] = ()
+
+    @classmethod
+    def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
+        """md 名(拡張子抜き)を id と列の値に分ける。id が無い(手で作った)名前は id を None で返す。"""
+        id_part, _, filename_part = stem.partition("_")
+        if id_part.isdigit():
+            return int(id_part), {"filename": filename_part or None}
+        return None, {"filename": stem}
 
 
 class Location(MarkdownBase):
@@ -355,6 +367,58 @@ class CharacterPlot(MarkdownBase):
 
     start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
     end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
+
+    # md 名は `{id}_{start}_{end}_{name}.md`。時は年だけ(1 月 1 日 0 時でなければ y-mm-dd)、空なら空文字。
+    # 名前だけの md(`誕生.md` / `7_誕生.md`)は start/end を空として読む
+    markdown_name_columns = ("start", "end")
+
+    @property
+    def markdown_name(self) -> str:
+        head = f"{self.id}_{_stamp_stem(self.start)}_{_stamp_stem(self.end)}"
+        name = self.filename or self.default_filename()
+        return f"{head}_{name.replace('/', '／')}.md" if name else f"{head}.md"
+
+    @classmethod
+    def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
+        parts = stem.split("_")
+        if len(parts) >= 3 and parts[0].isdigit() and _is_stamp_stem(parts[1]) and _is_stamp_stem(parts[2]):
+            row_id, start, end, rest = int(parts[0]), parts[1], parts[2], parts[3:]
+        elif len(parts) >= 2 and _is_stamp_stem(parts[0]) and _is_stamp_stem(parts[1]):
+            row_id, start, end, rest = None, parts[0], parts[1], parts[2:]
+        else:
+            row_id, values = super().parse_markdown_stem(stem)
+            return row_id, {"start": None, "end": None, **values}
+        name = "_".join(rest)
+        return row_id, {"start": _stamp_from_stem(start), "end": _stamp_from_stem(end),
+                        "filename": name or None}
+
+
+def _stamp_stem(stamp: Stamp | None) -> str:
+    if stamp is None:
+        return ""
+    if (stamp.month, stamp.day, stamp.hour, stamp.minute, stamp.second) == (1, 1, 0, 0, 0):
+        return str(stamp.year)
+    head = f"{stamp.year}-{stamp.month:02d}-{stamp.day:02d}"
+    if (stamp.hour, stamp.minute, stamp.second) == (0, 0, 0):
+        return head
+    return f"{head}T{stamp.hour:02d}{stamp.minute:02d}{stamp.second:02d}"
+
+
+_STAMP_STEM = re.compile(r"\A(\d{1,6}(-\d{1,2}-\d{1,2}(T\d{6})?)?)?\Z")
+
+
+def _is_stamp_stem(text: str) -> bool:
+    return bool(_STAMP_STEM.match(text))
+
+
+def _stamp_from_stem(text: str) -> Stamp | None:
+    if text == "":
+        return None
+    head, _, clock = text.partition("T")
+    stamp = Stamp.parse(head)
+    if clock:
+        stamp = Stamp(stamp.year, stamp.month, stamp.day, clock[0:2], clock[2:4], clock[4:6])
+    return stamp
 
 
 class CharacterRelation(MarkdownBase):
