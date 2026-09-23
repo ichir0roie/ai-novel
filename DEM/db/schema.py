@@ -360,10 +360,10 @@ class CharacterPlot(MarkdownBase):
 
     __tablename__ = "character_plot"
 
-    character_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("character.id"), index=True,
-        comment="この筋書きが掛かる人物", sort_order=100)
-    character: Mapped["Character"] = relationship(back_populates="plots", lazy="noload")
+    character_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("character.id"), index=True, nullable=True,
+        comment="この筋書きが掛かる人物。手書きの md から入れた直後は空のことがある", sort_order=100)
+    character: Mapped["Character | None"] = relationship(back_populates="plots", lazy="noload")
 
     start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
     end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)

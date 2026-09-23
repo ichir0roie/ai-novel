@@ -15,7 +15,7 @@ from alembic.config import Config
 from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "bacc670e4a5f"
+HEAD_REVISION = "a3cb4c2069e0"
 
 
 @pytest.fixture
