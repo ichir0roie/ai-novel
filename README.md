@@ -38,12 +38,6 @@ DEM/
                       mock_ai_client で AI 無しに redrive_mock_world を回す、seed_mock_db で全テーブルにモックデータを流し込む)
 ```
 
-## Claude はもう物語を直接生成しない
-
-出来事・人物(国・組織などの対象も含む)・場所も、本文(`episode`)も、`DEM/ai/local_ai/`(常駐ループ)
-が生成する。Claude がこのリポジトリで担うのは、その生成の仕組み
-(`DEM/ai/local_ai/` `DEM/ai/claude_code/interface/` など)を作る・直す開発作業。
-
 ## 触り方
 
 ```
