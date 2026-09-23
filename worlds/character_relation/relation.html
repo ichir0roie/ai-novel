@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>人物の相関</title>
+<style>
+  :root { --bg: #fdfcf8; --sea: #eef3f7; --ink: #222; --dim: #666; --line: #c8d0d8; --panel: #fff; }
+  body { margin: 0; font-family: sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; margin: 0 16px 0 0; }
+  .layers label { margin-right: 10px; white-space: nowrap; }
+  .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 3px; vertical-align: middle; }
+  main { display: grid; grid-template-columns: 1fr 380px; height: calc(100vh - 56px); }
+  #graph { overflow: auto; }
+  svg { display: block; }
+  aside { border-left: 1px solid var(--line); overflow: auto; padding: 12px; background: var(--panel); font-size: 13px; }
+  aside h2 { font-size: 14px; margin: 0 0 6px; }
+  aside h3 { font-size: 13px; margin: 12px 0 4px; color: var(--dim); }
+  aside dl { margin: 0 0 12px; display: grid; grid-template-columns: 5em 1fr; gap: 2px 8px; }
+  aside dt { color: var(--dim); }
+  aside dd { margin: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: var(--sea); }
+  .hint { color: var(--dim); }
+  .text { white-space: pre-wrap; margin: 4px 0 8px; }
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: #fff; padding: 6px 8px; font-size: 12px; border-radius: 3px; white-space: pre; display: none; max-width: 360px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 40vh; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>人物の相関</h1>
+  <div class="layers" id="layers"></div>
+  <label class="hint">拡大 <input type="range" id="zoom" min="0.5" max="3" step="0.25" value="1"> <span id="zoomv">1×</span></label>
+  <label class="hint" id="yearbox">年 <input type="range" id="year"> <span id="yearv"></span> <label><input type="checkbox" id="allyears" checked>全期間</label></label>
+  <button id="reset">並べ直す</button>
+</header>
+<main>
+  <div id="graph"></div>
+  <aside id="side"></aside>
+</main>
+<div class="tip" id="tip"></div>
+<script>
+const DATA = {"characters": [{"id": 1, "name": "ノア", "kind": "人物", "sex": "両性", "start": 11572, "end": 11722, "path": "1.md"}, {"id": 2, "name": "ミレア", "kind": "人物", "sex": "女", "start": 11540, "end": null, "path": "2.md"}, {"id": 3, "name": "カシル", "kind": "人物", "sex": "男", "start": 11534, "end": null, "path": "3.md"}, {"id": 4, "name": "アウレア", "kind": "人物", "sex": "女", "start": 11480, "end": null, "path": "4.md"}, {"id": 5, "name": "ピリム", "kind": "人物", "sex": "無し", "start": 11300, "end": null, "path": "5.md"}, {"id": 6, "name": "セルウィン", "kind": "人物", "sex": "男", "start": 11190, "end": null, "path": "6.md"}, {"id": 7, "name": "ラファル", "kind": "人物", "sex": "男", "start": 11572, "end": null, "path": "7.md"}, {"id": 8, "name": "裁きの座", "kind": "組織", "sex": null, "start": 10000, "end": null, "path": "8.md"}, {"id": 9, "name": "血の書き手", "kind": "組織", "sex": null, "start": 10000, "end": null, "path": "9.md"}], "relations": [{"id": 1, "character_id_1": 2, "character_id_2": 1, "relation": "母(同居)", "start": 11572, "end": 11582, "text": "産んだ日に娘の体が型に無いと知る。裁きの座に届けはするが外装の装着は拒み、長い使者の役を負う代わりに娘を連れてヴェルム聖王国へ降りる。地上では人間族の子として育て、翼が無い理由も父のことも語らない。"}, {"id": 2, "character_id_1": 2, "character_id_2": 1, "relation": "母(離別)", "start": 11582, "end": null, "text": "十年の儀で娘に翼が授けられず、自分だけが都に召し戻される。戻るとは言わずに昇り、地上の暮らし方だけを娘に残す。母アウレアから預かった灯し方の一枚を娘へ渡す。"}, {"id": 3, "character_id_1": 1, "character_id_2": 2, "relation": "娘", "start": 11572, "end": null, "text": "地上での最初の十年を母と二人で暮らす。母が天使の使者として奉られる横で、人間族の子として育つ。十年目に母だけが昇り、地上に残される。"}, {"id": 4, "character_id_1": 3, "character_id_2": 1, "relation": "父(名乗らぬ)", "start": 11572, "end": 11582, "text": "娘の体を「始まりの民の型」で書き、外装を繋ぐ口を作らなかった。妻と娘が地上へ降りたのを追わずに都に残り、十年のうちに都を追われて地下ネザルへ降りる。"}, {"id": 5, "character_id_1": 3, "character_id_2": 1, "relation": "敵(悪魔として)", "start": 11582, "end": null, "text": "パンデムの悪魔として地上に「開かれた型」を配る。旅する「翼の無い天の子」の噂で娘と知るが名乗らず、配る手を止めない。11612年頃、型を追って地下まで来た娘と対面し、味方に引き込もうとして拒まれ、敗れる。父と名乗らぬまま娘の旅の先に立ち続ける敵として残る。"}, {"id": 6, "character_id_1": 1, "character_id_2": 3, "relation": "父を知らぬ", "start": 11572, "end": 11612, "text": "父を知らずに育つ。旅の中で、自分の配った型を負わされて追われる者たちの側に立ち、型の出所を辿る。その先に居るのが父だとは知らない。"}, {"id": 7, "character_id_1": 1, "character_id_2": 3, "relation": "敵(父と知って拒む)", "start": 11612, "end": null, "text": "地下パンデムで対面し、自分の体を書いたのもこの悪魔だと告げられる。父と知って拒み、刃を向けて敗る。父が地上に散らした型の持ち主たちを遺される。"}, {"id": 8, "character_id_1": 3, "character_id_2": 2, "relation": "夫", "start": 11565, "end": 11582, "text": "序列の下の家から腕で上がり、使者の家のミレアと結ばれて家に入る。娘が地上へ降りたあとも都に残り、都を追われてからは妻と娘のことを口にしなくなる。"}, {"id": 9, "character_id_1": 2, "character_id_2": 3, "relation": "妻(庇う)", "start": 11565, "end": 11582, "text": "夫が娘の体を書いたと知って庇い、罰を自分が負う形で娘を地上へ連れ出す。夫が都を追われたことは、地上で知る。"}, {"id": 10, "character_id_1": 4, "character_id_2": 2, "relation": "母・家長", "start": 11540, "end": null, "text": "使者の家の家長。娘の縁組を腕を買って認めたが、孫の白い灯りを家を沈める穢れと見る。娘が孫を連れて降りるのを「家が自ら罰を負った」形に整えて序列を保つ。"}, {"id": 11, "character_id_1": 2, "character_id_2": 4, "relation": "娘", "start": 11540, "end": null, "text": "家長の母に、孫を届けて外装を早く繋がせよと言われるが従わない。召し戻されたあと、母から孫へ渡す灯し方の一枚を預かる。"}, {"id": 12, "character_id_1": 4, "character_id_2": 1, "relation": "祖母(穢れと見る)", "start": 11572, "end": 11582, "text": "型に無い孫を家を沈める穢れとして見る。娘婿カシルが都を追われた年に、家を守るため孫を「家の子でない」と帳から外す。"}, {"id": 13, "character_id_1": 4, "character_id_2": 1, "relation": "祖母(灯し方を遺す)", "start": 11582, "end": null, "text": "十年目、孫に翼を授けぬ裁きを家長として受け入れる。だが召し戻された娘に、孫へ渡すよう自分の灯りの灯し方を書いた一枚を持たせる。"}, {"id": 14, "character_id_1": 4, "character_id_2": 3, "relation": "娘婿(縁を切る)", "start": 11565, "end": 11582, "text": "序列の下の出だが腕が家の役に立つとして縁組を認めた。カシルが都を追われた年に、家を守るために縁を切る。"}, {"id": 15, "character_id_1": 8, "character_id_2": 2, "relation": "使者の役を負わせる", "start": 11558, "end": 11582, "text": "11558年から三度、地上への使者として裁定を告げさせた。11572年、願い出を受けて罰として長い使者の役を負わせ、母子ともに地上へ降ろす。11582年、母だけを召し戻す。"}, {"id": 16, "character_id_1": 8, "character_id_2": 1, "relation": "帳に入らぬ子", "start": 11572, "end": 11582, "text": "届けられた子を帳のどこにも入れられず初めて割れる。都に居ないことで穢れの声を抑えつつ、見張りの妖精をつける。地上から上がる「天の子」の噂を、加護と取る派と穢れと取る派で対立する。"}, {"id": 17, "character_id_1": 8, "character_id_2": 1, "relation": "翼を授けぬ裁き", "start": 11582, "end": null, "text": "十年の儀で翼を授けないと裁き、子を地上の帳の外に置く。授けなかった前例が座の中に亀裂として残る。"}, {"id": 18, "character_id_1": 8, "character_id_2": 3, "relation": "都から追う", "start": 11572, "end": null, "text": "白い灯りの理由を組が調べ、写しが見つかったのを受けて都から追う。以後、地下から「開かれた型」を配る悪魔として裁定の相手になる。"}, {"id": 19, "character_id_1": 8, "character_id_2": 6, "relation": "記録の封印を求める", "start": 11572, "end": 11582, "text": "子を巡る都の痕跡を消すため、リンドールの塔に子に関わる記録をすべて封じるよう求める。"}, {"id": 20, "character_id_1": 8, "character_id_2": 5, "relation": "使い", "start": 11310, "end": 11582, "text": "言いつけを地上まで運ぶ使いとして二百年余り使う。11572年、白い灯りの子の見張り役につけて母子と共に降ろす。嘘の報告が露見して使いを解くが、体が無いので追い払えない。"}, {"id": 21, "character_id_1": 5, "character_id_2": 1, "relation": "見張り(肩入れ)", "start": 11572, "end": 11582, "text": "見張り役として子の側で見聞きしたことを毎月都へ報告するが、川へ飛び込み塀を登る子と遊ぶうちに肩入れし、都合の悪いことを抜き始める。神官の法廷の庭で悪魔の遺物に触れて倒れかけた子を風の姿で運び出し、嘘の報告を出す。"}, {"id": 22, "character_id_1": 5, "character_id_2": 1, "relation": "影に住みつく", "start": 11582, "end": null, "text": "嘘が露見して座の使いを解かれるが、母が昇ったあとも子の影に住みついて離れない。"}, {"id": 23, "character_id_1": 7, "character_id_2": 5, "relation": "報告を盗み聞く", "start": 11572, "end": 11582, "text": "見張りの妖精が都へ運ぶ報告を盗み聞きし、地上の子の話を自分の灯り比べより面白いと思う。"}, {"id": 24, "character_id_1": 9, "character_id_2": 8, "relation": "座の下に置かれる", "start": 1, "end": null, "text": "数の始まりに裁きの座の下に置かれ、型を守ることで序列を守る役を負う。カシルの写しが見つかったとき、自ら座に報告して組の掟の潔白を示す。"}, {"id": 25, "character_id_1": 9, "character_id_2": 3, "relation": "組の書き手", "start": 11552, "end": 11582, "text": "序列の下の出として初めて腕で組に入れた。娘の灯りが白いと知り、型のどこから外れたかを組の中だけで調べる。手元からリンドールの写しが見つかり、長が破門を告げる。"}, {"id": 26, "character_id_1": 9, "character_id_2": 3, "relation": "破門した者", "start": 11582, "end": null, "text": "型から外れた体を二度と書かせぬよう掟を厳しくする。だが白い灯りの型を覚えている書き手が組の中に一人残る。"}, {"id": 27, "character_id_1": 6, "character_id_2": 3, "relation": "写しの貸し借り", "start": 11560, "end": 11582, "text": "エンピレオとの写しの貸し借りで文だけの付き合い。11572年、禁じられた棚の「始まりの民の型」が一枚消えていると気づき、白い灯りの子と結びつけて文で問いただすが、はぐらかされる。"}, {"id": 28, "character_id_1": 3, "character_id_2": 6, "relation": "写しを返さぬ", "start": 11560, "end": null, "text": "塔から借りた「始まりの民の型」の写しを返さずに手元に留め、娘の体を書く。都を追われるときに地下へ持ち去る。"}, {"id": 29, "character_id_1": 6, "character_id_2": 1, "relation": "記録に無い者", "start": 11582, "end": null, "text": "座に求められて子に関わる記録を封じるが、生まれた年を五桁で記した一枚だけを棚の外に残す。いつか塔に来ると信じている。"}, {"id": 30, "character_id_1": 7, "character_id_2": 1, "relation": "同じ年の子(噂で知る)", "start": 11572, "end": 11582, "text": "序列一位の家の跡取り。同じ年に生まれて地上へ降ろされた白い灯りの子の噂を、顔を見る前から都で聞いて育つ。"}, {"id": 31, "character_id_1": 7, "character_id_2": 1, "relation": "翼を得た側", "start": 11582, "end": null, "text": "十年の儀で翼を授かり、同じ日にあの子には授けぬと裁かれたと知る。家は名を口にすることを禁じるが、雲の縁まで飛べる自分だけが見に行けると思い、地上に降りる口実を探す。"}]};
+const COLORS = ["#c0392b", "#2471a3", "#1e8449", "#b9770e", "#7d3c98", "#148f77", "#a04000", "#5d6d7e", "#d4ac0d", "#884ea0"];
+const R_NODE = 18, BASE = 720;
+const state = { hidden: new Set(), selected: null, zoom: 1, pos: new Map(), drag: null, year: null };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const byId = new Map(DATA.characters.map(c => [c.id, c]));
+const nameOf = id => byId.get(id)?.name ?? `id=${id}`;
+const kinds = [...new Set(DATA.characters.map(c => c.kind ?? ""))];
+const colorOf = Object.fromEntries(kinds.map((k, i) => [k, COLORS[i % COLORS.length]]));
+const shownCharacters = () => DATA.characters.filter(c => !state.hidden.has(c.kind ?? ""));
+const inYear = (o, y) => y == null || ((o.start == null || o.start <= y) && (o.end == null || o.end > y));
+const shownRelations = () => { const ids = new Set(shownCharacters().map(c => c.id));
+  return DATA.relations.filter(r => ids.has(r.character_id_1) && ids.has(r.character_id_2) && inYear(r, state.year)); };
+const spanText = o => (o.start == null && o.end == null) ? "" : `${o.start ?? ""}〜${o.end ?? ""}`;
+const YEARS = [...DATA.relations, ...DATA.characters].flatMap(o => [o.start, o.end]).filter(y => y != null);
+const YEAR_MIN = YEARS.length ? Math.min(...YEARS) : 0, YEAR_MAX = YEARS.length ? Math.max(...YEARS) : 0;
+const firstLine = t => (t ?? "").split("\n").find(l => l.trim()) ?? "";
+
+function layout() {
+  // 円に並べてから、繋がりのある同士を寄せ、無い同士を離す簡単な力学配置。
+  const nodes = DATA.characters, n = nodes.length, cx = BASE / 2, cy = BASE / 2, r = BASE / 2 - 80;
+  const pos = new Map(nodes.map((c, i) => [c.id, { x: cx + r * Math.cos(2 * Math.PI * i / n - Math.PI / 2), y: cy + r * Math.sin(2 * Math.PI * i / n - Math.PI / 2) }]));
+  const linked = new Set(DATA.relations.map(e => `${e.character_id_1}:${e.character_id_2}`));
+  const isLinked = (a, b) => linked.has(`${a}:${b}`) || linked.has(`${b}:${a}`);
+  for (let step = 0; step < 300; step++) {
+    const force = new Map(nodes.map(c => [c.id, { x: 0, y: 0 }]));
+    for (const a of nodes) for (const b of nodes) {
+      if (a.id >= b.id) continue;
+      const pa = pos.get(a.id), pb = pos.get(b.id);
+      const dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.max(1, Math.hypot(dx, dy));
+      let f = 20000 / (d * d);
+      if (isLinked(a.id, b.id)) f -= (d - 160) * 0.05;
+      force.get(a.id).x -= f * dx / d; force.get(a.id).y -= f * dy / d;
+      force.get(b.id).x += f * dx / d; force.get(b.id).y += f * dy / d;
+    }
+    for (const c of nodes) {
+      const p = pos.get(c.id), f = force.get(c.id);
+      p.x += (cx - p.x) * 0.01 + Math.max(-8, Math.min(8, f.x));
+      p.y += (cy - p.y) * 0.01 + Math.max(-8, Math.min(8, f.y));
+      p.x = Math.min(BASE - 60, Math.max(60, p.x)); p.y = Math.min(BASE - 60, Math.max(60, p.y));
+    }
+  }
+  state.pos = pos;
+}
+
+function renderLayers() {
+  const box = document.getElementById("layers");
+  box.innerHTML = kinds.map(k =>
+    `<label><input type="checkbox" data-kind="${esc(k)}" ${state.hidden.has(k) ? "" : "checked"}>` +
+    `<span class="swatch" style="background:${colorOf[k]}"></span>${esc(k || "(種別なし)")}</label>`).join("");
+  box.onchange = e => { const k = e.target.dataset.kind; if (e.target.checked) state.hidden.delete(k); else state.hidden.add(k); render(); };
+}
+
+function edgePath(a, b, bend) {
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(1, Math.hypot(dx, dy));
+  const nx = -dy / d, ny = dx / d;
+  const mx = (a.x + b.x) / 2 + nx * bend, my = (a.y + b.y) / 2 + ny * bend;
+  const ex = b.x - dx / d * (R_NODE + 4) + (mx - b.x) * 0.0, ey = b.y - dy / d * (R_NODE + 4);
+  return { d: `M${a.x},${a.y} Q${mx},${my} ${ex},${ey}`, lx: (a.x + 2 * mx + b.x) / 4, ly: (a.y + 2 * my + b.y) / 4 };
+}
+
+function renderGraph() {
+  const z = state.zoom, W = BASE * z, H = BASE * z;
+  const chars = shownCharacters(), rels = shownRelations();
+  const sel = state.selected;
+  const related = new Set();
+  if (sel?.type === "character") for (const r of rels) if (r.character_id_1 === sel.id || r.character_id_2 === sel.id) related.add(r.id);
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-size="${11 * z}">`;
+  s += `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker>` +
+       `<marker id="arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker></defs>`;
+  s += `<rect width="${W}" height="${H}" fill="#fdfcf8"/>`;
+  const pairCount = new Map();
+  for (const r of rels) { const k = [r.character_id_1, r.character_id_2].sort((a, b) => a - b).join(":"); pairCount.set(k, (pairCount.get(k) ?? 0) + 1); }
+  const seen = new Map();
+  for (const r of rels) {
+    const a = state.pos.get(r.character_id_1), b = state.pos.get(r.character_id_2);
+    if (!a || !b) continue;
+    const k = [r.character_id_1, r.character_id_2].sort((x, y) => x - y).join(":");
+    const i = seen.get(k) ?? 0; seen.set(k, i + 1);
+    const total = pairCount.get(k), bend = (i - (total - 1) / 2) * 40 * (r.character_id_1 < r.character_id_2 ? 1 : -1);
+    const sa = { x: a.x * z, y: a.y * z }, sb = { x: b.x * z, y: b.y * z };
+    const e = edgePath(sa, sb, bend * z);
+    const on = sel?.type === "relation" ? sel.id === r.id : related.has(r.id);
+    const dim = sel && !on;
+    s += `<g class="edge" data-id="${r.id}" style="cursor:pointer" opacity="${dim ? 0.25 : 1}">`;
+    s += `<path d="${e.d}" fill="none" stroke="transparent" stroke-width="12"/>`;
+    s += `<path d="${e.d}" fill="none" stroke="${on ? "#c0392b" : "#555"}" stroke-width="${on ? 2.2 : 1.2}" marker-end="url(#${on ? "arrow-on" : "arrow"})"/>`;
+    s += `<text x="${e.lx}" y="${e.ly}" text-anchor="middle" fill="${on ? "#c0392b" : "#333"}" stroke="#fdfcf8" stroke-width="3" paint-order="stroke" font-weight="${on ? "bold" : "normal"}">${esc(r.relation)}</text></g>`;
+  }
+  for (const c of chars) {
+    const p = state.pos.get(c.id); if (!p) continue;
+    const on = sel?.type === "character" && sel.id === c.id;
+    const touched = sel?.type === "relation" && (sel.character_id_1 === c.id || sel.character_id_2 === c.id);
+    s += `<g class="node" data-id="${c.id}" style="cursor:pointer" opacity="${inYear(c, state.year) ? 1 : 0.35}">`;
+    s += `<circle cx="${p.x * z}" cy="${p.y * z}" r="${R_NODE * z}" fill="${colorOf[c.kind ?? ""]}" stroke="${on || touched ? "#222" : "#fff"}" stroke-width="${on || touched ? 3 : 1.5}"/>`;
+    s += `<text x="${p.x * z}" y="${(p.y + R_NODE + 14) * z}" text-anchor="middle" fill="#222" stroke="#fdfcf8" stroke-width="3" paint-order="stroke" font-size="${12 * z}" font-weight="${on ? "bold" : "normal"}">${esc(c.name)}</text></g>`;
+  }
+  s += "</svg>";
+  const graph = document.getElementById("graph");
+  graph.innerHTML = s;
+  const tip = document.getElementById("tip");
+  const showTip = (e, lines) => { tip.style.display = "block"; tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY + 14) + "px"; tip.textContent = lines.filter(Boolean).join("\n"); };
+  graph.querySelectorAll(".node").forEach(g => {
+    const c = byId.get(+g.dataset.id);
+    g.onmousedown = e => { state.drag = { id: c.id, x: e.clientX, y: e.clientY, moved: false }; e.preventDefault(); };
+    g.onmousemove = e => showTip(e, [`${c.name} (${c.kind ?? ""})`, c.sex ? `性別: ${c.sex}` : null,
+      spanText(c) ? `期間: ${spanText(c)}` : null, `記事: ${c.path}`]);
+    g.onmouseleave = () => { tip.style.display = "none"; };
+  });
+  graph.querySelectorAll(".edge").forEach(g => {
+    const r = DATA.relations.find(q => q.id === +g.dataset.id);
+    g.onclick = () => { state.selected = sel?.type === "relation" && sel.id === r.id ? null : { type: "relation", ...r }; render(); };
+    g.onmousemove = e => showTip(e, [`${nameOf(r.character_id_1)} → ${nameOf(r.character_id_2)}: ${r.relation}`, spanText(r) ? `期間: ${spanText(r)}` : null, firstLine(r.text)]);
+    g.onmouseleave = () => { tip.style.display = "none"; };
+  });
+}
+
+document.addEventListener("mousemove", e => {
+  const d = state.drag; if (!d) return;
+  const p = state.pos.get(d.id);
+  p.x += (e.clientX - d.x) / state.zoom; p.y += (e.clientY - d.y) / state.zoom; d.x = e.clientX; d.y = e.clientY; d.moved = true;
+  renderGraph();
+});
+document.addEventListener("mouseup", () => {
+  const d = state.drag; if (!d) return; state.drag = null;
+  if (!d.moved) { state.selected = state.selected?.type === "character" && state.selected.id === d.id ? null : { type: "character", id: d.id }; }
+  render();
+});
+
+function relationRow(r, from) {
+  const other = from == null ? null : (r.character_id_1 === from ? r.character_id_2 : r.character_id_1);
+  return `<tr class="row" data-id="${r.id}">` +
+    (from == null ? `<td>${esc(nameOf(r.character_id_1))}</td><td>${esc(r.relation)} →</td><td>${esc(nameOf(r.character_id_2))}</td>`
+                  : `<td>${r.character_id_1 === from ? "→" : "←"}</td><td>${esc(nameOf(other))}</td><td>${esc(r.relation)}</td>`) +
+    `<td class="hint">${esc(spanText(r))}</td><td class="hint">${esc(firstLine(r.text))}</td></tr>`;
+}
+
+function renderSide() {
+  const side = document.getElementById("side"), sel = state.selected, rels = shownRelations();
+  const table = (rows, head) => `<table><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr>${rows.join("")}</table>`;
+  if (!sel) {
+    side.innerHTML = `<p class="hint">人物をクリックするとその人物の関係を、矢印をクリックするとその関係の本文を出す。人物はドラッグで動かせる。</p>` +
+      `<p class="hint">人物 ${shownCharacters().length} 件、関係 ${rels.length} 件${state.year == null ? "" : `(${state.year} 年に続いているもの)`}。矢印は character_id_1 → character_id_2 の向き。</p>` +
+      (rels.length ? table(rels.map(r => relationRow(r, null)), ["主体", "関係", "相手", "期間", ""]) : "");
+  } else if (sel.type === "character") {
+    const c = byId.get(sel.id), mine = rels.filter(r => r.character_id_1 === sel.id || r.character_id_2 === sel.id);
+    side.innerHTML = `<h2>${esc(c.name)} <span class="hint">(${esc(c.kind ?? "")})</span></h2>` +
+      `<dl>` + (c.sex ? `<dt>性別</dt><dd>${esc(c.sex)}</dd>` : "") +
+      (spanText(c) ? `<dt>期間</dt><dd>${esc(spanText(c))}</dd>` : "") +
+      `<dt>記事</dt><dd>../character/${esc(c.path)}</dd></dl>` +
+      (mine.length ? table(mine.map(r => relationRow(r, sel.id)), ["", "相手", "関係", "期間", ""]) : `<p class="hint">関係は無い。</p>`);
+  } else {
+    side.innerHTML = `<h2>${esc(nameOf(sel.character_id_1))} → ${esc(nameOf(sel.character_id_2))}</h2>` +
+      `<dl><dt>関係</dt><dd>${esc(sel.relation)}</dd>` + (spanText(sel) ? `<dt>期間</dt><dd>${esc(spanText(sel))}</dd>` : "") + `<dt>id</dt><dd>${sel.id}</dd></dl>` +
+      `<div class="text">${esc(sel.text) || '<span class="hint">本文は無い。</span>'}</div>`;
+  }
+  side.querySelectorAll("tr.row").forEach(tr => { tr.onclick = () => { state.selected = { type: "relation", ...DATA.relations.find(r => r.id === +tr.dataset.id) }; render(); }; });
+}
+
+function render() { renderLayers(); renderGraph(); renderSide(); }
+document.getElementById("zoom").oninput = e => { state.zoom = +e.target.value; document.getElementById("zoomv").textContent = state.zoom + "×"; render(); };
+document.getElementById("reset").onclick = () => { layout(); render(); };
+const yearInput = document.getElementById("year"), allYears = document.getElementById("allyears");
+yearInput.min = YEAR_MIN; yearInput.max = YEAR_MAX; yearInput.value = YEAR_MIN;
+const syncYear = () => { state.year = allYears.checked ? null : +yearInput.value;
+  document.getElementById("yearv").textContent = allYears.checked ? "" : `${state.year} 年`; render(); };
+yearInput.oninput = () => { allYears.checked = false; syncYear(); };
+allYears.onchange = syncYear;
+if (!YEARS.length) document.getElementById("yearbox").style.display = "none";
+if (DATA.characters.length) { layout(); render(); } else document.getElementById("graph").innerHTML = '<p class="hint" style="padding:16px">人物が居ない。</p>';
+</script>
+</body>
+</html>

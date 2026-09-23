@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
+from DEM.db.polygon import parse_polygon
 from DEM.db.schema import Location
 from DEM.db.schema_pydantic import to_dict
 
@@ -28,6 +29,8 @@ class UpdatePlace(CommitDraft):
 
         if "area" in data:
             self._check_area(session, record, data["area"])
+        if "polygon" in data:
+            data["polygon"] = parse_polygon(data["polygon"])
 
         for key, value in data.items():
             setattr(record, key, value)

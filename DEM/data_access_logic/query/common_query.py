@@ -8,7 +8,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
-    Character, CharacterPlace, CharacterPlot, Episode,
+    Character, CharacterPlace, CharacterPlot, CharacterRelation, Episode,
     Event, EventCharacter, Location,
     Plot, Story, Term,
 )

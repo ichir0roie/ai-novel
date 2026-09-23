@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
 from DEM.data_access_logic.query import world_createion_query
+from DEM.db.polygon import parse_polygon
 from DEM.db.schema import Location
 from DEM.db.schema_pydantic import to_dict
 
@@ -24,6 +25,8 @@ class CommitPlace(CommitDraft):
             raise ValueError("kind は必須")
 
         self.check_exists(session, Location, data.get("parent_id"), "parent_id")
+        if "polygon" in data:
+            data["polygon"] = parse_polygon(data["polygon"])
         self._check_area(session, data)
         self._check_span(session, data)
 

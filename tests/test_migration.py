@@ -2,6 +2,9 @@
 
 - 7e4ab2f14e6c: 性格を整数から五段階へ
 - 796c5ab097d4: world_influence を外し、text を任意に
+- 5546b82c7972: character_relation を足す
+- c3a1f0d2b4e6: location に polygon を足す
+- bacc670e4a5f: character_relation に start/end を足す
 """
 import sqlite3
 
@@ -12,12 +15,15 @@ from alembic.config import Config
 from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "796c5ab097d4"
+HEAD_REVISION = "bacc670e4a5f"
 
 
 @pytest.fixture
 def old_style_db():
-    """性格列を旧来の INTEGER、text を NOT NULL に戻し、world_influence を持つ人物を並べた db。"""
+    """性格列を旧来の INTEGER、text を NOT NULL に戻し、world_influence を持つ人物を並べた db。
+
+    あとのリビジョンで足す character_relation と location.polygon も無い形にする。
+    """
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     engine.dispose()
@@ -33,6 +39,11 @@ def old_style_db():
     assert "world_influence" in create_sql and "text VARCHAR NOT NULL" in create_sql
     conn.execute("DROP TABLE character")
     conn.execute(create_sql)
+    conn.execute("DROP TABLE character_relation")
+    location_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'location'").fetchone()[0]
+    assert "\tpolygon JSON, " in location_sql
+    conn.execute("DROP TABLE location")
+    conn.execute(location_sql.replace("\tpolygon JSON, ", ""))
     values = [-5, -4, -3, -1, 0, 1, 3, 4, 5]
     for value in values:
         conn.execute(
@@ -47,9 +58,9 @@ def _config() -> Config:
     return Config("DEM/db/alembic/alembic.ini")
 
 
-def _columns(conn) -> dict[str, tuple[str, int, str | None]]:
+def _columns(conn, table="character") -> dict[str, tuple[str, int, str | None]]:
     """列名 -> (型, notnull, 既定値)"""
-    return {row[1]: (row[2], row[3], row[4]) for row in conn.execute("PRAGMA table_info(character)")}
+    return {row[1]: (row[2], row[3], row[4]) for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
 def test_upgrade_maps_integers_to_levels(old_style_db):
@@ -82,6 +93,26 @@ def test_upgrade_drops_world_influence_and_allows_null_text(old_style_db):
     conn.close()
 
 
+def test_upgrade_adds_location_polygon(old_style_db):
+    command.upgrade(_config(), "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert _columns(conn, "location")["polygon"] == ("JSON", 0, None)
+    conn.execute("INSERT INTO location (name, kind, text, active_random_generation) VALUES ('輪郭なし', '国', '', 0)")
+    assert conn.execute("SELECT polygon FROM location WHERE name = '輪郭なし'").fetchone() == (None,)
+    conn.close()
+
+
+def test_downgrade_drops_location_polygon(old_style_db):
+    cfg = _config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "5546b82c7972")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert "polygon" not in _columns(conn, "location")
+    conn.close()
+
+
 def test_downgrade_restores_integers(old_style_db):
     cfg = _config()
     command.upgrade(cfg, "head")
@@ -106,7 +137,7 @@ def test_downgrade_restores_world_influence_and_not_null_text(old_style_db):
     conn.execute("INSERT INTO character (name, kind) VALUES ('無説明', '人物')")
     conn.commit()
     conn.close()
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "7e4ab2f14e6c")
 
     conn = sqlite3.connect(TEST_DB_PATH)
     columns = _columns(conn)

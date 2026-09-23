@@ -9,12 +9,15 @@ from DEM.db.schema import Character, CharacterRelation
 __all__ = ["character_dict", "relation_dict", "collect_relations"]
 
 
+def _year(stamp) -> int | None:
+    return None if stamp is None else stamp.year
+
+
 def character_dict(character) -> dict:
     return {
         "id": character.id, "name": character.name, "kind": character.kind,
         "sex": character.sex,
-        "start": str(character.start) if character.start else None,
-        "end": str(character.end) if character.end else None,
+        "start": _year(character.start), "end": _year(character.end),
         "path": (f"{character.directory_path}/{character.id}.md"
                  if character.directory_path else f"{character.id}.md"),
     }
@@ -26,6 +29,7 @@ def relation_dict(relation) -> dict:
         "character_id_1": relation.character_id_1,
         "character_id_2": relation.character_id_2,
         "relation": relation.relation,
+        "start": _year(relation.start), "end": _year(relation.end),
         "text": relation.text or "",
     }
 

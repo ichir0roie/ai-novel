@@ -35,14 +35,17 @@ claudeが実行するスクリプト群を配置する。
 | 領域         | 入口                                                                                                                             |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `randomizer/` | `create_random_character` `create_random_place` `create_random_event`(db に触れない下書き)                |
-|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term` `commit_character_place`(確定する。`commit_character_place` は既にいる人物に出自・居場所を足す) |
-|              | `update_character` `update_place` `update_plot` `update_character_plot` `update_character_place` `delete_place`(確定済みを直す・消す)       |
+|              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term` `commit_character_place` `commit_character_relation`(確定する。`commit_character_place` は既にいる人物に出自・居場所を足す。`commit_character_relation` は人物同士の相関を一件足す) |
+|              | `update_character` `update_place` `update_plot` `update_character_plot` `update_character_place` `update_character_relation` `delete_place`(確定済みを直す・消す)       |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
-| `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
-| `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/location/map.html` も描く) `import_db`(md → db。逆向き) |
+| `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `list_character_relations`(人物同士の相関。人物 id で絞れる) `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
+| `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/location/map.html`、人物相関の `worlds/character_relation/relation.html` も描く) `import_db`(md → db。逆向き) |
 
 `term`(語)は `commit_term` で確定し、`search_terms` で引く。直す入口はまだ無い。
+
+場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば閉じて揃える)で
+`commit_place` / `update_place` から入れる。経緯度が無い面の場所(大陸など)にも持たせられ、地図では薄い面として描く。
 
 ## 作り方
 

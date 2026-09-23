@@ -11,6 +11,7 @@ from decimal import Decimal
 from DEM.db.schema import Base, MarkdownBase, get_novel_session
 from DEM.db.stamp import Stamp
 from DEM.tool.map.render import render_maps
+from DEM.tool.relation.render import render_relations
 
 WORLDS_ROOT = "worlds"
 
@@ -86,6 +87,7 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
             counts[table_name] = len(rows)
 
         render_maps(session, root)
+        render_relations(session, root)
 
     return counts
 

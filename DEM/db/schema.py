@@ -359,6 +359,11 @@ class CharacterRelation(MarkdownBase):
     relation: Mapped[str] = mapped_column(
         String, nullable=False, comment="関係の短い名前(母・師・宿敵 など)", sort_order=120)
 
+    start: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="この関係が始まる時。空なら初めから", sort_order=130)
+    end: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="この関係が終わる時。空なら続いている", sort_order=140)
+
     character_1: Mapped["Character"] = relationship(
         foreign_keys="CharacterRelation.character_id_1", lazy="noload")
     character_2: Mapped["Character"] = relationship(

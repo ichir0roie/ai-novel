@@ -127,7 +127,7 @@ def render_svg(planet: dict, points: list[dict], shapes: list[dict] = ()) -> str
     out.append(f'<text x="{lx:.0f}" y="{frame.top + 12:.0f}" font-weight="bold">親ごとの色</text>')
     for i, name in enumerate(layers):
         y = frame.top + 32 + i * 18
-        kind = next((p["parent_kind"] for p in points if (p["parent_name"] or _NO_PARENT) == name), None)
+        kind = next((p["parent_kind"] for p in points + list(shapes) if (p["parent_name"] or _NO_PARENT) == name), None)
         out.append(marker(kind, lx + 6, y - 4, 5, color_of[name]))
         out.append(f'<text x="{lx + 18:.0f}" y="{y:.0f}">{escape(name)}'
                    f'{"" if not kind else " (" + escape(kind) + ")"}</text>')
