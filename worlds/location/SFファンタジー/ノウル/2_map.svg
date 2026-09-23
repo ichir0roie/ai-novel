@@ -93,6 +93,9 @@
 <path d="M60.0,284.8 L151.8,349.0 L279.6,374.2 L408.0,361.6 L510.6,310.6 L600.6,284.8 L715.8,284.8 L818.4,271.6 L921.0,259.0 L997.8,259.0 L1062.0,233.2 L1087.8,182.2 L1049.4,118.0 L946.8,66.4 L792.6,46.0 L536.4,46.0 L279.6,53.8 L87.6,92.2 L60.0,156.4 L60.0,284.8 Z" fill="#5d6d7e" fill-opacity="0.15" fill-rule="evenodd" stroke="#5d6d7e" stroke-width="1.2" stroke-linejoin="round"/>
 <text x="598.2" y="212.3" text-anchor="middle" font-size="13" font-weight="bold" fill="#5d6d7e" fill-opacity="0.7">ヴォルド</text>
 </g>
+<g class="shape"><title>ネザル / 世界 / ノウル</title>
+<path d="M1628.4,764.2 L1592.4,818.2 L1509.6,877.6 L1403.4,913.0 L1296.6,901.0 L1202.4,853.6 L1131.0,782.8 L1117.8,764.2 L1628.4,764.2 Z" fill="#5d6d7e" fill-opacity="0.15" fill-rule="evenodd" stroke="#5d6d7e" stroke-width="1.2" stroke-linejoin="round"/>
+</g>
 <g class="shape"><title>ヴァレンツァ / 都市 / ローザ諸都市同盟</title>
 <path d="M1241.4,505.6 L1248.6,505.6 L1248.6,498.4 L1241.4,498.4 L1241.4,505.6 Z" fill="#d4ac0d" fill-opacity="0.15" fill-rule="evenodd" stroke="#d4ac0d" stroke-width="1.2" stroke-linejoin="round"/>
 </g>
@@ -182,6 +185,10 @@
 <g><title>ホロウ / 国 / ネザル / lon 18 lat -36 (-750 m)</title>
 <path d="M1248.0,792.0 L1252.0,796.0 L1248.0,800.0 L1244.0,796.0 Z" fill="#a04000" stroke="#fff" stroke-width="1" />
 <text x="1256.0" y="800.0" text-anchor="start" fill="#a04000" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ホロウ (-750 m)</text>
+</g>
+<g><title>ネザル / 世界 / ノウル / lon 36.7 lat -42.4 (-800 m)</title>
+<path d="M1360.2,830.4 L1364.2,834.4 L1360.2,838.4 L1356.2,834.4 Z" fill="#5d6d7e" stroke="#fff" stroke-width="1" />
+<text x="1368.2" y="838.4" text-anchor="start" fill="#5d6d7e" stroke="#fdfcf8" stroke-width="3" paint-order="stroke">ネザル (-800 m)</text>
 </g>
 <g><title>ヴァレンツァ / 都市 / ローザ諸都市同盟 / lon 17.5 lat 13</title>
 <path d="M1245.0,498.0 L1249.0,502.0 L1245.0,506.0 L1241.0,502.0 Z" fill="#d4ac0d" stroke="#fff" stroke-width="1" />

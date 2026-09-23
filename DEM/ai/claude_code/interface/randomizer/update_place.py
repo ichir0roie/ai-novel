@@ -51,7 +51,7 @@ class UpdatePlace(CommitDraft):
         siblings_area = session.scalar(
             select(func.coalesce(func.sum(Location.area), 0))
             .where(Location.parent_id == record.parent_id, Location.id != record.id))
-        if siblings_area + area > parent.area:
+        if float(siblings_area) + area > float(parent.area):  # DECIMAL 列の合計は Decimal で返る
             raise ValueError(
                 f"area={area} を足すと、親(id={record.parent_id})の広さ "
                 f"{parent.area} を兄弟(自分を除く)の合計 {siblings_area} が超える")

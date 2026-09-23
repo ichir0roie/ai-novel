@@ -49,6 +49,12 @@ def test_episode_style_carries_the_extracted_habits():
     assert extracted in style.EPISODE_STYLE_INSTRUCTION
 
 
+def test_shared_extracted_leaves_the_umeru_wording_alone():
+    """「欄を埋める」はピリムの癖として残すので、共通の言い換えからは外す。"""
+    assert "欄を埋める" not in style.SHARED_STYLE_EXTRACTED
+    assert "欄を埋める" in style.EPISODE_STYLE_EXTRACTED
+
+
 def test_shared_extracted_reaches_every_target():
     for target in style.STYLE_INSTRUCTIONS:
         assert style.SHARED_STYLE_EXTRACTED in style.style_instruction(target)
