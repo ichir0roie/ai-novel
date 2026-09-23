@@ -16,7 +16,13 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 - **入口を足したら、同じ作業のうちに下の表へ行を足す。** 表に無い入口は
   次のセッションから見えない
 - db を触る作業は `ImportDb` で始め、片付いてから `ExportDb` で閉じる。
-  **`ExportDb` を単独で呼ばない**(手で直している md を潰す)
+  **その間に `worlds/` を触らず、`ImportDb` を二度回さない。** 変更したあとの
+  `ImportDb` は、md 側の古い内容でその変更を消す。順序と向きは CLAUDE.md の
+  「md と db の同期」を見る
+- `ExportDb` は、前回の同期より後に手で書かれた md があれば止まる
+  (印は `worlds/` の隣の `.markdown_sync`。`DEM/tool/markdown/sync_stamp.py`)。
+  止まったら `ImportDb` で取り込み、db 側の変更をやり直してから閉じる。
+  md を捨ててよいと分かっているときだけ `ExportDb(force=True)`
 
 ## 依頼内容 → 呼ぶコード
 
@@ -24,7 +30,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 
 | 依頼内容(言い回しの例)           | 呼ぶコード                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------- |
-| 「同期して」「sync_db」             | `sync.import_db.ImportDb()` → (作業) → `sync.export_db.ExportDb()`。件数を辞書で返す |
+| 「同期して」「sync_db」             | `sync.import_db.ImportDb()` → (作業) → `sync.export_db.ExportDb()`。件数を辞書で返す。間に `ImportDb` を挟まない |
 | 「どんな場所がある?」「村の一覧」   | `world.list_places.ListPlaces(kind=None)`                                    |
 | 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
@@ -40,6 +46,8 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
+| 「語を直して」                       | `randomizer.update_term.UpdateTerm(term)`。`id` 必須、渡した欄だけ直す       |
+| 「語を消して」                       | `randomizer.delete_term.DeleteTerm(term_id)`。下位の語が残っていれば止まる   |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
 | 「話を書き始める」「次の話を書く」   | `story.start_story.StartStory(story_id)`。同期確認・見出し・直前の話・断面・顔ぶれを一度に出す |
 | 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)` |
@@ -55,8 +63,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 | 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(story_id, number, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
 
-**まだ入口が無いもの**(頼まれたら作ってから行う): 出来事の修正・削除、人物の削除、
-語の修正・削除。
+**まだ入口が無いもの**(頼まれたら作ってから行う): 出来事の修正・削除、人物の削除。
 
 筋書き(`plot` / `character_plot`)のテーブルは無い。場所に掛かる筋書きは作品(`story`)の
 `text` に、人物に掛かる筋書きはその人物の `text` の `# plot` の節に書く。
@@ -66,6 +73,25 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 - 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
   入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
   `# data` の `start` / `end` / `place` / `viewpoint` に入る
+- 本文は一話 5000〜8000 字、4〜6 個の場面に分ける(`DEM/ai/instructions/style.py` の
+  `EPISODE_TARGET_LETTERS` / `EPISODE_TARGET_SCENES`)。長さは場面の数で作るので、
+  **書く直前に種を場面まで割ってから本文に入る**。種はその話ぶんで 300〜500 字を目安に、
+  `## 場面` の箇条書き(`場所 / 出る人 / そこで変わること`)と `## 狙い` で書く:
+
+```
+# key
+## 場面
+
+1. エンピレオ 面会室 / ミレア・カシル / カシルが原初型の中身を明かす
+2. 住まい / ミレア / 追放と遺伝凍結処理の通達が届く
+3. 住まい / ミレア・ノア / 四歳のノアの身体と白い灯りを見せる
+4. 住まい 夜 / ミレア・アウレア・ピリム / 外装を出す。アウレアが頼みごとをする
+5. 都の縁 → 地上 / ミレア・ノア・ピリム / 落ちる。ローザ諸都市同盟に着く
+
+## 狙い
+
+前日譚をここで閉じる。父の顔は最後まで見せない。
+```
 - `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`worlds/maps/map.html`・
   人物相関の `worlds/maps/relation.html` も描く。`ImportDb` は md → db の逆向き
 - 場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば

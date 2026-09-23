@@ -12,7 +12,7 @@ import shutil
 
 from DEM.db.schema import NOVEL_DB_PATH, Base, MarkdownBase, StampType, get_novel_session
 from DEM.db.stamp import Stamp
-from DEM.tool.markdown import export_db
+from DEM.tool.markdown import export_db, sync_stamp
 
 WORLDS_ROOT = "worlds"
 
@@ -147,4 +147,5 @@ def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
 
         session.commit()
 
+    sync_stamp.mark_synced(root)
     return counts

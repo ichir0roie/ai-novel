@@ -51,9 +51,19 @@ claude_main(year=2027, max_days=30)
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
 from DEM.ai.claude_code.story_writer import write_story
 write_story(story_id=1, episodes_to_write=1)
+write_story(story_id=1, number=4)          # 種だけ入っている第4話を埋める
 "
 ```
 
 材料は `start_story` 入口と同じ(作品の見出し・直前の話・断面・顔ぶれ)。
-未同期の話が残っている作品は書かない。書いた話は `synced=True` で確定する。
-本文の書き方は `DEM/ai/instructions/story_writing.py` にある。
+書く前に直前の 2 話(`RECAP_EPISODE_LIMIT`)の本文を読ませ、概要と文体の覚え書きを
+作らせてから、それを本文のプロンプトへ載せる。
+
+- 書く話は `number` で指す。省くと**本文の入っている最後の話の次**を書く。
+  種(`key`)だけ入れてある先の話は「まだ書かれていない」扱いなので、
+  先まで種を並べてある作品でも止まらない
+- その話に種があればプロンプトへ載せ、視点・場所・種はそのままに、題と本文だけを上書きする
+- 止めるのは、**その話より前に**「本文はあるのに `synced` が下りている話」がある場合だけ
+- 書いた話は `synced=True` で確定する
+- 本文の長さ・場面の切り方・文体は `DEM/ai/instructions/style.py`
+  (`EPISODE_TARGET_LETTERS` / `EPISODE_TARGET_SCENES` / `EPISODE_STYLE_BASE`)

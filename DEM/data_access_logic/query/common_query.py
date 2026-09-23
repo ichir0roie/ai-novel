@@ -100,6 +100,24 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
     return found
 
 
+def term_scope_ids(session: Session, place_id: int) -> list[int]:
+    """その場所で効く語を引く範囲。配下に加えて、属する星・世界線まで親方向へのぼる。
+
+    `restrict_world_id` / `restrict_planet_id` が指すのは自分より上の場所なので、
+    配下だけで引くと世界線に掛かる語が一件も当たらない。
+    """
+    found = descendant_place_ids(session, place_id)
+    seen = set(found)
+    current = session.get(Location, place_id)
+    while current is not None and current.parent_id:
+        current = session.get(Location, current.parent_id)
+        if current is None or current.id in seen:
+            break
+        seen.add(current.id)
+        found.append(current.id)
+    return found
+
+
 def place_path(session: Session, place_id: int) -> list[dict]:
     """その場所までの道筋を、上(世界線)から順に返す。"""
     chain: list[dict] = []

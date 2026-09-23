@@ -386,6 +386,9 @@ class Term(MarkdownBase):
     parent_term_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる", sort_order=250)
 
+    def default_filename(self) -> str | None:
+        return self.name
+
 
 class Story(MarkdownBase):
 

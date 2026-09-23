@@ -16,6 +16,14 @@ from dataclasses import dataclass
 # 文体の特徴を抽出する材料にする、直近の話の本数。
 STYLE_SOURCE_EPISODE_LIMIT = 10
 
+# 一話ぶんの本文の目安。長さは場面の数で作るので、場面の側にも目安を持つ。
+EPISODE_TARGET_LETTERS = (5000, 8000)
+EPISODE_TARGET_SCENES = (4, 6)
+EPISODE_TARGET_SCENE_LETTERS = (1200, 1600)
+
+# 場面の切れ目に置く行。
+SCENE_BREAK = "◇"
+
 
 @dataclass(frozen=True)
 class StyleInstruction:
@@ -48,10 +56,19 @@ SHARED_STYLE = StyleInstruction(base=SHARED_STYLE_BASE, extracted=SHARED_STYLE_E
 
 # --- 対象ごと --------------------------------------------------------------
 
-EPISODE_STYLE_BASE = """\
+EPISODE_STYLE_BASE = f"""\
 本文は地の文と会話文を交ぜ、地の文に寄せすぎない。
 情景は視点人物が実際に見聞きした範囲で書き、説明のための地の文を挟まない。
-セリフは人物ごとの口調の差が読み分けられる長さで切る。"""
+セリフは人物ごとの口調の差が読み分けられる長さで切る。
+空行は、言動の主体が変わるとき・場面が動くとき(時間が飛ぶ、場所が移る、人物から視点が外れる)・一行だけを孤立させて間を作るときにだけ置く。
+一人の人物の言動が続くあいだは、そのセリフと、誰が言ったか・どう動いたかの地の文を、空行を挟まず改行だけで続ける。
+孤立させた一行は間を作るための道具なので、一話に数回までに抑える。
+一話は{EPISODE_TARGET_LETTERS[0]}〜{EPISODE_TARGET_LETTERS[1]}字。\
+{EPISODE_TARGET_SCENES[0]}〜{EPISODE_TARGET_SCENES[1]}個の場面に分け、\
+一場面は{EPISODE_TARGET_SCENE_LETTERS[0]}〜{EPISODE_TARGET_SCENE_LETTERS[1]}字を目安にする。
+場面は「どこで・誰が・何が変わるか」が一つ決まる単位で、切れ目には「{SCENE_BREAK}」だけの行を置く。
+字数は場面の数と、その場面で実際に起きることで作る。修飾・言い換え・心情の反芻を足して伸ばさない。
+種(key)に場面が足りないときは、足りないぶんを場面として立ててから書く。"""
 
 EPISODE_STYLE_EXTRACTED = ""
 

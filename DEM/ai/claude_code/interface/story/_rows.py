@@ -131,7 +131,8 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
     recent = [event_row(row) for row in session.scalars(recent_query).all()]
 
     character_ids = residents(session, place_ids, until)
-    terms = session.scalars(common_query.terms_select(place_ids)).all()
+    terms = session.scalars(
+        common_query.terms_select(common_query.term_scope_ids(session, place_id))).all()
 
     character_names = _names_for(session, character_ids, "Character")
 

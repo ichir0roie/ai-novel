@@ -41,7 +41,7 @@
 
 # テスト
 
-- `tests/` に pytest のテストがある。`PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest` で回す
+- `tests/` に pytest のテストがある。
 - **回すのは、実装した影響範囲のテストだけを選んで回す。** 全体を回さない
   (`... -m pytest tests/test_foo.py tests/test_bar.py` のようにファイルを指定する)
 - テストは `novel.test.db` だけを読み書きする(`tests/conftest.py` が `DEM.tool.test` を先に読んで固定する)。
@@ -64,6 +64,7 @@
 - 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
   **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
 - 各作業前に、`DEM/tool/markdown/sync_db.py`を実行する。
+  同期の向きと順序は「md と db の同期」を見る
 - 引き方(`DEM/data_access_logic/query/*.py`)では、外部キーが `NULL` の行を
   「全体に効く」とみなして `or_(X.fk_id.in_(ids), X.fk_id.is_(None))` のように
   無理に拾わない。関係が無い行は「関係が無い」として扱う
@@ -76,6 +77,24 @@ c = sqlite3.connect('novel.db')
 print(c.execute('select count(*) from character').fetchone())
 "
 ```
+
+# md と db の同期(import / export)
+
+`import_db` は md を db へ無条件に上書きし、`export_db` は `worlds/` をまるごと
+消して db から書き直す。突き合わせはしないので、**後に回した向きが丸ごと勝つ**。
+だから一つの作業のあいだ、md と db のどちらが正かを決めて動かす。
+
+- **手で md を直すなら、直し終えてから `import_db` を回す。** 直しかけのまま
+  db を触る作業を始めない
+- **db を触る作業は `import_db` → 入口越しの変更 → `export_db` の一続きで回し、
+  その間 `worlds/` を触らない。** 変更したあとに `import_db` を挟むと、md 側の
+  古い内容でその変更が消える(`export_db` の直前に `import_db` を回してはいけない)
+- 途中で md を直したくなったら、挟まずに区切る。いったん `export_db` で db を
+  md へ落とし、そこから直して `import_db` する(＝次の作業の頭にする)
+- 手直しが残っているかは `git status --short worlds/` で見る
+- `ExportDb` は、前回の同期(`.markdown_sync` の mtime)より後に書かれた md が
+  あれば止まる。止まったら `ImportDb` で取り込んでから db 側の変更をやり直す。
+  md を捨ててよいと分かっているときだけ `ExportDb(force=True)`
 
 # schema の確認方法
 
