@@ -13,13 +13,13 @@ import traceback
 
 from DEM.ai.time_keeper import event_progression_generator
 from DEM.data_access_logic.query import common_query, world_createion_query
-from DEM.db.schema import Session, Stamp, get_env_session
+from DEM.db.schema import Plot, Session, Stamp, get_env_session
 from DEM.ai.time_keeper import (
     random_character_generator,
 )
 from DEM.ai.time_keeper._ai import AIClient
 from DEM.ai.time_keeper._export import export_step
-from DEM.ai.time_keeper._format import add_days, format_time
+from DEM.ai.time_keeper._format import add_days, add_years, days_between, format_time
 
 
 def loop_time(
@@ -64,3 +64,16 @@ def time_process(
 ):
     random_character_generator.generate_random(s, time, ai)
     event_progression_generator.generate_random(s, time, ai)
+
+
+def loop_time_for_plot(ai: AIClient, plot_id: int, years: int = 5) -> Stamp:
+    """筋書き `plot_id` の開始時刻(`start`)から、`years` 年ぶん `loop_time` を回す。"""
+    with get_env_session() as s:
+        plot = s.get(Plot, plot_id)
+        if plot is None:
+            raise ValueError(f"筋書き id={plot_id} が見つからない")
+        if plot.start is None:
+            raise ValueError(f"筋書き id={plot_id} に start が無い")
+        start_time = plot.start
+    max_days = days_between(start_time, add_years(start_time, years))
+    return loop_time(ai, start_time, max_days)

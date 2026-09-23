@@ -19,6 +19,11 @@ def loop_character_plots(start_time: Stamp | None = None, max_months: int | None
     return character_plot_progression.loop_character_plots(ai_client, start_time, max_months)
 
 
+def loop_time_for_plot(plot_id: int, years: int = 5) -> Stamp:
+    """筋書き `plot_id` の開始時刻から、`years` 年ぶん進める(既定 5 年)。"""
+    return main.loop_time_for_plot(ai_client, plot_id, years)
+
+
 if __name__ == "__main__":
     year = int(input("year>>"))
     stamp = Stamp(
