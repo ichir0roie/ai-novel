@@ -83,9 +83,12 @@ def _upsert(
     else:
         for key, value in values.items():
             setattr(row, key, value)
+    # 名前から自動で付く部分(人物名など)は filename に残さない。名前が変わったら md 名も追従する
+    if row.filename is not None and row.filename == row.default_filename():
+        row.filename = None
     session.flush()
     if row_id is None:
-        os.rename(path, os.path.join(os.path.dirname(path), f"{row.id}_{stem}.md"))
+        os.rename(path, os.path.join(os.path.dirname(path), row.markdown_name))
     return row
 
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""地図を `worlds/location/` の下へ書き出す。`export_db` から呼ばれる。
+"""地図を書き出す。`export_db` から呼ばれる。
 
 - 星ごとの SVG: その星の md と同じディレクトリに `{id}_map.svg`
-- 全ての星をまとめた HTML: `worlds/location/map.html`
+- 全ての星をまとめた HTML: `worlds/maps/map.html`
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def render_maps(session, root: str) -> list[str]:
         path = os.path.join(dir_path, f"{planet['id']}_map.svg")
         _write(path, render_svg(planet, entry["points"], entry["shapes"]))
         written.append(path)
-    html_path = os.path.join(table_dir, "map.html")
+    html_path = os.path.join(root, "maps", "map.html")
     _write(html_path, render_html(planets))
     written.append(html_path)
     return written

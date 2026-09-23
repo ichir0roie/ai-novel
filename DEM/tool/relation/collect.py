@@ -18,8 +18,8 @@ def character_dict(character) -> dict:
         "id": character.id, "name": character.name, "kind": character.kind,
         "sex": character.sex,
         "start": _year(character.start), "end": _year(character.end),
-        "path": (f"{character.directory_path}/{character.id}.md"
-                 if character.directory_path else f"{character.id}.md"),
+        "path": (f"{character.directory_path}/{character.markdown_name}"
+                 if character.directory_path else character.markdown_name),
     }
 
 

@@ -124,7 +124,7 @@ def test_export_writes_maps_next_to_planet(star, tmp_path):
     export_db(root)
 
     svg_path = os.path.join(root, "location", "線", "星", f"{star['planet']}_map.svg")
-    html_path = os.path.join(root, "location", "map.html")
+    html_path = os.path.join(root, "maps", "map.html")
     assert os.path.exists(svg_path) and os.path.exists(html_path)
 
     with open(svg_path, encoding="utf-8") as f:
@@ -144,5 +144,5 @@ def test_export_without_coordinates_writes_empty_html(session, tmp_path):
     root = str(tmp_path / "worlds")
     export_db(root)
     assert not [n for n in os.listdir(os.path.join(root, "location")) if n.endswith(".svg")]
-    with open(os.path.join(root, "location", "map.html"), encoding="utf-8") as f:
+    with open(os.path.join(root, "maps", "map.html"), encoding="utf-8") as f:
         assert "const PLANETS = [];" in f.read()

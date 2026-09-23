@@ -40,7 +40,7 @@ claudeが実行するスクリプト群を配置する。
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
 | `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `list_character_relations`(人物同士の相関。人物 id で絞れる) `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
-| `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/location/map.html`、人物相関の `worlds/character_relation/relation.html` も描く) `import_db`(md → db。逆向き) |
+| `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/maps/map.html`、人物相関の `worlds/maps/relation.html` も描く) `import_db`(md → db。逆向き) |
 
 `term`(語)は `commit_term` で確定し、`search_terms` で引く。直す入口はまだ無い。
 

@@ -134,7 +134,7 @@ def test_export_draws_polygons(outlined, tmp_path):
     assert svg.count('font-weight="bold" fill="#') == 1 and ">大陸</text>" in svg
     assert "星 (星)" in svg  # 大陸の親(星)も凡例に並ぶ
 
-    with open(os.path.join(root, "location", "map.html"), encoding="utf-8") as f:
+    with open(os.path.join(root, "maps", "map.html"), encoding="utf-8") as f:
         html = f.read()
     assert '"shapes": [' in html and '"type": "Polygon"' in html
     assert "function shapePath" in html

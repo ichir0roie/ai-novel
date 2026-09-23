@@ -50,12 +50,6 @@ def _row_data(model: type, row, ignore_columns: set[str]) -> dict:
     }
 
 
-def _filename(row) -> str:
-    if not row.filename:
-        return f"{row.id}.md"
-    return f"{row.id}_{row.filename.replace('/', '／')}.md"
-
-
 def _write(path: str, data: dict, text: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -82,7 +76,7 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
                 dir_path = os.path.join(table_dir, row.directory_path) if row.directory_path else table_dir
                 data = _row_data(model, row, ignore_columns)
                 text = row.text or ""
-                _write(os.path.join(dir_path, _filename(row)), data, text)
+                _write(os.path.join(dir_path, row.markdown_name), data, text)
 
             counts[table_name] = len(rows)
 

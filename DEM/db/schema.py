@@ -121,6 +121,15 @@ class MarkdownBase(Base):
         comment="import,export時のファイル名(id・拡張子を除いた部分)。"
                 "空なら {id}.md。テーブルが持つ name 等の列とは別物")
 
+    def default_filename(self) -> str | None:
+        """`filename` が空のときに md 名へ使う部分。テーブルごとに上書きする。"""
+        return None
+
+    @property
+    def markdown_name(self) -> str:
+        name = self.filename or self.default_filename()
+        return f"{self.id}_{name.replace('/', '／')}.md" if name else f"{self.id}.md"
+
 
 class Location(MarkdownBase):
 
@@ -303,6 +312,9 @@ class Character(MarkdownBase):
     sensitivity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="感受性", sort_order=490)
     imagination: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="想像力", sort_order=500)
 
+    def default_filename(self) -> str | None:
+        return self.name
+
     # relationships
 
     places: Mapped[list[CharacterPlace]] = relationship(
@@ -363,6 +375,9 @@ class CharacterRelation(MarkdownBase):
         StampType, comment="この関係が始まる時。空なら初めから", sort_order=130)
     end: Mapped[Stamp | None] = mapped_column(
         StampType, comment="この関係が終わる時。空なら続いている", sort_order=140)
+
+    def default_filename(self) -> str | None:
+        return f"{self.character_id_1}_{self.character_id_2}"
 
     character_1: Mapped["Character"] = relationship(
         foreign_keys="CharacterRelation.character_id_1", lazy="noload")
