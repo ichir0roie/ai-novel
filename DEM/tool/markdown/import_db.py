@@ -56,9 +56,12 @@ def _upsert(
     row_id, stem_values = model.parse_markdown_stem(stem)
 
     data, text = _parse(content, path)
-    data.pop("id", None)
+    data_id = data.pop("id", None)
+    if row_id is None and data_id is not None:
+        row_id = int(data_id)
     data["directory_path"] = directory_path
-    data.update(stem_values)
+    # `# data` にある欄はそれが勝つ。名前は `# data` に無い欄(filename や、手書き md の start/end)だけ埋める
+    data.update({k: v for k, v in stem_values.items() if k not in data})
 
     unknown = set(data) - columns
     if unknown:
@@ -83,7 +86,10 @@ def _upsert(
         row.filename = None
     session.flush()
     if row_id is None:
-        os.rename(path, os.path.join(os.path.dirname(path), row.markdown_name))
+        # 採番した id を md 側にも残す(名前か `# data` のどちらかに入る)
+        os.remove(path)
+        export_db._write(os.path.join(os.path.dirname(path), row.markdown_name),
+                         export_db._row_data(model, row, export_db.IGNORE_COLUMNS), text)
     return row
 
 

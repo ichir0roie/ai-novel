@@ -368,13 +368,11 @@ class CharacterPlot(MarkdownBase):
     start: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
     end: Mapped[Stamp | None] = mapped_column(StampType, nullable=True)
 
-    # md 名は `{id}_{start}_{end}_{name}.md`。時は年だけ(1 月 1 日 0 時でなければ y-mm-dd)、空なら空文字。
-    # 名前だけの md(`誕生.md` / `7_誕生.md`)は start/end を空として読む。
-    # `# data` にも start/end は出すが、import では名前側が勝つ
-
     @property
     def markdown_name(self) -> str:
-        head = f"{_stamp_stem(self.start)}_{_stamp_stem(self.end)}"
+        st_st = self.start.year if self.start else ""
+        ed_st = self.end.year if self.end else ""
+        head = f"{st_st}_{ed_st}"
         name = self.filename or self.default_filename()
         return f"{head}_{name.replace('/', '／')}.md" if name else f"{head}.md"
 

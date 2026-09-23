@@ -17,6 +17,8 @@ WORLDS_ROOT = "worlds"
 
 __all__ = ["WORLDS_ROOT", "ExportError", "export_db"]
 
+IGNORE_COLUMNS = {"text", "directory_path", "filename"}
+
 
 class ExportError(ValueError):
     """書き出せないレコードがあった。"""
@@ -70,13 +72,15 @@ def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
             table_dir = os.path.join(root, table_name)
             os.makedirs(table_dir, exist_ok=True)
 
-            ignore_columns = {"text", "directory_path", "filename", }
-
+            written: set[str] = set()
             for row in rows:
                 dir_path = os.path.join(table_dir, row.directory_path) if row.directory_path else table_dir
-                data = _row_data(model, row, ignore_columns)
-                text = row.text or ""
-                _write(os.path.join(dir_path, row.markdown_name), data, text)
+                path = os.path.join(dir_path, row.markdown_name)
+                if path in written:
+                    # 名前に id を含まないテーブルで同名になったら、id を頭に付けた(import が読める)名前へ逃がす
+                    path = os.path.join(dir_path, f"{row.id}_{row.markdown_name}")
+                written.add(path)
+                _write(path, _row_data(model, row, IGNORE_COLUMNS), row.text or "")
 
             counts[table_name] = len(rows)
 
