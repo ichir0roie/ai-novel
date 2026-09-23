@@ -34,7 +34,7 @@
   <h1>人物の相関</h1>
   <div class="layers" id="layers"></div>
   <label class="hint">拡大 <input type="range" id="zoom" min="0.5" max="3" step="0.25" value="1"> <span id="zoomv">1×</span></label>
-  <label class="hint" id="yearbox">年 <input type="range" id="year"> <span id="yearv"></span> <label><input type="checkbox" id="allyears" checked>全期間</label></label>
+  <label class="hint" id="yearbox">年 <input type="number" id="year"> <span id="yearv"></span> <label><input type="checkbox" id="allyears" checked>全期間</label></label>
   <button id="reset">並べ直す</button>
 </header>
 <main>
@@ -52,8 +52,8 @@ const byId = new Map(DATA.characters.map(c => [c.id, c]));
 const nameOf = id => byId.get(id)?.name ?? `id=${id}`;
 const kinds = [...new Set(DATA.characters.map(c => c.kind ?? ""))];
 const colorOf = Object.fromEntries(kinds.map((k, i) => [k, COLORS[i % COLORS.length]]));
-const shownCharacters = () => DATA.characters.filter(c => !state.hidden.has(c.kind ?? ""));
 const inYear = (o, y) => y == null || ((o.start == null || o.start <= y) && (o.end == null || o.end > y));
+const shownCharacters = () => DATA.characters.filter(c => !state.hidden.has(c.kind ?? "") && inYear(c, state.year));
 const shownRelations = () => { const ids = new Set(shownCharacters().map(c => c.id));
   return DATA.relations.filter(r => ids.has(r.character_id_1) && ids.has(r.character_id_2) && inYear(r, state.year)); };
 const spanText = o => (o.start == null && o.end == null) ? "" : `${o.start ?? ""}〜${o.end ?? ""}`;
@@ -136,7 +136,7 @@ function renderGraph() {
     const p = state.pos.get(c.id); if (!p) continue;
     const on = sel?.type === "character" && sel.id === c.id;
     const touched = sel?.type === "relation" && (sel.character_id_1 === c.id || sel.character_id_2 === c.id);
-    s += `<g class="node" data-id="${c.id}" style="cursor:pointer" opacity="${inYear(c, state.year) ? 1 : 0.35}">`;
+    s += `<g class="node" data-id="${c.id}" style="cursor:pointer">`;
     s += `<circle cx="${p.x * z}" cy="${p.y * z}" r="${R_NODE * z}" fill="${colorOf[c.kind ?? ""]}" stroke="${on || touched ? "#222" : "#fff"}" stroke-width="${on || touched ? 3 : 1.5}"/>`;
     s += `<text x="${p.x * z}" y="${(p.y + R_NODE + 14) * z}" text-anchor="middle" fill="#222" stroke="#fdfcf8" stroke-width="3" paint-order="stroke" font-size="${12 * z}" font-weight="${on ? "bold" : "normal"}">${esc(c.name)}</text></g>`;
   }

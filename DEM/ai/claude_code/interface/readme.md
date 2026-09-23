@@ -36,7 +36,7 @@ claudeが実行するスクリプト群を配置する。
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `randomizer/` | `create_random_character` `create_random_place` `create_random_event`(db に触れない下書き)                |
 |              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term` `commit_character_place` `commit_character_relation`(確定する。`commit_character_place` は既にいる人物に出自・居場所を足す。`commit_character_relation` は人物同士の相関を一件足す) |
-|              | `update_character` `update_place` `update_plot` `update_character_plot` `update_character_place` `update_character_relation` `delete_place`(確定済みを直す・消す)       |
+|              | `update_character` `update_place` `update_plot` `update_character_plot` `update_character_place` `update_character_relation` `delete_place` `delete_plot`(確定済みを直す・消す)       |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
 |              | `commit_episode` `set_episode_synced`                                                                                             |
 | `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `list_character_relations`(人物同士の相関。人物 id で絞れる) `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
