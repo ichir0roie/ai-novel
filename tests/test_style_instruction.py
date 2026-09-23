@@ -58,3 +58,10 @@ def test_shared_extracted_leaves_the_umeru_wording_alone():
 def test_shared_extracted_reaches_every_target():
     for target in style.STYLE_INSTRUCTIONS:
         assert style.SHARED_STYLE_EXTRACTED in style.style_instruction(target)
+
+
+def test_shared_extracted_separates_the_fairy_from_the_lamp():
+    """妖精は「光」で書き、「灯り」は魔力灯りと明かりに取っておく。"""
+    extracted = style.SHARED_STYLE_EXTRACTED
+    assert "体を持たない妖精が現れる場面は「光」" in extracted
+    assert "「灯り」は手のひらの魔力灯り" in extracted

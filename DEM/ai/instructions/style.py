@@ -54,6 +54,7 @@ SHARED_STYLE_EXTRACTED = """\
 (「届け出る」より「報告する」、「体を持たない」より「実体を持たない」)。
 世界の仕掛けに掛かる語だけは、噛み砕いた言い換えへ逃げずにそのまま書く
 (「生きものの釣り合い」より「遺伝情報の均衡」)。
+一般的な表現には簡単な漢字を使う。
 """
 
 SHARED_STYLE = StyleInstruction(base=SHARED_STYLE_BASE, extracted=SHARED_STYLE_EXTRACTED)
