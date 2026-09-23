@@ -11,7 +11,9 @@ from DEM.tool.markdown import export_db, import_db  # noqa: E402
 @pytest.fixture(scope="session", autouse=True)
 def fresh_test_db():
     """セッションの最初に空の db ファイルを作り直す。以後は同じファイルを使い回す。"""
-    create_db(TEST_DB_PATH)
+    # create_db が返す engine も捨てる。消して作り直したファイルを掴んだまま
+    # 残ると、以後の書き込みが sqlite の disk I/O error になることがある
+    create_db(TEST_DB_PATH).dispose()
     engine.dispose()  # 作り直す前のファイルを掴んでいる接続を捨てる
     yield
 

@@ -42,10 +42,12 @@
 # テスト
 
 - `tests/` に pytest のテストがある。`PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest` で回す
+- **回すのは、実装した影響範囲のテストだけを選んで回す。** 全体を回さない
+  (`... -m pytest tests/test_foo.py tests/test_bar.py` のようにファイルを指定する)
 - テストは `novel.test.db` だけを読み書きする(`tests/conftest.py` が `DEM.tool.test` を先に読んで固定する)。
   本番の `novel.db` には触れない
 - db・入口・生成器を変えたら、対応するテストを足すか直してから終える
-- プルリクを作る前に必ず、変更に対するテストケースを実装し、全体のテストを回し、
+- プルリクを作る前に必ず、変更に対するテストケースを実装し、影響範囲のテストを回し、
   出たエラーを直してから作る
 
 # db への接続

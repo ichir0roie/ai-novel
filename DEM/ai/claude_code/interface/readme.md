@@ -39,7 +39,7 @@ Claude も対話の中で人物・場所・出来事の内容を決めて確定�
 |              | `commit_character` `commit_place` `commit_event` `commit_plot` `commit_character_plot` `commit_term` `commit_character_place` `commit_character_relation`(確定する。`commit_character_place` は既にいる人物に出自・居場所を足す。`commit_character_relation` は人物同士の相関を一件足す) |
 |              | `update_character` `update_place` `update_plot` `update_character_plot` `update_character_place` `update_character_relation` `delete_place` `delete_plot`(確定済みを直す・消す)       |
 | `story/`     | `list_stories` `list_unsynced_episodes` `start_story` `read_episodes` `read_cast` `read_brief` `read_character` `read_surroundings` `read_events` |
-|              | `commit_episode` `set_episode_synced`                                                                                             |
+|              | `commit_story` `commit_episode` `set_episode_synced`                                                                              |
 | `world/`     | `list_places` `list_characters` `list_events` `list_plots` `list_character_plots` `list_character_relations`(人物同士の相関。人物 id で絞れる) `search_terms` `list_neighbors`(ある場所から見た同じ星の他の場所の方角・距離・高低差) |
 | `sync/`      | `export_db`(db → md の写し。星ごとの地図 `{id}_map.svg` と `worlds/maps/map.html`、人物相関の `worlds/maps/relation.html` も描く) `import_db`(md → db。逆向き) |
 

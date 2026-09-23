@@ -513,6 +513,24 @@ class Episode(MarkdownBase):
                 "オフの話があるあいだは、次の話の材料を読み出せない",
         sort_order=240)
 
+    def default_filename(self) -> str | None:
+        return self.title or None
+
+    @property
+    def markdown_name(self) -> str:
+        name = self.filename or self.default_filename()
+        head = f"{self.story_id}_{self.id}"
+        return f"{head}_{name.replace('/', '／')}.md" if name else f"{head}.md"
+
+    @classmethod
+    def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
+        story_part, _, rest = stem.partition("_")
+        id_part, _, filename_part = rest.partition("_")
+        if story_part.isdigit() and id_part.isdigit():
+            return int(id_part), {"story_id": int(story_part),
+                                  "filename": filename_part or None}
+        return super().parse_markdown_stem(stem)
+
 
 DB_PATH = os.environ.get("DEM_DB_PATH", "novel.db")
 
