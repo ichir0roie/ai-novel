@@ -469,8 +469,8 @@ class Episode(MarkdownBase):
 
 # core は世界リポジトリのサブモジュール core/ として置き、core/ から実行する
 WORLD_DIR = os.environ.get("DEM_WORLD_DIR", "..")
-NOVEL_DB_PATH = os.path.join(WORLD_DIR, "novel.db")
-WORLDS_ROOT = os.path.join(WORLD_DIR, "worlds")
+NOVEL_DB_PATH = os.environ.get("DEM_NOVEL_DB_PATH", os.path.join(WORLD_DIR, "novel.db"))
+WORLDS_ROOT = os.environ.get("DEM_WORLDS_DIR", os.path.join(WORLD_DIR, "worlds"))
 DB_PATH = os.environ.get("DEM_DB_PATH", NOVEL_DB_PATH)
 
 
@@ -515,7 +515,7 @@ def get_env_session():
 
 
 def get_novel_session():
-    """環境変数に関わらず本番の novel.db。`worlds/` との同期(import_db / export_db)用。"""
+    """`DEM_DB_PATH` に関わらず本番の novel.db(`DEM_NOVEL_DB_PATH`)。`worlds/` との同期(import_db / export_db)用。"""
     return Session(_fixed_engine(NOVEL_DB_PATH))
 
 
