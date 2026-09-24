@@ -82,7 +82,7 @@ def test_import_location_id_only_file_gets_named_on_export(session, tmp_path):
 
     from DEM.tool.markdown.export_db import export_db
     export_db(root)
-    assert sorted(os.listdir(os.path.join(root, "location"))) == ["71.md", "71_パンデム.md"]
+    assert sorted(os.listdir(os.path.join(root, "location"))) == ["71_パンデム.md"]
 
 
 def test_term_markdown_name_uses_name():

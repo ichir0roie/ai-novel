@@ -4,7 +4,6 @@
 `loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続け、その時刻をカバーする
 作品(`Story`)が一件も無くなったら止まる。再開するには `CommitStory` で作品を足す。
 生成に使う AI は `ai`(`AIClient` の形を満たすモジュール)として受け取り、ここでは選ばない。
-一歩(1日ぶん)進めるごとに `worlds/` へ書き出す(`_export.export_step`)。
 """
 from __future__ import annotations
 
