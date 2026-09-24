@@ -123,7 +123,8 @@ print(c.execute('select count(*) from character').fetchone())
 `sync_db`は、import_db,export_dbの順に実行する。
 
 worlds/**/*.markdownファイルは直接変更しない。
-db側を修正した後、sync_dbを実行する。
+db側を修正した後は、export_db だけを実行する。修正の後に import_db(sync_db)を回すと、
+md の古い内容で修正が消える。手で md を直したときだけ、作業の前に import_db を回す。
 修正したレコードが巻き戻った場合は、importされたものを優先する。ユーザの直接編集を優先する。
 
 
