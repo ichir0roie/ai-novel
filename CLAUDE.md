@@ -34,6 +34,31 @@
 - Windows の python は標準出力が cp932 になるため、日本語を出すコマンドは
   `PYTHONUTF8=1` を付けて実行する(付けないと文字化け・`UnicodeEncodeError` になる)
 
+# 環境構築
+
+実データ(`novel.db`・`worlds/`)は private リポジトリ `ai-novel-world` にあり、サブモジュール `world/` として参照する。
+
+```
+# clone(サブモジュールごと)
+git clone --recurse-submodules https://github.com/ichir0roie/ai-novel.git
+
+# clone 済みで world/ が空のとき
+git submodule update --init
+
+# 最新を取り込む(本体と world/ の両方)
+git pull --recurse-submodules
+git submodule update --init
+
+# db・md を変えたら、world/ 側でコミットしてから本体で参照を更新する
+git -C world switch main   # サブモジュールは detached HEAD になっているため
+git -C world add -A
+git -C world commit -m "..."
+git -C world push
+git add world
+git commit -m "world を更新"
+git push
+```
+
 # 実行環境
 
 - python は **`.venv/Scripts/python.exe`** を使う(`which python` は別の virtualenv を指す)。
@@ -57,8 +82,7 @@
 # db への接続
 
 - 実体は **サブモジュール `world/` の `novel.db`**(SQLite。private リポジトリ `ai-novel-world`)。
-  clone 後は `git submodule update --init` で取ってくる。db・md の変更は `world/` 側でコミットし、
-  ai-novel 側ではサブモジュールの参照を更新してコミットする。パスは `DEM/db/schema.py` の `DB_PATH`
+  コマンドは「環境構築」を見る。パスは `DEM/db/schema.py` の `DB_PATH`
   で、環境変数 `DEM_DB_PATH` で差し替えられる
 - コードから触るときは `from DEM.db.schema import get_env_session` で `Session` を開く。
   `engine` も同じモジュールにある

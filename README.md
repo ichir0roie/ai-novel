@@ -51,6 +51,31 @@ DEM/
                       mock_ai_client で AI 無しに redrive_mock_world を回す、seed_mock_db で全テーブルにモックデータを流し込む)
 ```
 
+## 環境構築
+
+実データ(`novel.db`・`worlds/`)は private リポジトリ `ai-novel-world` にあり、サブモジュール `world/` として参照する。
+
+```
+# clone(サブモジュールごと)
+git clone --recurse-submodules https://github.com/ichir0roie/ai-novel.git
+
+# clone 済みで world/ が空のとき
+git submodule update --init
+
+# 最新を取り込む(本体と world/ の両方)
+git pull --recurse-submodules
+git submodule update --init
+
+# db・md を変えたら、world/ 側でコミットしてから本体で参照を更新する
+git -C world switch main   # サブモジュールは detached HEAD になっているため
+git -C world add -A
+git -C world commit -m "..."
+git -C world push
+git add world
+git commit -m "world を更新"
+git push
+```
+
 ## 触り方
 
 ```
