@@ -62,6 +62,11 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 補足:
 
+- `CommitEvent` / `CommitStory` / `CommitEpisode` は、確定したあとに毎回
+  `DEM/ai/time_keeper/generated_content.py` の `refresh` を自分で呼ぶ。ミームの棚卸し
+  (`meme.refresh`)と、出来事・話ならその場での要約(`event_summary` / `episode_summary`)を
+  まとめて行うので、`ExtractMemes` を別に呼ぶ必要は無い(まだ抜き出していない元が残って
+  いたときの取りこぼし対策としてなら呼んでよい)
 - 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
   入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
   `# data` の `start` / `end` / `place` / `viewpoint` に入る

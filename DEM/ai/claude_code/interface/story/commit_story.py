@@ -5,8 +5,10 @@
 """
 from __future__ import annotations
 
+from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.story._base import StoryCommit
-from DEM.db.schema import Location, Story
+from DEM.ai.time_keeper import generated_content
+from DEM.db.schema import Location, Story, get_env_session
 from DEM.db.schema_pydantic import to_dict
 
 
@@ -33,3 +35,9 @@ class CommitStory(StoryCommit):
         session.add(record)
         self.finalize(session, record)
         return to_dict(record)
+
+    def run(self) -> dict:
+        result = super().run()
+        with get_env_session() as session:
+            generated_content.refresh(session, ai_client)
+        return result

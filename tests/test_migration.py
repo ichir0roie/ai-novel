@@ -17,6 +17,7 @@
 - 56c6bd7ffe26: event_seed に consolidated を足す
 - 167e2faa3717: term を idea へ改名
 - fbab84187d1d: meme / oracle を足す
+- e1c9532b3315: story_summary を episode_summary へ改名
 """
 import sqlite3
 
@@ -28,7 +29,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "fbab84187d1d"
+HEAD_REVISION = "e1c9532b3315"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -80,7 +81,7 @@ def old_style_db():
     conn.execute(create_sql)
     conn.execute("DROP TABLE character_relation")
     conn.execute("DROP TABLE event_summary")
-    conn.execute("DROP TABLE story_summary")
+    conn.execute("DROP TABLE episode_summary")
     conn.execute("DROP TABLE event_seed")
     # schema.py から消えたので drop_all では落ちない。前のテストの downgrade が残したものを消す
     conn.execute("DROP TABLE IF EXISTS event_seed_source")
@@ -342,7 +343,7 @@ def test_upgrade_adds_summary_tables_and_downgrade_drops_them(old_style_db):
 
     conn = sqlite3.connect(TEST_DB_PATH)
     assert set(_columns(conn, "event_summary")) == {"id", "event_id", "source_hash", "text"}
-    assert set(_columns(conn, "story_summary")) == {
+    assert set(_columns(conn, "episode_summary")) == {
         "id", "story_id", "episode_id", "source_hash", "summary", "style"}
     conn.close()
 
@@ -350,7 +351,7 @@ def test_upgrade_adds_summary_tables_and_downgrade_drops_them(old_style_db):
 
     conn = sqlite3.connect(TEST_DB_PATH)
     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert "event_summary" not in tables and "story_summary" not in tables
+    assert "event_summary" not in tables and "story_summary" not in tables and "episode_summary" not in tables
     conn.close()
 
 

@@ -1,11 +1,12 @@
 import pytest
 
+from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
 from DEM.ai.claude_code.interface.randomizer.commit_event import CommitEvent
 from DEM.ai.claude_code.interface.randomizer.create_random_event import CreateRandomEvent
 from DEM.ai.claude_code.interface.randomizer.create_random_place import CreateRandomPlace
 from DEM.ai.claude_code.interface.randomizer.delete_place import DeletePlace
-from DEM.db.schema import Character, Event, EventCharacter, Location
+from DEM.db.schema import Character, Event, EventCharacter, EventSummary, Location
 
 
 @pytest.fixture
@@ -55,6 +56,17 @@ def test_commit_event_writes_characters(session, place, character):
 
     links = session.query(EventCharacter).all()
     assert [(link.event_id, link.character_id) for link in links] == [(event["id"], character)]
+
+
+def test_commit_event_summarizes_the_event_right_away(session, place, monkeypatch):
+    monkeypatch.setattr(ai_client, "try_generate_json",
+                        lambda *a, **k: {"text": "祭りが起きた"})
+
+    event = CommitEvent({"name": "祭り", "text": "本文", "time": "2100",
+                         "location_id": place}).run()
+
+    row = session.query(EventSummary).filter_by(event_id=event["id"]).one()
+    assert row.text == "祭りが起きた"
 
 
 def test_commit_event_accepts_json_string(place):

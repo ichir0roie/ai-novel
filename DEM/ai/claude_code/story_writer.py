@@ -14,15 +14,15 @@ from sqlalchemy import select
 from DEM.ai.instructions.style import EPISODE_STYLE_INSTRUCTION
 from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.story import _rows
+from DEM.ai.time_keeper import episode_summary
 from DEM.data_access_logic.query import common_query
-from DEM.db.schema import Episode, Session, StorySummary, get_env_session, summary_source_hash
+from DEM.db.schema import Episode, Session, get_env_session
 
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
 
 # 本文の代わりに概要で渡す、直前の話の本数。文体の覚え書きは一番新しい話のものを使う。
 RECAP_EPISODE_LIMIT = 3
-RECAP_TIMEOUT = 300.0
 
 _SYSTEM_PROMPT = f"""\
 あなたは日本語のライトノベルを書く作家です。
@@ -32,14 +32,6 @@ _SYSTEM_PROMPT = f"""\
 種(key)を渡したときは、それを場面まで展開したものを本文にしてください。種に無い出来事を足さないでください。
 JSON で答えてください。キーは title(サブタイトル。短く)と text(本文)の二つだけ。"""
 
-_RECAP_SYSTEM_PROMPT = """\
-あなたは日本語のライトノベルの担当編集者です。
-話の本文を一話ぶん渡すので、次の話を書く作家へ渡す覚え書きを作ってください。
-summary には、誰が何をして何がどうなったか、次の話へ引き継ぐ筋と、人物の立場・関係の変わりようを書いてください。
-style には、地の文と会話の混ぜ方・一文の長さ・視点の置き方・語り口の癖を、真似できる言い方で書いてください。
-どちらも本文を写さず、四〜六文にまとめてください。
-JSON で答えてください。キーは summary と style の二つだけ。"""
-
 _SCHEMA = {
     "type": "object",
     "properties": {
@@ -47,16 +39,6 @@ _SCHEMA = {
         "text": {"type": "string"},
     },
     "required": ["title", "text"],
-    "additionalProperties": False,
-}
-
-_RECAP_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "summary": {"type": "string"},
-        "style": {"type": "string"},
-    },
-    "required": ["summary", "style"],
     "additionalProperties": False,
 }
 
@@ -92,32 +74,13 @@ def _blocking_unsynced(session: Session, story_id: int, number: int) -> list[int
     return [record.number for record in rows if (record.text or "").strip()]
 
 
-def _episode_recap(session: Session, story_id: int, episode: dict) -> dict:
-    """一話ぶんの概要と文体の覚え書き。本文が前に作ったときのままなら `StorySummary` のものを使う。"""
-    text = (episode.get("text") or "").strip()
-    digest = summary_source_hash(text)
-    row = session.scalars(
-        select(StorySummary).where(StorySummary.episode_id == episode["id"])).first()
-    if row is not None and row.source_hash == digest:
-        return {"summary": row.summary, "style": row.style}
-
-    decided = ai_client.try_generate_json(
-        f"話: {_dump(episode)}\nこの話の概要と文体を覚え書きにしてください。",
-        _RECAP_SCHEMA, system=_RECAP_SYSTEM_PROMPT, timeout=RECAP_TIMEOUT)
-    note = {key: (decided.get(key) or "").strip() for key in ("summary", "style")}
-    if not all(note.values()):
-        return {key: value for key, value in note.items() if value}
-    if row is None:
-        row = StorySummary(story_id=story_id, episode_id=episode["id"])
-        session.add(row)
-    row.source_hash = digest
-    row.summary = note["summary"]
-    row.style = note["style"]
-    session.commit()
-    return note
+def _episode_recap(session: Session, episode: dict) -> dict:
+    """一話ぶんの概要と文体の覚え書き。`episode_summary.summarize` に委ねる。"""
+    record = session.get(Episode, episode["id"])
+    return episode_summary.summarize(session, record, ai_client) or {}
 
 
-def _recap(session: Session, story_id: int, episodes: list[dict]) -> dict:
+def _recap(session: Session, episodes: list[dict]) -> dict:
     """直前の話を本文の代わりに概要で並べたもの(`episodes`)と、一番新しい話の文体の覚え書き(`style`)。
 
     概要が作れなかった話は本文のまま並べる。
@@ -127,7 +90,7 @@ def _recap(session: Session, story_id: int, episodes: list[dict]) -> dict:
         if not (episode.get("text") or "").strip():
             rows.append(episode)
             continue
-        note = _episode_recap(session, story_id, episode)
+        note = _episode_recap(session, episode)
         if note.get("summary"):
             rows.append({**{k: v for k, v in episode.items() if k != "text"}, "summary": note["summary"]})
         else:
@@ -184,7 +147,7 @@ def write_next_episode(
 
     record = _episode(session, story_id, number)
     seed = (record.key or "").strip() if record is not None else ""
-    recap = _recap(session, story_id, materials["episodes"])
+    recap = _recap(session, materials["episodes"])
     lines = [
         f"作品: {_dump(story)}",
         f"時刻: {materials['time']}",

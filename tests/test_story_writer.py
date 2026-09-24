@@ -2,7 +2,8 @@
 import pytest
 
 from DEM.ai.claude_code import story_writer
-from DEM.db.schema import Episode, Location, Story, StorySummary, summary_source_hash
+from DEM.ai.time_keeper import episode_summary
+from DEM.db.schema import Episode, EpisodeSummary, Location, Story, summary_source_hash
 from DEM.db.stamp import Stamp
 
 
@@ -32,7 +33,7 @@ def calls(monkeypatch):
 
     def fake(prompt, schema, *, system=None, timeout=None, options=None):
         recorded.append({"prompt": prompt, "schema": schema, "system": system})
-        if schema is story_writer._RECAP_SCHEMA:
+        if schema is episode_summary._SCHEMA:
             return {"summary": "二人が村を出た", "style": "短い地の文と会話"}
         return {"title": "題", "text": "本文"}
 
@@ -45,7 +46,7 @@ def test_recap_reads_only_the_last_three_episodes_one_by_one(session, story, cal
 
     story_writer.write_next_episode(session, story.id)
 
-    recaps = [call for call in calls if call["schema"] is story_writer._RECAP_SCHEMA]
+    recaps = [call for call in calls if call["schema"] is episode_summary._SCHEMA]
     assert len(recaps) == 3
     for recap, number in zip(recaps, (2, 3, 4)):
         assert f"{number}話の本文" in recap["prompt"]
@@ -65,12 +66,12 @@ def test_episode_prompt_passes_summaries_instead_of_texts(session, story, calls)
     assert record.number == 3
 
 
-def test_recap_is_kept_in_the_story_summary_table(session, story, calls):
+def test_recap_is_kept_in_the_episode_summary_table(session, story, calls):
     add_episodes(session, story, 2)
 
     story_writer.write_next_episode(session, story.id)
 
-    rows = session.query(StorySummary).order_by(StorySummary.episode_id).all()
+    rows = session.query(EpisodeSummary).order_by(EpisodeSummary.episode_id).all()
     assert [(row.story_id, row.summary, row.style) for row in rows] == [
         (story.id, "二人が村を出た", "短い地の文と会話")] * 2
     assert rows[0].source_hash == summary_source_hash("1話の本文")
@@ -83,7 +84,7 @@ def test_recap_is_reused_while_the_episode_text_is_unchanged(session, story, cal
 
     story_writer.write_next_episode(session, story.id)
 
-    recaps = [call for call in calls if call["schema"] is story_writer._RECAP_SCHEMA]
+    recaps = [call for call in calls if call["schema"] is episode_summary._SCHEMA]
     assert len(recaps) == 1
     assert "本文" in recaps[0]["prompt"] and "2話の本文" not in recaps[0]["prompt"]
 
@@ -98,9 +99,9 @@ def test_recap_is_rewritten_when_the_episode_text_changes(session, story, calls)
 
     story_writer.write_next_episode(session, story.id, number=3)
 
-    recaps = [call for call in calls if call["schema"] is story_writer._RECAP_SCHEMA]
+    recaps = [call for call in calls if call["schema"] is episode_summary._SCHEMA]
     assert len(recaps) == 1 and "2話の書き直した本文" in recaps[0]["prompt"]
-    row = session.query(StorySummary).filter_by(episode_id=episode.id).one()
+    row = session.query(EpisodeSummary).filter_by(episode_id=episode.id).one()
     assert row.source_hash == summary_source_hash("2話の書き直した本文")
 
 
@@ -118,7 +119,7 @@ def test_texts_are_passed_when_no_recap_is_written(session, story, monkeypatch):
 
     def fake(prompt, schema, *, system=None, timeout=None, options=None):
         prompts.append(prompt)
-        if schema is story_writer._RECAP_SCHEMA:
+        if schema is episode_summary._SCHEMA:
             return {}
         return {"title": "題", "text": "本文"}
 
@@ -129,7 +130,7 @@ def test_texts_are_passed_when_no_recap_is_written(session, story, monkeypatch):
     assert "1話の本文" in prompts[-1] and "2話の本文" in prompts[-1]
     assert '"summary"' not in prompts[-1]
     assert "直前の話の文体" not in prompts[-1]
-    assert session.query(StorySummary).count() == 0
+    assert session.query(EpisodeSummary).count() == 0
     assert record.text == "本文"
 
 

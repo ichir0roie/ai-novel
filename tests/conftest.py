@@ -29,9 +29,13 @@ def fresh_test_db():
 
 
 def _rebuild_tables():
-    Base.metadata.drop_all(engine)
+    # drop_all は schema.py の現在のテーブルしか知らない。old_style_db は表を改名前の
+    # 名前へ書き換えることがあるので、実際に db にある表を見て消す
     with engine.begin() as conn:
-        conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
+        tables = [row[0] for row in conn.exec_driver_sql(
+            "SELECT name FROM sqlite_master WHERE type = 'table'")]
+        for table in tables:
+            conn.exec_driver_sql(f'DROP TABLE IF EXISTS "{table}"')
     Base.metadata.create_all(engine)
 
 
@@ -54,6 +58,14 @@ def sync_tools_use_test_db(monkeypatch):
     monkeypatch.setattr(import_db, "get_novel_session", get_test_session)
     monkeypatch.setattr(import_db, "NOVEL_DB_PATH", TEST_DB_PATH)
     yield
+
+
+@pytest.fixture(autouse=True)
+def no_real_claude_calls(monkeypatch):
+    """`DEM.ai.claude_code.ai_client` は `claude -p` を実際に叩くので、既定では空の辞書
+    (失敗扱い)を返すよう塞ぐ。応答の中身を見るテストは、自分で `try_generate_json` を上書きする。"""
+    from DEM.ai.claude_code import ai_client
+    monkeypatch.setattr(ai_client, "try_generate_json", lambda *a, **k: {})
 
 
 @pytest.fixture

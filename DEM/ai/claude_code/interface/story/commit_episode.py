@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.story._base import StoryCommit
-from DEM.db.schema import Episode, Story
+from DEM.ai.time_keeper import generated_content
+from DEM.db.schema import Episode, Story, get_env_session
 from DEM.db.schema_pydantic import to_dict
 
 
@@ -49,3 +51,9 @@ class CommitEpisode(StoryCommit):
             record.synced = False
         self.finalize(session, record)
         return to_dict(record)
+
+    def run(self) -> dict:
+        result = super().run()
+        with get_env_session() as session:
+            generated_content.refresh(session, ai_client, session.get(Episode, result["id"]))
+        return result

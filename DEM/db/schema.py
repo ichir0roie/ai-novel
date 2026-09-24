@@ -539,10 +539,10 @@ class Episode(EventSeededMixin, MarkdownBase):
         return None, {"story_id": int(story_part), "title": rest or None}
 
 
-class StorySummary(Base):
+class EpisodeSummary(Base):
     """作品の話(`Episode`)一話ぶんの要約と文体の覚え書き。md には出さない(import/export の外)。"""
 
-    __tablename__ = "story_summary"
+    __tablename__ = "episode_summary"
 
     story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"), index=True, sort_order=100)
     episode_id: Mapped[int] = mapped_column(

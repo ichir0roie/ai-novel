@@ -17,8 +17,10 @@
 """
 from __future__ import annotations
 
+from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.randomizer._base import CommitDraft
-from DEM.db.schema import Character, Event, EventCharacter, Location
+from DEM.ai.time_keeper import generated_content
+from DEM.db.schema import Character, Event, EventCharacter, Location, get_env_session
 from DEM.db.schema_pydantic import to_dict
 
 
@@ -56,3 +58,9 @@ class CommitEvent(CommitDraft):
         session.add(record)
         self.finalize(session, record)
         return {**to_dict(record), "character_ids": character_ids}
+
+    def run(self) -> dict:
+        result = super().run()
+        with get_env_session() as session:
+            generated_content.refresh(session, ai_client, session.get(Event, result["id"]))
+        return result

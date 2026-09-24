@@ -3,10 +3,11 @@ import os
 
 import pytest
 
+from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface._base import UnknownRecordError
 from DEM.ai.claude_code.interface.story.commit_episode import CommitEpisode
 from DEM.ai.claude_code.interface.story.commit_story import CommitStory
-from DEM.db.schema import Episode, Location, Story
+from DEM.db.schema import Episode, EpisodeSummary, Location, Story
 from DEM.tool.markdown.export_db import export_db
 from DEM.tool.markdown.import_db import import_db
 
@@ -26,6 +27,18 @@ def test_commit_story_returns_row(place):
     assert story["name"] == "遥かなる幻想郷まで"
     assert story["place_id"] == place
     assert str(story["start"]) == "11572/03/24 00:00:00"
+
+
+def test_commit_episode_summarizes_the_episode_right_away(session, place, monkeypatch):
+    monkeypatch.setattr(ai_client, "try_generate_json",
+                        lambda *a, **k: {"summary": "娘が生まれた", "style": "淡々とした語り"})
+    story = CommitStory({"name": "遥かなる幻想郷まで", "place_id": place}).run()
+
+    episode = CommitEpisode({"story_id": story["id"], "number": 1,
+                             "title": "白い灯り", "text": "骨組み"}).run()
+
+    row = session.query(EpisodeSummary).filter_by(episode_id=episode["id"]).one()
+    assert (row.summary, row.style) == ("娘が生まれた", "淡々とした語り")
 
 
 def test_commit_story_requires_name(place):

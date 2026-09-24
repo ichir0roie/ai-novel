@@ -83,3 +83,7 @@ EVENT_SEED_CONSOLIDATE_LETTERS = 15000
 # ミームを抜き出すとき、一度の呼び出しで渡す元の本文の字数の上限。
 MEME_BATCH_LETTERS = 6000
 MEME_TIMEOUT = 300.0
+
+# story_summary
+# 話一話ぶんの概要・文体を覚え書きにさせるのを待つ秒数。
+RECAP_TIMEOUT = 300.0
