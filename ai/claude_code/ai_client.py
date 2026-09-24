@@ -30,8 +30,8 @@ class ClaudeAIError(RuntimeError):
 _tally = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
-_DEFAULT_MODEL = "claude-sonnet-5"
-_DEFAULT_EFFORT = "low"
+_DEFAULT_MODEL = "claude-opus-5-5"
+_DEFAULT_EFFORT = "medium"
 
 
 def _command() -> str:
