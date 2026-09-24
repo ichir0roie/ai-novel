@@ -3,6 +3,7 @@ import random
 from ai.time_keeper import constants
 from ai.time_keeper.random_character_generator import (
     _CONTENT_SYSTEM_PROMPT, _NON_PERSON_CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
+    history_section,
 )
 from db.schema import (
     MEME_CATEGORIES, PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, Location, Meme, Story,
@@ -140,3 +141,51 @@ def test_generate_non_person_has_no_dialect(session):
 
     assert record.dialect is None
     assert all("方言: " not in c["prompt"] for c in ai.calls)
+
+
+def test_history_section_writes_the_year_and_age_of_each_step_up_to_now():
+    items = [
+        {"age": 14, "text": "関所に雇われる。"},
+        {"age": 0, "text": "隊商宿に生まれる。"},
+        {"age": 40, "text": "先の歳は捨てる。"},
+        {"age": 3, "text": ""},
+    ]
+
+    assert history_section(items, 11538, 30) == (
+        "- 11538年(0歳): 隊商宿に生まれる。\n"
+        "- 11552年(14歳): 関所に雇われる。\n"
+        "- 11568年(30歳): 現在。"
+    )
+
+
+def test_history_section_marks_the_last_step_at_the_current_age_as_now():
+    items = [{"age": 0, "text": "生まれる。"}, {"age": 20, "text": "港で荷を担ぐ。"}]
+
+    assert history_section(items, 2080, 20).splitlines()[-1] == "- 2100年(20歳): 現在。港で荷を担ぐ。"
+
+
+class _TellsHistory(MockAIClient):
+    def try_generate_json(self, prompt, schema, **kwargs):
+        decided = super().try_generate_json(prompt, schema, **kwargs)
+        if kwargs.get("system") == _CONTENT_SYSTEM_PROMPT:
+            decided["age"] = 20
+            decided["history"] = [{"age": 0, "text": "【名前】が生まれる。"},
+                                  {"age": 20, "text": "港で荷を担ぐ。"}]
+        return decided
+
+
+def test_generate_person_writes_the_history_before_the_memes(session, monkeypatch):
+    place = _place(session)
+    _one_meme_per_category(session, monkeypatch)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), _TellsHistory(seed=1), person=True)
+
+    assert f"\n\n# 来歴\n- 2080年(0歳): {record.name}が生まれる。\n- 2100年(20歳): 現在。港で荷を担ぐ。\n\n# meme\n" in record.text
+
+
+def test_generate_non_person_has_no_history(session):
+    place = _place(session)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), MockAIClient(seed=2), person=False)
+
+    assert "# 来歴" not in record.text

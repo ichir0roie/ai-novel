@@ -20,7 +20,11 @@ _NAME_PLACEHOLDER_PATTERN = re.compile(r"[【\[(]\s*名前\s*[】\])]")
 
 
 def fill_name_placeholder(text: str, name: str) -> str:
-    return _NAME_PLACEHOLDER_PATTERN.sub(name, text)
+    text = _NAME_PLACEHOLDER_PATTERN.sub(name, text)
+    if not name:
+        return text
+    # 渡した名前を知っている AI は、仮置きの中身を名前に書き換えて【名前】の括弧だけ残すことがある
+    return re.sub(rf"【\s*{re.escape(name)}\s*】", name, text)
 
 
 IDEA_NAMING_INSTRUCTION = """\
