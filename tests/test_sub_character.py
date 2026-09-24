@@ -71,7 +71,7 @@ def test_export_step_writes_worlds_root(session, tmp_path):
     assert os.path.isdir(os.path.join(root, "location"))
 
 
-def test_loop_time_exports_after_every_step(session, monkeypatch):
+def test_loop_time_does_not_export_per_step(session, monkeypatch):
     place = _place(session)
     _character(session, place, sub_character=True)
 
@@ -81,4 +81,5 @@ def test_loop_time_exports_after_every_step(session, monkeypatch):
 
     main.loop_time(MockAIClient(seed=2), start_time=Stamp(2100), max_days=3)
 
-    assert len(calls) == 3
+    # 一歩ごとの書き出しは止めてある(main.py で export_step をコメントアウト)
+    assert calls == []
