@@ -107,7 +107,7 @@ def unsynced_episodes(session: Session, story_id: int | None = None) -> list[dic
 
 def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
           full: bool = False) -> dict:
-    """世界の断面(場所の道筋・張っている出来事・直近の出来事・語・いま居る者)を一枚にまとめる。
+    """世界の断面(場所の道筋・張っている出来事・直近の出来事・アイデア・いま居る者)を一枚にまとめる。
 
     `full=False`(既定)では `hidden` の立った出来事を伏せる。
     """
@@ -131,8 +131,8 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
     recent = [event_row(row) for row in session.scalars(recent_query).all()]
 
     character_ids = residents(session, place_ids, until)
-    terms = session.scalars(
-        common_query.terms_select(common_query.term_scope_ids(session, place_id))).all()
+    ideas = session.scalars(
+        common_query.ideas_select(common_query.idea_scope_ids(session, place_id))).all()
 
     character_names = _names_for(session, character_ids, "Character")
 
@@ -143,8 +143,8 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
         "reach": reach,
         "open_events": visible(open_events(session, place_ids, until)),
         "recent_events": visible(recent),
-        "terms": [{"id": term.id, "name": term.name, "kind": term.kind,
-                   "text": term.text} for term in terms],
+        "ideas": [{"id": idea.id, "name": idea.name, "kind": idea.kind,
+                   "text": idea.text} for idea in ideas],
         "present_characters": [
             {"id": id_, "name": character_names.get(id_)} for id_ in character_ids],
     }

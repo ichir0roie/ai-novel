@@ -287,7 +287,7 @@ class EventSeed(Base):
 
 
 class Meme(Base):
-    """語(`Term`)・oracle(著者の覚え書き)・人物の筋書きから抜き出した、キャラクターの芯になる考え方。md には出さない(import/export の外)。
+    """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書きから抜き出した、キャラクターの芯になる考え方。md には出さない(import/export の外)。
 
     ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
     (元の側の `meme_seeded` で、抜き出し済みかだけを管理する)。
@@ -446,8 +446,8 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-class Term(MemeSeededMixin, MarkdownBase):
-    __tablename__ = "term"
+class Idea(MemeSeededMixin, MarkdownBase):
+    __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
     kind: Mapped[str] = mapped_column(String, sort_order=210)
@@ -456,8 +456,8 @@ class Term(MemeSeededMixin, MarkdownBase):
     restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=230)
     restrict_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=240)
 
-    parent_term_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる", sort_order=250)
+    parent_idea_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("idea.id"), comment="上位のアイデア。置いたディレクトリで決まる", sort_order=250)
 
     def default_filename(self) -> str | None:
         return self.name

@@ -1,7 +1,7 @@
 from DEM.ai.claude_code.interface.world.list_characters import ListCharacters
 from DEM.ai.claude_code.interface.world.list_places import ListPlaces
-from DEM.ai.claude_code.interface.world.search_terms import SearchTerms
-from DEM.db.schema import Character, CharacterPlace, Location, Term
+from DEM.ai.claude_code.interface.world.search_ideas import SearchIdeas
+from DEM.db.schema import Character, CharacterPlace, Idea, Location
 
 
 def test_list_characters_includes_place(session):
@@ -38,14 +38,14 @@ def test_list_places_filters_by_kind(session):
     assert ListPlaces("町").run() == []
 
 
-def test_search_terms_matches_text(session):
+def test_search_ideas_matches_text(session):
     session.add_all([
-        Term(name="霊纏", kind="技術", text="霊を纏う技"),
-        Term(name="魔力灯り", kind="道具", text="魔力で灯す"),
+        Idea(name="霊纏", kind="技術", text="霊を纏う技"),
+        Idea(name="魔力灯り", kind="道具", text="魔力で灯す"),
     ])
     session.commit()
 
-    rows = SearchTerms("霊").run()
+    rows = SearchIdeas("霊").run()
     assert [row["name"] for row in rows] == ["霊纏"]
     assert rows[0]["text"] == "霊を纏う技"
-    assert SearchTerms("魔力灯り").run() == []
+    assert SearchIdeas("魔力灯り").run() == []

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ミーム(`Meme`)。語(`Term`)・oracle(著者の覚え書き)・人物の筋書きから、
+"""ミーム(`Meme`)。アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書きから、
 人物の行動原理の芯になりうる考え方を抜き出して貯める。
 
 抜き出しは元のレコードごとに一度だけで、`meme_seeded` で管理する。false に戻すと、次の抽出で抜き出し直す。
@@ -12,7 +12,7 @@ import re
 from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper._ai import AIClient
 from DEM.data_access_logic.query import meme_query
-from DEM.db.schema import Character, Meme, Oracle, Session, Term
+from DEM.db.schema import Character, Idea, Meme, Oracle, Session
 
 _SYSTEM_PROMPT = """\
 あなたは物語の編集者です。
@@ -41,12 +41,12 @@ def _plot_section(text: str | None) -> str:
 
 # 元のテーブルと、そこから抜き出す本文。人物は `# plot` の節だけを使う。
 _SOURCE_TEXTS = (
-    (Term, lambda term: term.text),
+    (Idea, lambda idea: idea.text),
     (Oracle, lambda oracle: oracle.text),
     (Character, lambda character: _plot_section(character.text)),
 )
 
-_Pending = tuple[Term | Oracle | Character, str]
+_Pending = tuple[Idea | Oracle | Character, str]
 
 
 def _batches(items: list[_Pending], limit: int) -> list[list[_Pending]]:

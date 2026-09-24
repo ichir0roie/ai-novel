@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'fbab84187d1d'
-down_revision: Union[str, Sequence[str], None] = '56c6bd7ffe26'
+down_revision: Union[str, Sequence[str], None] = '167e2faa3717'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -26,7 +26,7 @@ _FILENAME_COMMENT = ('import,export時のファイル名(id・拡張子を除い
 
 
 def upgrade() -> None:
-    """語(term)・oracle(著者の覚え書き)・人物の筋書きから抜き出す、ミーム(meme)テーブルを足す。
+    """アイデア(idea)・oracle(著者の覚え書き)・人物の筋書きから抜き出す、ミーム(meme)テーブルを足す。
 
     oracle は元から worlds/oracle/ に手書きの md として存在するので、md 化した表(MarkdownBase)として足す。
     """
@@ -43,7 +43,7 @@ def upgrade() -> None:
     sa.Column('filename', sa.String(), nullable=True, comment=_FILENAME_COMMENT),
     sa.PrimaryKeyConstraint('id')
     )
-    for table in ('term', 'character'):
+    for table in ('idea', 'character'):
         with op.batch_alter_table(table, schema=None) as batch_op:
             batch_op.add_column(sa.Column('meme_seeded', sa.Boolean(), nullable=False,
                                           server_default=sa.false(), comment=_MEME_SEEDED_COMMENT))
@@ -51,7 +51,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    for table in ('term', 'character'):
+    for table in ('idea', 'character'):
         with op.batch_alter_table(table, schema=None) as batch_op:
             batch_op.drop_column('meme_seeded')
     op.drop_table('oracle')

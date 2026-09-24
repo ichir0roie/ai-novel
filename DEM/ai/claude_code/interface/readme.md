@@ -21,19 +21,19 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
 | 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
-| 「この語は何?」「用語を調べて」     | `world.search_terms.SearchTerms(keyword)`                                    |
+| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keyword)`                              |
 | 「場所を足して」                     | `randomizer.create_random_place.CreateRandomPlace()` で下書き → 内容を決めて `randomizer.commit_place.CommitPlace(place)` |
 | 「人物を足して」                     | `randomizer.create_random_character.CreateRandomCharacter()` → `randomizer.commit_character.CommitCharacter(character)` |
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
-| 「語を足して」                       | `randomizer.commit_term.CommitTerm(term)`                                    |
+| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea)`                                    |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
-| 「語を直して」                       | `randomizer.update_term.UpdateTerm(term)`。`id` 必須、渡した欄だけ直す       |
-| 「語を消して」                       | `randomizer.delete_term.DeleteTerm(term_id)`。下位の語が残っていれば止まる   |
-| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。語・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)から抜き出し、`meme` テーブルへ足す。足した件数を返す |
+| 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
+| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる |
+| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)から抜き出し、`meme` テーブルへ足す。足した件数を返す |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
 | 「話を書き始める」「次の話を書く」   | `story.start_story.StartStory(story_id)`。同期確認・見出し・直前の話・断面・顔ぶれを一度に出す |
 | 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)` |
@@ -57,7 +57,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 人物が持つミーム(行動原理の芯。`meme` テーブル)も専用の節は無く、その人物の `text` の
 `# meme` 節に、持つミームの文面を箇条書きでそのまま書く。人物は複数のミームを持ってよい。
-`meme` テーブル自体は語(`term`)・oracle・人物の筋書きから抜き出して貯めるだけで、
+`meme` テーブル自体はアイデア(`idea`)・oracle・人物の筋書きから抜き出して貯めるだけで、
 人物との FK は持たない(ミームは人物の間を移り変わり・伝染していくため)。
 
 補足:
@@ -123,8 +123,8 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
 - `story/` — 作品・話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
 - `sync/` — db と md の同期
-- `world/` — 場所・人物・語・出来事の一覧(読む専用)
-- `meme/` — 語・oracle・人物の筋書きからのミームの抽出
+- `world/` — 場所・人物・アイデア・出来事の一覧(読む専用)
+- `meme/` — アイデア・oracle・人物の筋書きからのミームの抽出
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ
@@ -146,7 +146,7 @@ Entrypoint(interface/_base.py)
 │   ├─ CommitEntrypoint         「確定する」系の共通処理(parse/check_columns/check_exists)
 │   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_place.py
 │   │   └─ story.StoryCommit        → commit_*.py / update_story.py / delete_story.py / set_episode_synced.py
-│   ├─ world.WorldQuery          → list_*.py / search_terms.py
+│   ├─ world.WorldQuery          → list_*.py / search_ideas.py
 │   └─ story.StoryQuery          → list_*.py / read_*.py / start_story.py
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
 ```
@@ -162,7 +162,7 @@ db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 | ------------------------------ | ------------------------------------------------------------ |
 | `common_query.py`              | 時刻の扱い・断面・顔ぶれ・場所の道筋                         |
 | `character_simulation_query.py` | 人物を軸に周辺を読む(`read_surroundings`)                   |
-| `dictionary_query.py`          | 語(辞書)のキーワード検索                                     |
+| `dictionary_query.py`          | アイデア(辞書)のキーワード検索                               |
 | `story_createion_query.py`     | 場所に掛かる作品(`story`)の読み出し                          |
 | `world_createion_query.py`     | 生きている人物、広さの整合、進行中の判定               |
 | `event_seed_query.py`          | 出来事の種をまだ抜き出していない元(`event_seeded` が false) |

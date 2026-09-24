@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""語(term)・oracle(著者の覚え書き)・人物の筋書き(plot)からミームを抜き出し、`meme` テーブルへ足す、claude が呼ぶ入口。
+"""アイデア(idea)・oracle(著者の覚え書き)・人物の筋書き(plot)からミームを抜き出し、`meme` テーブルへ足す、claude が呼ぶ入口。
 
     ExtractMemes().run()   足したミームの件数を返す
 """
