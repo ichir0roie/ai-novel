@@ -1,18 +1,18 @@
 import pytest
 
-from DEM.ai.claude_code.interface._base import UnknownRecordError
-from DEM.ai.claude_code.interface.story.delete_story import DeleteStory
-from DEM.ai.claude_code.interface.story.list_stories import ListStories
-from DEM.ai.claude_code.interface.story.list_unsynced_episodes import ListUnsyncedEpisodes
-from DEM.ai.claude_code.interface.story.read_brief import ReadBrief
-from DEM.ai.claude_code.interface.story.read_cast import ReadCast
-from DEM.ai.claude_code.interface.story.read_episodes import ReadEpisodes
-from DEM.ai.claude_code.interface.story.read_surroundings import ReadSurroundings
-from DEM.ai.claude_code.interface.story.set_episode_synced import SetEpisodeSynced
-from DEM.ai.claude_code.interface.story.start_story import StartStory
-from DEM.data_access_logic.query.common_query import NotFoundError
-from DEM.db.schema import Character, CharacterPlace, Episode, Event, EventCharacter, Location, Story
-from DEM.db.stamp import Stamp
+from ai.claude_code.interface._base import UnknownRecordError
+from ai.claude_code.interface.story.delete_story import DeleteStory
+from ai.claude_code.interface.story.list_stories import ListStories
+from ai.claude_code.interface.story.list_unsynced_episodes import ListUnsyncedEpisodes
+from ai.claude_code.interface.story.read_brief import ReadBrief
+from ai.claude_code.interface.story.read_cast import ReadCast
+from ai.claude_code.interface.story.read_episodes import ReadEpisodes
+from ai.claude_code.interface.story.read_surroundings import ReadSurroundings
+from ai.claude_code.interface.story.set_episode_synced import SetEpisodeSynced
+from ai.claude_code.interface.story.start_story import StartStory
+from data_access_logic.query.common_query import NotFoundError
+from db.schema import Character, CharacterPlace, Episode, Event, EventCharacter, Location, Story
+from db.stamp import Stamp
 
 
 @pytest.fixture

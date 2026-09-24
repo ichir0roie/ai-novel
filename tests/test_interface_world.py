@@ -1,7 +1,7 @@
-from DEM.ai.claude_code.interface.world.list_characters import ListCharacters
-from DEM.ai.claude_code.interface.world.list_places import ListPlaces
-from DEM.ai.claude_code.interface.world.search_ideas import SearchIdeas
-from DEM.db.schema import Character, CharacterPlace, Idea, Location
+from ai.claude_code.interface.world.list_characters import ListCharacters
+from ai.claude_code.interface.world.list_places import ListPlaces
+from ai.claude_code.interface.world.search_ideas import SearchIdeas
+from db.schema import Character, CharacterPlace, Idea, Location
 
 
 def test_list_characters_includes_place(session):

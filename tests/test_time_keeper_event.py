@@ -1,13 +1,13 @@
 """event_progression_generator の、出来事の偏りを抑えるための仕組み。"""
-from DEM.ai.instructions.event_writing import (
+from ai.instructions.event_writing import (
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_PROGRESSION_INSTRUCTION,
 )
-from DEM.ai.instructions.naming import CHARACTER_NAMING_INSTRUCTION
-from DEM.ai.time_keeper import constants
-from DEM.ai.time_keeper._format import add_days
-from DEM.ai.time_keeper.event_progression_generator import _place_roll_probability
-from DEM.db.schema import Event, Location
-from DEM.db.stamp import Stamp
+from ai.instructions.naming import CHARACTER_NAMING_INSTRUCTION
+from ai.time_keeper import constants
+from ai.time_keeper._format import add_days
+from ai.time_keeper.event_progression_generator import _place_roll_probability
+from db.schema import Event, Location
+from db.stamp import Stamp
 
 
 def _place(session) -> Location:

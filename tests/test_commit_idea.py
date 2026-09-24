@@ -3,9 +3,9 @@ import json
 
 import pytest
 
-from DEM.ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
-from DEM.ai.claude_code.interface.randomizer.commit_idea import CommitIdea
-from DEM.db.schema import Idea, Location
+from ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
+from ai.claude_code.interface.randomizer.commit_idea import CommitIdea
+from db.schema import Idea, Location
 
 
 @pytest.fixture

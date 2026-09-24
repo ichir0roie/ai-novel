@@ -1,11 +1,11 @@
-"""テストは `novel.test.db` だけを読み書きする。`DEM.tool.test` を最初に import して db パスを固定する。"""
+"""テストは `novel.test.db` だけを読み書きする。`tool.test` を最初に import して db パスを固定する。"""
 import os
 
 import pytest
 
-from DEM.tool.test import TEST_DB_PATH  # noqa: F401  schema より先に読む(db を novel.test.db に固定)
-from DEM.db.schema import Base, create_db, engine, get_env_session, get_test_session  # noqa: E402
-from DEM.tool.markdown import export_db, import_db  # noqa: E402
+from tool.test import TEST_DB_PATH  # noqa: F401  schema より先に読む(db を novel.test.db に固定)
+from db.schema import Base, create_db, engine, get_env_session, get_test_session  # noqa: E402
+from tool.markdown import export_db, import_db  # noqa: E402
 from sqlalchemy import event  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
 
@@ -62,9 +62,9 @@ def sync_tools_use_test_db(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_real_claude_calls(monkeypatch):
-    """`DEM.ai.claude_code.ai_client` は `claude -p` を実際に叩くので、既定では空の辞書
+    """`ai.claude_code.ai_client` は `claude -p` を実際に叩くので、既定では空の辞書
     (失敗扱い)を返すよう塞ぐ。応答の中身を見るテストは、自分で `try_generate_json` を上書きする。"""
-    from DEM.ai.claude_code import ai_client
+    from ai.claude_code import ai_client
     monkeypatch.setattr(ai_client, "try_generate_json", lambda *a, **k: {})
 
 

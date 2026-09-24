@@ -25,9 +25,9 @@ import pytest
 from alembic import command
 from alembic.config import Config
 
-from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
-from DEM.db.stamp import Stamp
-from DEM.tool.test import TEST_DB_PATH
+from db.schema import PERSONALITY_COLUMNS, Base, engine
+from db.stamp import Stamp
+from tool.test import TEST_DB_PATH
 
 HEAD_REVISION = "e1c9532b3315"
 
@@ -119,7 +119,7 @@ def old_style_db():
 
 
 def _config() -> Config:
-    return Config("core/DEM/db/alembic/alembic.ini")
+    return Config("core/db/alembic/alembic.ini")
 
 
 def _columns(conn, table="character") -> dict[str, tuple[str, int, str | None]]:

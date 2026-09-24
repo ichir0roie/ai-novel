@@ -1,10 +1,10 @@
 """出来事の入口(`ListEvents` / `ReadEvents`)が返す辞書。"""
-from DEM.ai.claude_code.interface.story.read_events import ReadEvents
-from DEM.ai.claude_code.interface.world.list_events import ListEvents
+from ai.claude_code.interface.story.read_events import ReadEvents
+from ai.claude_code.interface.world.list_events import ListEvents
 import pytest
 
-from DEM.db.schema import Character, Event, EventCharacter, Location
-from DEM.db.stamp import Stamp
+from db.schema import Character, Event, EventCharacter, Location
+from db.stamp import Stamp
 
 
 def _event_at(session, place) -> Event:

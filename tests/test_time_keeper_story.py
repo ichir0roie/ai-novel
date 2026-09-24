@@ -1,11 +1,11 @@
 """特定の作品(`story_id`)の開始時刻から years 年ぶん進める `loop_time_for_story`。"""
 import pytest
 
-from DEM.ai.time_keeper import main
-from DEM.ai.time_keeper._format import add_years, days_between
-from DEM.db.schema import Location, Story
-from DEM.db.stamp import Stamp
-from DEM.tool.test.mock_ai_client import MockAIClient
+from ai.time_keeper import main
+from ai.time_keeper._format import add_years, days_between
+from db.schema import Location, Story
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
 
 
 def test_add_years_keeps_month_and_day():

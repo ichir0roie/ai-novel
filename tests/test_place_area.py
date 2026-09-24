@@ -1,8 +1,8 @@
 """場所の広さ `area` を直すときの整合: 親未満か、兄弟の合計が親を超えないか。"""
 import pytest
 
-from DEM.ai.claude_code.interface.randomizer.update_place import UpdatePlace
-from DEM.db.schema import Location
+from ai.claude_code.interface.randomizer.update_place import UpdatePlace
+from db.schema import Location
 
 
 @pytest.fixture

@@ -1,14 +1,14 @@
 """time_keeper の人物生成。サイコロで決めた性格を AI へ渡し、その段階のまま db に確定する。"""
 import random
 
-from DEM.ai.time_keeper.random_character_generator import (
+from ai.time_keeper.random_character_generator import (
     _CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
 )
-from DEM.db.schema import (
+from db.schema import (
     PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, Location, Story,
 )
-from DEM.db.stamp import Stamp
-from DEM.tool.test.mock_ai_client import MockAIClient
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
 
 _ALL_HIGH = {name: "高" for name in PERSONALITY_COLUMNS}
 

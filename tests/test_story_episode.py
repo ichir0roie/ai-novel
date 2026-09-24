@@ -3,13 +3,13 @@ import os
 
 import pytest
 
-from DEM.ai.claude_code import ai_client
-from DEM.ai.claude_code.interface._base import UnknownRecordError
-from DEM.ai.claude_code.interface.story.commit_episode import CommitEpisode
-from DEM.ai.claude_code.interface.story.commit_story import CommitStory
-from DEM.db.schema import Episode, EpisodeSummary, Location, Story
-from DEM.tool.markdown.export_db import export_db
-from DEM.tool.markdown.import_db import import_db
+from ai.claude_code import ai_client
+from ai.claude_code.interface._base import UnknownRecordError
+from ai.claude_code.interface.story.commit_episode import CommitEpisode
+from ai.claude_code.interface.story.commit_story import CommitStory
+from db.schema import Episode, EpisodeSummary, Location, Story
+from tool.markdown.export_db import export_db
+from tool.markdown.import_db import import_db
 
 
 @pytest.fixture

@@ -1,10 +1,10 @@
 """人物の居場所を確定する入口。人物と場所の実在と、場所の期間に収まるかを検める。"""
 import pytest
 
-from DEM.ai.claude_code.interface._base import UnknownRecordError
-from DEM.ai.claude_code.interface.randomizer.commit_character_place import CommitCharacterPlace
-from DEM.db.schema import Character, CharacterPlace, Location
-from DEM.db.stamp import Stamp
+from ai.claude_code.interface._base import UnknownRecordError
+from ai.claude_code.interface.randomizer.commit_character_place import CommitCharacterPlace
+from db.schema import Character, CharacterPlace, Location
+from db.stamp import Stamp
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def test_commit_rejects_unknown_or_missing_references(session, world):
 
 
 def test_update_sets_end_when_moving(session, world):
-    from DEM.ai.claude_code.interface.randomizer.update_character_place import UpdateCharacterPlace
+    from ai.claude_code.interface.randomizer.update_character_place import UpdateCharacterPlace
 
     row = CommitCharacterPlace({
         "character_id": world["person"], "location_id": world["village"], "start": "2120"}).run()

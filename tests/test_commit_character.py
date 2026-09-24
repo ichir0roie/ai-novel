@@ -3,17 +3,17 @@ import json
 
 import pytest
 
-from DEM.ai.claude_code.interface._base import UnknownFieldError
-from DEM.ai.claude_code.interface.randomizer.commit_character import CommitCharacter
-from DEM.ai.claude_code.interface.randomizer.commit_place import CommitPlace
-from DEM.ai.claude_code.interface.randomizer.create_random_character import CreateRandomCharacter
-from DEM.ai.claude_code.interface.randomizer.update_character import UpdateCharacter
-from DEM.ai.claude_code.interface.story.update_story import UpdateStory
-from DEM.ai.claude_code.interface.story.read_character import ReadCharacter
-from DEM.db.schema import (
+from ai.claude_code.interface._base import UnknownFieldError
+from ai.claude_code.interface.randomizer.commit_character import CommitCharacter
+from ai.claude_code.interface.randomizer.commit_place import CommitPlace
+from ai.claude_code.interface.randomizer.create_random_character import CreateRandomCharacter
+from ai.claude_code.interface.randomizer.update_character import UpdateCharacter
+from ai.claude_code.interface.story.update_story import UpdateStory
+from ai.claude_code.interface.story.read_character import ReadCharacter
+from db.schema import (
     PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlace, Location, Story,
 )
-from DEM.db.stamp import Stamp
+from db.stamp import Stamp
 
 
 @pytest.fixture

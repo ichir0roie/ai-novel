@@ -1,12 +1,12 @@
 import pytest
 
-from DEM.ai.claude_code import ai_client
-from DEM.ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
-from DEM.ai.claude_code.interface.randomizer.commit_event import CommitEvent
-from DEM.ai.claude_code.interface.randomizer.create_random_event import CreateRandomEvent
-from DEM.ai.claude_code.interface.randomizer.create_random_place import CreateRandomPlace
-from DEM.ai.claude_code.interface.randomizer.delete_place import DeletePlace
-from DEM.db.schema import Character, Event, EventCharacter, EventSummary, Location
+from ai.claude_code import ai_client
+from ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
+from ai.claude_code.interface.randomizer.commit_event import CommitEvent
+from ai.claude_code.interface.randomizer.create_random_event import CreateRandomEvent
+from ai.claude_code.interface.randomizer.create_random_place import CreateRandomPlace
+from ai.claude_code.interface.randomizer.delete_place import DeletePlace
+from db.schema import Character, Event, EventCharacter, EventSummary, Location
 
 
 @pytest.fixture

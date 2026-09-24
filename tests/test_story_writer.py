@@ -1,10 +1,10 @@
 """本文を書く前に直前の話から作る覚え書き(概要と文体)と、それを載せた本文のプロンプト。"""
 import pytest
 
-from DEM.ai.claude_code import story_writer
-from DEM.ai.time_keeper import episode_summary
-from DEM.db.schema import Episode, EpisodeSummary, Location, Story, summary_source_hash
-from DEM.db.stamp import Stamp
+from ai.claude_code import story_writer
+from ai.time_keeper import episode_summary
+from db.schema import Episode, EpisodeSummary, Location, Story, summary_source_hash
+from db.stamp import Stamp
 
 
 @pytest.fixture

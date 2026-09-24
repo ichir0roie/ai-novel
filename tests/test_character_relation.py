@@ -4,14 +4,14 @@ import os
 
 import pytest
 
-from DEM.ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
-from DEM.ai.claude_code.interface.randomizer.commit_character_relation import CommitCharacterRelation
-from DEM.ai.claude_code.interface.randomizer.update_character_relation import UpdateCharacterRelation
-from DEM.ai.claude_code.interface.world.list_character_relations import ListCharacterRelations
-from DEM.db.schema import Character, CharacterRelation
-from DEM.db.stamp import Stamp
-from DEM.tool.markdown.export_db import export_db
-from DEM.tool.markdown.import_db import import_db
+from ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
+from ai.claude_code.interface.randomizer.commit_character_relation import CommitCharacterRelation
+from ai.claude_code.interface.randomizer.update_character_relation import UpdateCharacterRelation
+from ai.claude_code.interface.world.list_character_relations import ListCharacterRelations
+from db.schema import Character, CharacterRelation
+from db.stamp import Stamp
+from tool.markdown.export_db import export_db
+from tool.markdown.import_db import import_db
 
 
 @pytest.fixture

@@ -4,15 +4,15 @@ import os
 
 import pytest
 
-from DEM.ai.claude_code.interface.randomizer.commit_place import CommitPlace
-from DEM.ai.claude_code.interface.randomizer.update_place import UpdatePlace
-from DEM.ai.claude_code.interface.world.list_neighbors import ListNeighbors
-from DEM.db.polygon import outer_ring, parse_polygon, polygon_center
-from DEM.db.schema import Location
-from DEM.tool.map.collect import collect_planets
-from DEM.tool.map.layout import fit_frame
-from DEM.tool.markdown.export_db import export_db
-from DEM.tool.markdown.import_db import import_db
+from ai.claude_code.interface.randomizer.commit_place import CommitPlace
+from ai.claude_code.interface.randomizer.update_place import UpdatePlace
+from ai.claude_code.interface.world.list_neighbors import ListNeighbors
+from db.polygon import outer_ring, parse_polygon, polygon_center
+from db.schema import Location
+from tool.map.collect import collect_planets
+from tool.map.layout import fit_frame
+from tool.markdown.export_db import export_db
+from tool.markdown.import_db import import_db
 
 TRIANGLE = [[10, 20], [30, 20], [30, 40]]
 CLOSED = {"type": "Polygon", "coordinates": [[[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 20.0]]]}

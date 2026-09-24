@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""人物を一件、db へ確定する、claude が呼ぶ入口。"""
+from __future__ import annotations
+
+from ai.claude_code.interface.randomizer._base import CommitDraft
+from data_access_logic.query import world_createion_query
+from db.schema import Character, CharacterPlace, Location, check_personality
+from db.schema_pydantic import to_dict
+
+
+class CommitCharacter(CommitDraft):
+    """`place_id` は列ではなく、出自を表す `CharacterPlace` の一件として書き込む。"""
+
+    model = Character
+
+    def __init__(self, character: str | dict):
+        self.character = character
+
+    def execute(self, session) -> dict:
+        data = self.parse(self.character)
+        data.pop("id", None)
+        place_id = data.pop("place_id", None)
+        self.check_columns(data)
+        check_personality(data)
+
+        self.check_exists(session, Location, place_id, "place_id")
+        self._check_span(session, place_id, data)
+        self._check_story(session, place_id)
+
+        record = Character(**data)
+        session.add(record)
+        session.flush()  # CharacterPlace の character_id に使う id を先に確定させる
+        if place_id is not None:
+            session.add(CharacterPlace(
+                character_id=record.id, location_id=place_id,
+                start=data.get("start"), end=data.get("end")))
+        self.finalize(session, record)
+        return to_dict(record)
+
+    @staticmethod
+    def _check_span(session, place_id: int | None, data: dict) -> None:
+        if place_id is None:
+            return
+        place = session.get(Location, place_id)
+        world_createion_query.check_within_parent_span(
+            place, data.get("start"), data.get("end"), "character")
+
+    @staticmethod
+    def _check_story(session, place_id: int | None) -> None:
+        if place_id is None:
+            return
+        world_createion_query.check_has_story(session, place_id, "character")

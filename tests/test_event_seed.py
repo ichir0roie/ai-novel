@@ -4,11 +4,11 @@
 """
 import random
 
-from DEM.ai.time_keeper import event_seed
-from DEM.data_access_logic.query import event_seed_query
-from DEM.db.schema import Character, Episode, Event, EventSeed, Story
-from DEM.db.stamp import Stamp
-from DEM.tool.test.mock_ai_client import MockAIClient
+from ai.time_keeper import event_seed
+from data_access_logic.query import event_seed_query
+from db.schema import Character, Episode, Event, EventSeed, Story
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
 
 
 class _Fails(MockAIClient):

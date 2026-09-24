@@ -2,10 +2,10 @@
 
 出来事・話を確定したときに毎回呼ぶ、パックにした処理。
 """
-from DEM.ai.time_keeper import event_summary, generated_content
-from DEM.db.schema import Episode, Event, EventSummary, EpisodeSummary, Idea, Location, Story
-from DEM.db.stamp import Stamp
-from DEM.tool.test.mock_ai_client import MockAIClient
+from ai.time_keeper import event_summary, generated_content
+from db.schema import Episode, Event, EventSummary, EpisodeSummary, Idea, Location, Story
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
 
 
 def test_refresh_without_a_record_only_tends_to_memes(session):

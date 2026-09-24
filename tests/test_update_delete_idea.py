@@ -1,10 +1,10 @@
 """アイデアを直す・消す入口。上位のアイデアの付け替えと、下位のアイデアが残っているアイデアの削除を検める。"""
 import pytest
 
-from DEM.ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
-from DEM.ai.claude_code.interface.randomizer.delete_idea import DeleteIdea
-from DEM.ai.claude_code.interface.randomizer.update_idea import UpdateIdea
-from DEM.db.schema import Idea, Location
+from ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
+from ai.claude_code.interface.randomizer.delete_idea import DeleteIdea
+from ai.claude_code.interface.randomizer.update_idea import UpdateIdea
+from db.schema import Idea, Location
 
 
 @pytest.fixture

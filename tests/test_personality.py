@@ -1,12 +1,12 @@
 """性格の五段階(PersonalityLevel)と、それを引くランダム生成。"""
 import pytest
 
-from DEM.db.schema import (
+from db.schema import (
     PERSONALITY_COLUMNS, PERSONALITY_DEFAULT, PERSONALITY_LEVELS, Character,
     PersonalityLevel, check_personality,
 )
-from DEM.randomizer.mock_factories import CharacterFactory
-from DEM.randomizer.random_character_generator import build_character
+from randomizer.mock_factories import CharacterFactory
+from randomizer.random_character_generator import build_character
 
 
 def test_levels_are_five_stages_in_order():

@@ -1,8 +1,8 @@
 """`import_db`: id 無しの md は採番された id を頭に付けた名前へ改名する。"""
 import os
 
-from DEM.db.schema import Location
-from DEM.tool.markdown.import_db import import_db
+from db.schema import Location
+from tool.markdown.import_db import import_db
 
 
 def _write(path, text):
@@ -44,7 +44,7 @@ def test_file_with_id_keeps_its_name(session, tmp_path):
 
 
 def test_fixed_sessions_ignore_env_db_path():
-    from DEM.db.schema import get_env_session, get_novel_session, get_test_session
+    from db.schema import get_env_session, get_novel_session, get_test_session
 
     def db_file(factory):
         with factory() as s:
@@ -56,9 +56,9 @@ def test_fixed_sessions_ignore_env_db_path():
 
 
 def test_novel_db_lives_in_parent_world_repo():
-    from DEM.db.schema import NOVEL_DB_PATH
-    from DEM.tool.markdown.export_db import WORLDS_ROOT as export_root
-    from DEM.tool.markdown.import_db import WORLDS_ROOT as import_root
+    from db.schema import NOVEL_DB_PATH
+    from tool.markdown.export_db import WORLDS_ROOT as export_root
+    from tool.markdown.import_db import WORLDS_ROOT as import_root
 
     world_dir = os.environ["DEM_WORLD_DIR"]
     assert os.path.normpath(NOVEL_DB_PATH) == os.path.normpath(os.path.join(world_dir, "novel.db"))
@@ -81,13 +81,13 @@ def test_import_location_id_only_file_gets_named_on_export(session, tmp_path):
     import_db(root)
     assert session.get(Location, 71).filename is None
 
-    from DEM.tool.markdown.export_db import export_db
+    from tool.markdown.export_db import export_db
     export_db(root)
     assert sorted(os.listdir(os.path.join(root, "location"))) == ["71_パンデム.md"]
 
 
 def test_idea_markdown_name_uses_name():
-    from DEM.db.schema import Idea
+    from db.schema import Idea
 
     assert Idea(id=29, name="霊纏", kind="技術", text="").markdown_name == "29_霊纏.md"
     assert Idea(id=30, name="アイデア", kind="概念", text="", filename="別名").markdown_name == "30_別名.md"
@@ -98,8 +98,8 @@ def test_sync_paths_follow_env(tmp_path):
     import sys
 
     env = dict(os.environ, DEM_NOVEL_DB_PATH=str(tmp_path / "a.db"), DEM_WORLDS_DIR=str(tmp_path / "w"))
-    code = ("from DEM.db.schema import NOVEL_DB_PATH, get_novel_session;"
-            "from DEM.tool.markdown.export_db import WORLDS_ROOT;"
+    code = ("from db.schema import NOVEL_DB_PATH, get_novel_session;"
+            "from tool.markdown.export_db import WORLDS_ROOT;"
             "print(NOVEL_DB_PATH); print(WORLDS_ROOT); print(get_novel_session().get_bind().url.database)")
     out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True).stdout.split()
     assert out == [str(tmp_path / "a.db"), str(tmp_path / "w"), str(tmp_path / "a.db")]

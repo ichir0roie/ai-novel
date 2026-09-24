@@ -1,7 +1,7 @@
 """文体の定数(共通 + 対象ごと)の組み立て。"""
 import pytest
 
-from DEM.ai.instructions import style
+from ai.instructions import style
 
 
 def test_text_joins_base_and_extracted():
@@ -80,7 +80,7 @@ def test_novel_style_closes_by_whether_the_content_is_over(target):
 
 
 def test_episode_prompt_embeds_the_episode_style():
-    from DEM.ai.claude_code import story_writer
+    from ai.claude_code import story_writer
 
     assert style.EPISODE_STYLE_INSTRUCTION in story_writer._SYSTEM_PROMPT
 

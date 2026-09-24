@@ -3,14 +3,14 @@ import os
 
 import pytest
 
-from DEM.ai.claude_code.interface.world.list_neighbors import ListNeighbors
-from DEM.data_access_logic.query.common_query import NotFoundError
-from DEM.db.schema import Location
-from DEM.tool.map.geometry import (
+from ai.claude_code.interface.world.list_neighbors import ListNeighbors
+from data_access_logic.query.common_query import NotFoundError
+from db.schema import Location
+from tool.map.geometry import (
     angular_distance_deg, bearing_deg, bearing_name, distance_km, planet_radius_km,
 )
-from DEM.tool.map.layout import fit_frame, place_labels, text_width
-from DEM.tool.markdown.export_db import export_db
+from tool.map.layout import fit_frame, place_labels, text_width
+from tool.markdown.export_db import export_db
 
 EARTH_AREA = 510_072_000
 TOKYO = (139.69, 35.69)

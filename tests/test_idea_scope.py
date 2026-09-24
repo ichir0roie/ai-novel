@@ -1,9 +1,9 @@
 """アイデアを引く範囲。配下だけでなく、属する星・世界線まで親方向へのぼって当てる。"""
 import pytest
 
-from DEM.ai.claude_code.interface.story import _rows
-from DEM.data_access_logic.query import common_query
-from DEM.db.schema import Idea, Location
+from ai.claude_code.interface.story import _rows
+from data_access_logic.query import common_query
+from db.schema import Idea, Location
 
 
 @pytest.fixture

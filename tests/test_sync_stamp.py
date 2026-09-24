@@ -3,10 +3,10 @@ import os
 
 import pytest
 
-from DEM.ai.claude_code.interface.sync.export_db import ExportDb, ExportError
-from DEM.ai.claude_code.interface.sync.import_db import ImportDb
-from DEM.db.schema import Location
-from DEM.tool.markdown import sync_stamp
+from ai.claude_code.interface.sync.export_db import ExportDb, ExportError
+from ai.claude_code.interface.sync.import_db import ImportDb
+from db.schema import Location
+from tool.markdown import sync_stamp
 
 
 @pytest.fixture

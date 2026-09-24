@@ -1,19 +1,19 @@
 """毎日のルーチン(`character_event_generator`)。ランダムに選んだサブキャラクターの、最新の出来事の次の出来事を起こす。"""
 import random
 
-from DEM.ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION
-from DEM.ai.time_keeper import (
+from ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION
+from ai.time_keeper import (
     character_event_generator, event_progression_generator, event_seed, event_summary, main,
 )
-from DEM.ai.time_keeper._format import days_between
-from DEM.data_access_logic.query import common_query
-from DEM.db.schema import (
+from ai.time_keeper._format import days_between
+from data_access_logic.query import common_query
+from db.schema import (
     Character, CharacterPlace, CharacterRelation, Event, EventCharacter, EventSeed, EventSummary,
     Location, Story,
     summary_source_hash,
 )
-from DEM.db.stamp import Stamp
-from DEM.tool.test.mock_ai_client import MockAIClient
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
 
 STORY_START = Stamp(2100, 4, 1)
 

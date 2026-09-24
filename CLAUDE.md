@@ -60,7 +60,7 @@ git push
 # テスト
 
 - `tests/` に pytest のテストがある。世界リポジトリのルートから `python -m pytest core/tests` で回す。
-- テストは `novel.test.db` だけを読み書きする(`tests/conftest.py` が `DEM.tool.test` を先に読んで固定する)。
+- テストは `novel.test.db` だけを読み書きする(`tests/conftest.py` が `tool.test` を先に読んで固定する)。
   本番の `novel.db` には触れない
 - db・入口・生成器を変えたら、対応するテストを足すか直してから終える
 - プルリクを作る前に必ず、変更に対するテストケースを実装し、影響範囲のテストを回し、
@@ -68,11 +68,11 @@ git push
 
 # db への接続
 
-- コードから触るときは `from DEM.db.schema import get_env_session` で `Session` を開く。
+- コードから触るときは `from db.schema import get_env_session` で `Session` を開く。
   `engine` も同じモジュールにある
-- 作業として db を読み書きするときは `DEM/ai/claude_code/interface/` の入口越しに、
+- 作業として db を読み書きするときは `ai/claude_code/interface/` の入口越しに、
   既存の python コードを呼んで行う。
-- **`DEM/ai/claude_code/interface/readme.md` を操作前のマニュアルとする。**
+- **`ai/claude_code/interface/readme.md` を操作前のマニュアルとする。**
   操作の前にその「依頼内容 → 呼ぶコード」の対応表を引き、依頼に当たる入口を呼ぶ
 - 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
   **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
@@ -84,7 +84,7 @@ git push
 ```
 .venv/bin/python -c "
 import sqlite3
-from DEM.db.schema import NOVEL_DB_PATH
+from db.schema import NOVEL_DB_PATH
 c = sqlite3.connect(NOVEL_DB_PATH)
 print(c.execute('select count(*) from character').fetchone())
 "
@@ -104,7 +104,7 @@ db を修正する作業は、import_db → 入口越しの修正 → export_db 
 
 # schema の確認方法
 
-- **列の定義は `DEM/db/schema.py` が唯一の正**。
+- **列の定義は `db/schema.py` が唯一の正**。
 
-- マイグレーションは `DEM/db/alembic/`。コマンド例は `DEM/db/alembic/README` にある。
+- マイグレーションは `db/alembic/`。コマンド例は `db/alembic/README` にある。
 - `schema.py` を変えたら alembic の `revision --autogenerate` → 内容確認 → `upgrade head` の順。

@@ -2,10 +2,10 @@
 
 抜き出しは元のレコードごとに一度だけで、元の `meme_seeded` で管理する。
 """
-from DEM.ai.time_keeper import meme
-from DEM.data_access_logic.query import meme_query
-from DEM.db.schema import Character, Idea, Meme, Oracle
-from DEM.tool.test.mock_ai_client import MockAIClient
+from ai.time_keeper import meme
+from data_access_logic.query import meme_query
+from db.schema import Character, Idea, Meme, Oracle
+from tool.test.mock_ai_client import MockAIClient
 
 
 class _Fails(MockAIClient):

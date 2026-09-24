@@ -1,12 +1,12 @@
 """メインキャラクターフラグ(`Character.main_character`)。出来事のランダム生成は
 サブキャラクター(false)だけを対象にし、メインキャラクター(true)は外す。"""
-from DEM.ai.time_keeper import event_progression_generator, main
-from DEM.ai.time_keeper._export import export_step
-from DEM.ai.time_keeper.random_character_generator import _generate_one
-from DEM.data_access_logic.query.base import character_active_condition
-from DEM.db.schema import Character, CharacterPlace, Location, Story
-from DEM.db.stamp import Stamp
-from DEM.tool.test.mock_ai_client import MockAIClient
+from ai.time_keeper import event_progression_generator, main
+from ai.time_keeper._export import export_step
+from ai.time_keeper.random_character_generator import _generate_one
+from data_access_logic.query.base import character_active_condition
+from db.schema import Character, CharacterPlace, Location, Story
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
 
 
 def _place(session) -> Location:
