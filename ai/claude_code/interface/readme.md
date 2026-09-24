@@ -21,7 +21,11 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
 | 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
-| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keyword)`                              |
+| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返し、候補は返さない |
+| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None)`。下書きから洗い出した語(`{"keyword", "variants", "description"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」) |
+| 「この本文が踏まえたアイデアを結んで」 | `idea.link_ideas.LinkIdeas(idea_ids, event_id=None, episode_id=None, character_id=None)`。三つのうち一つだけ渡す |
+| 「この候補をあのアイデアにまとめて」 | `randomizer.merge_idea.MergeIdea(source_id, target_id)`。結んだ本文を付け替えてから source を消す |
+| 「判断待ちの一覧」「週次レビュー」   | `review.list_pending_reviews.ListPendingReviews()`。候補・未同期の話・本文に残った TODO。Todoist へ載せる手順はスキル `weekly-review` |
 | 「場所を足して」                     | `randomizer.create_random_place.CreateRandomPlace()` で下書き → 内容を決めて `randomizer.commit_place.CommitPlace(place)` |
 | 「人物を足して」                     | `randomizer.create_random_character.CreateRandomCharacter()` → `randomizer.commit_character.CommitCharacter(character)`。持たせるミームは `meme.draw_memes.DrawMemes(person=True)` で引き、`text` の `# meme` 節と `# 行動原理` 節に書く(下の「人物が持つミーム」) |
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
@@ -32,7 +36,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
-| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる |
+| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる。結んだ本文との中間テーブルの行も消す |
 | 「覚え書きを足して」「oracle に書いて」 | `randomizer.commit_oracle.CommitOracle(oracle)`。`text` 必須。置き場所は `directory_path`(`worlds/oracle/` からの相対)と `filename` で決める |
 | 「覚え書きを直して」                 | `randomizer.update_oracle.UpdateOracle(oracle)`。`id` 必須、渡した欄だけ直す |
 | 「ミームを直して」「ミームの分類を直して」 | `randomizer.update_meme.UpdateMeme(meme)`。`id` 必須、渡した欄だけ直す。`category` は 信条/欲求/境遇/集団/理 のいずれか |
@@ -70,6 +74,28 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 - 引き方: 分類ごとに 0〜2 件。人物は 信条・欲求・境遇、人物以外の対象は 信条・欲求・集団 から引く。
   理(世界の法則)は引かない(`ai/time_keeper/constants.py` の `MEME_*`)
 - 時の流れの中で生む人物(`ai/time_keeper/random_character_generator.py`)は、この引き方と整理を自動で行う
+
+## 中間段(下書き → 語の洗い出し → 清書)
+
+本文を書く生成は、下書き(一段目)と清書(二段目)のあいだに、アイデアと照らす中間段を挟む
+(`ai/time_keeper/idea_context.py`)。
+
+1. 下書きから、設定資料と照らす語とその言い換えを AI に挙げさせる(`idea_search.keywords_of`)
+2. 語と言い換えで、アイデアの名前・本文を部分一致で引く(`idea_search.search`)。その場所で効くアイデアだけ。
+   当たったアイデアに上位・下位のアイデアを足して、清書に「関係する設定」として渡す
+3. どのアイデアにも当たらなかった語は、種別「候補」のアイデアとして `worlds/idea/候補/` に足す。
+   候補は検索・断面・清書・ミームの抜き出しには出さない。kind を直して置き場所へ移すと、次から使われる
+4. 下書きが当たったアイデアと候補を、清書したレコードに中間テーブル(`event_idea` / `episode_idea` /
+   `character_idea`。md には出さない)で結ぶ
+
+| 生成 | 下書き | 清書 |
+| ---- | ------ | ---- |
+| 毎日の出来事 | 記録(`_progress_place`) | 小説の本文(`_novelize`) |
+| 人物の自動生成 | 中身を決めた説明 | 関係する設定があれば説明を清書 |
+| 話の自動生成(`story_writer`) | 種(`key`) | 本文 |
+
+claude が対話で書くときは、自分で語と言い換えを挙げて `ResolveTerms` を呼び、返った `ideas` を踏まえて清書し、
+確定したあとに `hits` と `candidates` の id を `LinkIdeas` で結ぶ。
 
 `meme` テーブル自体はアイデア(`idea`)・oracle・人物の筋書き・出来事から抜き出して貯めるだけで、
 人物との FK は持たない(ミームは人物の間を移り変わり・伝染していくため)。
@@ -139,13 +165,15 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 
 ## 作り方
 
-置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の五つ。
+置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の七つ。
 
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
 - `story/` — 作品・話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
 - `sync/` — db と md の同期
 - `world/` — 場所・人物・アイデア・出来事の一覧(読む専用)
 - `meme/` — アイデア・oracle・人物の筋書き・出来事からのミームの抽出と、人物に持たせるミームの引き出し
+- `idea/` — 中間段(下書きの語をアイデアと照らす・本文とアイデアを結ぶ)
+- `review/` — ユーザの判断が要るものの一覧(読む専用)
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ
@@ -165,9 +193,12 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 Entrypoint(interface/_base.py)
 ├─ SessionEntrypoint            db セッションを開いて execute(session) へ渡す
 │   ├─ CommitEntrypoint         「確定する」系の共通処理(parse/check_columns/check_exists)
-│   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_*.py
-│   │   └─ story.StoryCommit        → commit_*.py / update_story.py / delete_story.py / set_episode_synced.py
-│   ├─ world.WorldQuery          → list_*.py / search_ideas.py
+│   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_*.py / merge_idea.py
+│   │   ├─ story.StoryCommit        → commit_*.py / update_story.py / delete_story.py / set_episode_synced.py
+│   │   └─ idea.ResolveTerms / idea.LinkIdeas(候補を足す・結ぶので確定側)
+│   ├─ world.WorldQuery          → list_*.py
+│   ├─ world.SearchIdeas         (単独。あいまい検索)
+│   ├─ review.ListPendingReviews (単独。読む専用)
 │   ├─ story.StoryQuery          → list_*.py / read_*.py / start_story.py
 │   └─ meme.DrawMemes            (単独。引くだけで db に書かない)
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
@@ -184,10 +215,11 @@ db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 | ------------------------------ | ------------------------------------------------------------ |
 | `common_query.py`              | 時刻の扱い・断面・顔ぶれ・場所の道筋                         |
 | `character_simulation_query.py` | 人物を軸に周辺を読む(`read_surroundings`)                   |
-| `dictionary_query.py`          | アイデア(辞書)のキーワード検索                               |
+| `dictionary_query.py`          | アイデア(辞書)の検索。名前・本文の部分一致、場所の範囲、候補の除外 |
 | `story_createion_query.py`     | 場所に掛かる作品(`story`)の読み出し                          |
 | `world_createion_query.py`     | 生きている人物、広さの整合、進行中の判定               |
 | `event_seed_query.py`          | 出来事の種をまだ抜き出していない元(`event_seeded` が false) |
+| `review_query.py`              | ユーザの判断が要るもの(本文に残った TODO・世界観へ反映していない話) |
 
 ここのファイルはその薄い呼び出し面で、**SQL は組み立てない。**
 引く条件は時刻とレコードの id だけで表す。足りない引き方が出てきたら
