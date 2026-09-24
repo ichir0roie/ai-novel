@@ -65,15 +65,16 @@ def time_process(
     event_progression_generator.generate_random(s, time, ai)
 
 
-def daily_event(ai: AIClient) -> int | None:
+def daily_event(ai: AIClient, character_id: int | None = None) -> int | None:
     """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。
+    `character_id` を渡すと、その者を主役にする。
     先に、まだ抜き出していない元から出来事の種を抜き出し、たまっていれば似た種をまとめる。
     ルーチンで起こした出来事は `CommitEvent` を通らないので、ミームもここで抜き出す(前の回の出来事が元になる)。"""
     with get_env_session() as s:
         meme.refresh(s, ai)
         event_seed.refresh(s, ai)
         event_seed.consolidate(s, ai)
-        record = character_event_generator.generate_next(s, ai)
+        record = character_event_generator.generate_next(s, ai, character_id=character_id)
         return record.id if record is not None else None
 
 

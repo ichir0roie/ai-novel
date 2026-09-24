@@ -131,9 +131,10 @@ def _novelize(
 
 
 def generate_next(
-    session: Session, ai: AIClient, rng: random.Random | None = None,
+    session: Session, ai: AIClient, rng: random.Random | None = None, character_id: int | None = None,
 ) -> Event | None:
     """生きているサブキャラクターをランダムに一人選び、その者の次の出来事を起こす。起こせなければ None。
+    `character_id` を渡すと、その者だけを主役の候補にする。
 
     始まりは直前の出来事の終わり(出来事が無ければ `_first_base`)から
     `constants.NEXT_EVENT_GAP_DAYS` 日後。候補は、貯めた出来事の種から引いたものか直前の出来事からの連想で立てる。その時刻に
@@ -141,8 +142,10 @@ def generate_next(
     """
     if rng is None:
         rng = random.Random(random.randrange(10 ** 9))
-    candidates = list(session.scalars(
-        select(Character).where(character_active_condition()).order_by(Character.id)).all())
+    query = select(Character).where(character_active_condition()).order_by(Character.id)
+    if character_id is not None:
+        query = query.where(Character.id == character_id)
+    candidates = list(session.scalars(query).all())
     rng.shuffle(candidates)
 
     for character in candidates:

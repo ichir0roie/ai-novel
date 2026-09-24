@@ -125,6 +125,33 @@ def test_character_without_a_birth_is_passed_over(session):
     assert born.id in _involved(session, record)
 
 
+def test_the_given_character_is_the_focus(session):
+    place = _place(session)
+    _character(session, place, "甲")
+    chosen = _character(session, place, "乙")
+    ai = MockAIClient(seed=1)
+
+    # 渡さなければ id 順で甲が主役になるところ
+    record = character_event_generator.generate_next(
+        session, ai, _NoShuffle(1), character_id=chosen.id)
+
+    decide = next(call for call in ai.calls
+                  if call["schema"] is event_progression_generator._PLACE_SCHEMA)
+    assert f"{{'character_id': {chosen.id}, 'name': '乙'}}" in decide["prompt"]
+    assert chosen.id in _involved(session, record)
+
+
+def test_the_given_main_character_is_not_the_focus(session):
+    place = _place(session)
+    _character(session, place, "甲")
+    hero = _character(session, place, "主人公", main_character=True)
+
+    record = character_event_generator.generate_next(
+        session, MockAIClient(seed=1), _NoShuffle(1), character_id=hero.id)
+
+    assert record is None
+
+
 def test_the_story_is_not_told_to_the_daily_event(session):
     place = _place(session)
     _character(session, place)
