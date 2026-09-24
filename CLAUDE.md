@@ -121,13 +121,12 @@ python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想
   操作の前にその「依頼内容 → 呼ぶコード」の対応表を引き、依頼に当たる入口を呼ぶ
 - 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
   **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
-- 各作業前に、`DEM/tool/markdown/sync_db.py`を実行する。
-  同期の向きと順序は「md と db の同期」を見る
 - 引き方(`DEM/data_access_logic/query/*.py`)では、外部キーが `NULL` の行を
   「全体に効く」とみなして `or_(X.fk_id.in_(ids), X.fk_id.is_(None))` のように
   無理に拾わない。関係が無い行は「関係が無い」として扱う
 - **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
-  好きに覗いてよい。書き込み(`insert` `update` `delete`)は必ず入口越しに行う
+  好きに覗いてよい。読むだけなら `import_db` / `export_db` も回さなくてよい。
+  書き込み(`insert` `update` `delete`)は必ず入口越しに行う
 - 調査用の読み取り例:
 
 ```
@@ -146,7 +145,7 @@ print(c.execute('select count(*) from character').fetchone())
 
 - **手で md を直すなら、直し終えてから `import_db` を回す。** 直しかけのまま
   db を触る作業を始めない
-- **db を触る作業は `import_db` → 入口越しの変更 → `export_db` の一続きで回し、
+- **db に書き込む作業は `import_db` → 入口越しの変更 → `export_db` の一続きで回し、
   その間 `worlds/` を触らない。** 変更したあとに `import_db` を挟むと、md 側の
   古い内容でその変更が消える(`export_db` の直前に `import_db` を回してはいけない)
 - 途中で md を直したくなったら、挟まずに区切る。いったん `export_db` で db を

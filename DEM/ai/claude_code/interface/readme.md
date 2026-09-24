@@ -11,12 +11,12 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 
 - **db に触れるのはここ越しだけ。** `DEM/db/` `DEM/randomizer/`
   `DEM/data_access_logic/` は下地の実装であって、claude が直接呼ぶ入口ではない。
-  ただし読み取り(`select`)だけは、`sqlite3` などで直接覗いてよい(CLAUDE.md)
+  ただし読み取り(`select`)だけは、`sqlite3` などで直接覗いてよい。`ImportDb` / `ExportDb` も要らない(CLAUDE.md)
 - **下の表に無い操作は「まだ無い」。** 推測で呼び出さず、「作り方」に沿って
   入口を足すか、作者に相談する(CLAUDE.md)
 - **入口を足したら、同じ作業のうちに下の表へ行を足す。** 表に無い入口は
   次のセッションから見えない
-- db を触る作業は `ImportDb` で始め、片付いてから `ExportDb` で閉じる。
+- db に書き込む作業は `ImportDb` で始め、片付いてから `ExportDb` で閉じる。
   **その間に `worlds/` を触らず、`ImportDb` を二度回さない。** 変更したあとの
   `ImportDb` は、md 側の古い内容でその変更を消す。順序と向きは CLAUDE.md の
   「md と db の同期」を見る
