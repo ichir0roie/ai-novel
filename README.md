@@ -91,7 +91,8 @@ git push
 ## 触り方
 
 ```
-pip install -r requirements.txt
+./setup_env.sh    # Linux / Git Bash。python は .venv/bin/python(Git Bash は .venv/Scripts/python.exe)
+.\setup_env.ps1   # Windows PowerShell。python は .venv\Scripts\python.exe
 ```
 
 **db を直に開かない。** 読むのも書くのも `DEM/ai/claude_code/interface/` の入口を
