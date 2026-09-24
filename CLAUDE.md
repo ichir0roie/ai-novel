@@ -1,12 +1,8 @@
 # 作業指針
 
-ローカル環境で実行している場合は、コード修正であっても常に現在のブランチ(主に main)上で
-直接作業し、ブランチや PR は作らずコミット・プッシュしてよい。レビューする人がその場に
-いるため。以下の「ブランチを作成する」はクラウド環境だけに当てはまる。
+## ローカル環境
+コード修正であっても常に現在のブランチ(主に main)上で直接作業する。
 
-- クラウド環境: 依頼の冒頭に `idea` `plot` などがある場合はテキスト追加の依頼なので、
-  作業用ブランチや PR を作らず、main で直接作業してコミット・プッシュしてよい。
-- クラウド環境: コード修正がある場合は、ブランチを作成してから作業する。
 
 # コーディング規約
 
@@ -40,6 +36,7 @@ md と db の同期(`import_db` / `export_db`)が使う `novel.db` と `worlds/`
 ```
 my-novel-world/
   core/      このリポジトリ(サブモジュール)。python のコマンドはここから実行する
+  .venv/     仮想環境(core/setup_env.sh が用意する)
   novel.db
   worlds/
 ```
@@ -67,18 +64,19 @@ git push
 
 # 実行環境
 
-python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想環境 `.venv` のものを使う
-(`which python` など PATH 上の python は別の環境を指すことがある)。OS ごとに次のとおり。
+python はプロジェクトルート(世界リポジトリ直下、`core/` の一つ上)の仮想環境 `.venv` のものを使う
+(`which python` など PATH 上の python は別の環境を指すことがある)。コマンドは `core/` から実行するため、
+python のパスは `core/` から見た相対パス(`../.venv/...`)になる。OS ごとに次のとおり。
 
-|                      | Linux(bash)                 | Windows(PowerShell)                    | Windows(Git Bash)                                 |
-| -------------------- | ---------------------------- | --------------------------------------- | -------------------------------------------------- |
-| 仮想環境の用意       | `./setup_env.sh`             | `.\setup_env.ps1`                       | `./setup_env.sh`                                   |
-| python               | `.venv/bin/python`           | `.venv\Scripts\python.exe`               | `PYTHONUTF8=1 .venv/Scripts/python.exe`            |
-| 手で作るなら         | `python3 -m venv .venv` → `.venv/bin/python -m pip install -r requirements.txt` | `python -m venv .venv` → `.venv\Scripts\python.exe -m pip install -r requirements.txt` | `python -m venv .venv` → `.venv/Scripts/python.exe -m pip install -r requirements.txt` |
+|                | Linux(bash)                                                                           | Windows(PowerShell)                                                                          | Windows(Git Bash)                                                                            |
+| -------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 仮想環境の用意 | `./setup_env.sh`                                                                        | `.\setup_env.ps1`                                                                              | `./setup_env.sh`                                                                                |
+| python         | `../.venv/bin/python`                                                                   | `..\.venv\Scripts\python.exe`                                                                  | `PYTHONUTF8=1 ../.venv/Scripts/python.exe`                                                     |
+| 手で作るなら   | `python3 -m venv ../.venv` → `../.venv/bin/python -m pip install -r requirements.txt`  | `python -m venv ..\.venv` → `..\.venv\Scripts\python.exe -m pip install -r requirements.txt`  | `python -m venv ../.venv` → `../.venv/Scripts/python.exe -m pip install -r requirements.txt`  |
 
 - `setup_env.*` は何度回してもよい。`requirements.txt` が変わったときだけ入れ直す
 - Windows では日本語の出力に `PYTHONUTF8=1` が要る(「文字コード」)。PowerShell なら先に `$env:PYTHONUTF8=1` を打っておく
-- **この文書と readme のコマンド例は Linux の `.venv/bin/python` で書いてある。** Windows では上の表の python に読み替える
+- **この文書と readme のコマンド例は Linux の `../.venv/bin/python` で書いてある。** Windows では上の表の python に読み替える
 - このリポジトリのルートから実行する(`DEM.` から始まる import はルート基準)
 - Claude Code では世界リポジトリの SessionStart フック(`../.claude/hooks/session-start.sh`)が、
   `core/` の取り込みと `./setup_env.sh` をセッション開始時に済ませる(Windows でも Git Bash で動く)。手で回す必要は無い
@@ -110,7 +108,7 @@ python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想
 - 調査用の読み取り例:
 
 ```
-.venv/bin/python -c "
+../.venv/bin/python -c "
 import sqlite3
 c = sqlite3.connect('../novel.db')
 print(c.execute('select count(*) from character').fetchone())

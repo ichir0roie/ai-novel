@@ -33,13 +33,13 @@ DEM/ai/claude_code/
 
 ## 使い方
 
-コマンド例は Linux の `.venv/bin/python` で書いてある。Windows では `PYTHONUTF8=1 .venv/Scripts/python.exe`
-(PowerShell なら `$env:PYTHONUTF8=1` のあと `.venv\Scripts\python.exe`)に読み替える(`CLAUDE.md` の「実行環境」)。
+コマンド例は Linux の `../.venv/bin/python` で書いてある。Windows では `PYTHONUTF8=1 ../.venv/Scripts/python.exe`
+(PowerShell なら `$env:PYTHONUTF8=1` のあと `..\.venv\Scripts\python.exe`)に読み替える(`CLAUDE.md` の「実行環境」)。
 
 常駐ループ(local_ai と同じ引数):
 
 ```
-.venv/bin/python -c "
+../.venv/bin/python -c "
 from DEM.ai.claude_code.claude_code_time_keeper import claude_main
 claude_main(year=2027, max_days=30)
 "
@@ -51,7 +51,7 @@ claude_main(year=2027, max_days=30)
 毎日のルーチン(サブキャラクター一人の次の出来事を一件起こす):
 
 ```
-.venv/bin/python -c "
+../.venv/bin/python -c "
 from DEM.ai.claude_code.interface.sync.import_db import ImportDb
 from DEM.ai.claude_code.interface.sync.export_db import ExportDb
 from DEM.ai.claude_code.claude_code_time_keeper import claude_daily_event_main
@@ -76,7 +76,7 @@ ExportDb().run()
 本文を書く(作品 `story_id` の次の話を 1 話。`episodes_to_write` で続けて書く):
 
 ```
-.venv/bin/python -c "
+../.venv/bin/python -c "
 from DEM.ai.claude_code.story_writer import write_story
 write_story(story_id=1, episodes_to_write=1)
 write_story(story_id=1, number=4)          # 種だけ入っている第4話を埋める

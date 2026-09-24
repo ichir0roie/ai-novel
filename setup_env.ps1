@@ -1,11 +1,13 @@
-# Windows(PowerShell)用。setup_env.sh と同じく .venv を作り、requirements.txt が変わったときだけ依存を入れ直す。
+# Windows(PowerShell)用。setup_env.sh と同じく、プロジェクトルート(世界リポジトリ直下)に .venv を作り、
+# requirements.txt が変わったときだけ依存を入れ直す。
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
+$venv = "..\.venv"
 
-$py = ".venv\Scripts\python.exe"
-if (-not (Test-Path $py)) { python -m venv .venv }
+$py = "$venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { python -m venv $venv }
 
-$stamp = ".venv\.requirements.sha256"
+$stamp = "$venv\.requirements.sha256"
 $want = (Get-FileHash requirements.txt -Algorithm SHA256).Hash.ToLower()
 $have = if (Test-Path $stamp) { (Get-Content $stamp -Raw).Trim() } else { "" }
 if ($have -ne $want) {
