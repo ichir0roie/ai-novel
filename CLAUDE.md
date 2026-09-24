@@ -33,13 +33,6 @@
 md と db の同期(`import_db` / `export_db`)が使う `novel.db` と `worlds/` は、それぞれ `DEM_NOVEL_DB_PATH` / `DEM_WORLDS_DIR` でも個別に差し替えられる。
 自分の世界を作るときは、空のリポジトリで `git submodule add https://github.com/ichir0roie/ai-novel-core.git core` する。
 
-```
-my-novel-world/
-  core/      このリポジトリ(サブモジュール)。python のコマンドはここから実行する
-  .venv/     仮想環境(core/setup_env.sh が用意する)
-  novel.db
-  worlds/
-```
 
 git のコマンドは世界リポジトリのルートで打つ。
 
@@ -61,27 +54,6 @@ git push
 ```
 
 世界リポジトリの VS Code タスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
-
-# 実行環境
-
-python はプロジェクトルート(世界リポジトリ直下、`core/` の一つ上)の仮想環境 `.venv` のものを使う
-(`which python` など PATH 上の python は別の環境を指すことがある)。コマンドは `core/` から実行するため、
-python のパスは `core/` から見た相対パス(`../.venv/...`)になる。OS ごとに次のとおり。
-
-|                | Linux(bash)                                                                           | Windows(PowerShell)                                                                          | Windows(Git Bash)                                                                            |
-| -------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 仮想環境の用意 | `./setup_env.sh`                                                                        | `.\setup_env.ps1`                                                                              | `./setup_env.sh`                                                                                |
-| python         | `../.venv/bin/python`                                                                   | `..\.venv\Scripts\python.exe`                                                                  | `PYTHONUTF8=1 ../.venv/Scripts/python.exe`                                                     |
-| 手で作るなら   | `python3 -m venv ../.venv` → `../.venv/bin/python -m pip install -r requirements.txt`  | `python -m venv ..\.venv` → `..\.venv\Scripts\python.exe -m pip install -r requirements.txt`  | `python -m venv ../.venv` → `../.venv/Scripts/python.exe -m pip install -r requirements.txt`  |
-
-- `setup_env.*` は何度回してもよい。`requirements.txt` が変わったときだけ入れ直す
-- Windows では日本語の出力に `PYTHONUTF8=1` が要る(「文字コード」)。PowerShell なら先に `$env:PYTHONUTF8=1` を打っておく
-- **この文書と readme のコマンド例は Linux の `../.venv/bin/python` で書いてある。** Windows では上の表の python に読み替える
-- このリポジトリのルートから実行する(`DEM.` から始まる import はルート基準)
-- Claude Code では世界リポジトリの SessionStart フック(`../.claude/hooks/session-start.sh`)が、
-  `core/` の取り込みと `./setup_env.sh` をセッション開始時に済ませる(Windows でも Git Bash で動く)。手で回す必要は無い
-- `sqlite3` CLI は入っていない。db を覗くときは python の `sqlite3` モジュールか SQLAlchemy を使う
-- `ModuleNotFoundError` など依存不足で実行が失敗したら、まず `setup_env.*` を回してから調査する
 
 # テスト
 
@@ -107,13 +79,6 @@ python のパスは `core/` から見た相対パス(`../.venv/...`)になる。
   書き込み(`insert` `update` `delete`)は必ず入口越しに行う
 - 調査用の読み取り例:
 
-```
-../.venv/bin/python -c "
-import sqlite3
-c = sqlite3.connect('../novel.db')
-print(c.execute('select count(*) from character').fetchone())
-"
-```
 
 # md と db の同期(import / export)
 

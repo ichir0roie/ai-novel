@@ -25,12 +25,12 @@ AI にラノベを書いてもらうためのプロジェクト。
 
 ## ディレクトリ
 
-| ディレクトリ | 役割                                                          |
-| ------------ | ------------------------------------------------------------- |
-| `DEM/`       | 仕組み。db の形・入口・問い合わせ・ローカル AI                |
-| `../novel.db` | **世界の記録と本文そのもの**(SQLite。世界リポジトリ側)     |
+| ディレクトリ  | 役割                                                          |
+| ------------- | ------------------------------------------------------------- |
+| `DEM/`        | 仕組み。db の形・入口・問い合わせ・ローカル AI                |
+| `../novel.db` | **世界の記録と本文そのもの**(SQLite。世界リポジトリ側)        |
 | `../worlds/`  | db から書き出した**読む専用の写し**(`ExportDb`。無くてもよい) |
-| `CLAUDE.md`  | **Claude 向けの作業指針**                                     |
+| `CLAUDE.md`   | **Claude 向けの作業指針**                                     |
 
 ```
 DEM/
@@ -48,64 +48,6 @@ DEM/
   tool/               md への書き出し・読み戻し、危険操作(danger/)、テスト用の道具(test/。必ず novel.test.db を使う。
                       mock_ai_client で AI 無しに redrive_mock_world を回す、seed_mock_db で全テーブルにモックデータを流し込む)
 ```
-
-## 環境構築
-
-コード(このリポジトリ `ai-novel-core`)と実データ(`novel.db`・`worlds/`)は別リポジトリに分けている。
-実データ側のリポジトリ(private の `my-novel-world`)が、このリポジトリをサブモジュール `core/` として持つ。
-コードは `core/` から見た親ディレクトリ(`..`)を世界として読み書きする(環境変数 `DEM_WORLD_DIR` で差し替えられる)。
-md と db の同期(`import_db` / `export_db`)が使う `novel.db` と `worlds/` は、それぞれ `DEM_NOVEL_DB_PATH` / `DEM_WORLDS_DIR` でも個別に差し替えられる。
-自分の世界を作るときは、空のリポジトリで `git submodule add https://github.com/ichir0roie/ai-novel-core.git core` する。
-
-```
-my-novel-world/
-  core/      このリポジトリ(サブモジュール)。python のコマンドはここから実行する
-  novel.db
-  worlds/
-```
-
-git のコマンドは世界リポジトリのルートで打つ。
-
-```
-# clone(サブモジュールごと)
-git clone --recurse-submodules https://github.com/ichir0roie/my-novel-world.git
-
-# clone 済みで core/ が空のとき
-git submodule update --init
-
-# 最新を取り込む(世界と core/ の両方)
-git pull --recurse-submodules
-git submodule update --init
-
-# コミットは両方のリポジトリに同じメッセージで。core/ 側を先にコミットしてから世界側で参照を更新する
-git -C core switch main   # サブモジュールは detached HEAD になっているため
-git -C core add -A
-git -C core commit -m "<メッセージ>"
-git -C core push
-git add -A
-git commit -m "<メッセージ>"
-git push
-```
-
-世界リポジトリの VS Code タスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
-
-## 触り方
-
-```
-./setup_env.sh    # Linux / Git Bash。.venv はプロジェクトルートにできる。python は ../.venv/bin/python(Git Bash は ../.venv/Scripts/python.exe)
-.\setup_env.ps1   # Windows PowerShell。python は ..\.venv\Scripts\python.exe
-```
-
-**db を直に開かない。** 読むのも書くのも `DEM/ai/claude_code/interface/` の入口を
-import して呼ぶ。入口は一ファイル一クラスで、CLI 引数のパースをしない。
-
-```python
-from DEM.ai.claude_code.interface.world.list_places import ListPlaces
-ListPlaces(kind="村").run()
-```
-
-今ある入口の一覧は **`DEM/ai/claude_code/interface/readme.md` の表**にある。そこに無い操作は「まだ無い」。
-必要になったら同じ readme の「作り方」に沿って足す。
 
 
 # 成果物一覧
