@@ -1,4 +1,3 @@
-"""time_keeper の人物生成。サイコロで決めた性格を AI へ渡し、その段階のまま db に確定する。"""
 import random
 
 from ai.time_keeper import constants

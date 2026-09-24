@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""ミームを一件、db から削除する、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface._base import UnknownRecordError
@@ -8,8 +7,6 @@ from db.schema import Meme
 
 
 class DeleteMeme(CommitDraft):
-    """ミームを一件削除して、消す直前の中身を辞書で返す。"""
-
     model = Meme
 
     def __init__(self, meme_id: int):

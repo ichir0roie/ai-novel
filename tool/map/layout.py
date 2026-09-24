@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""平板図の描画範囲と、ラベルの置き場所。SVG(Python)と HTML(JS)で同じ決め方をする。"""
+"""SVG(Python)と HTML(JS)で同じ決め方をする。"""
 from __future__ import annotations
 
 from db.polygon import outer_ring
@@ -46,7 +46,6 @@ def _ceil(v, step):
 
 
 def fit_frame(points: list[dict], shapes: list[dict] = ()) -> Frame:
-    """点と輪郭の頂点の広がりに余白を足し、格子に揃えて全球に収める。何も無ければ全球。"""
     lons = [p["lon"] for p in points]
     lats = [p["lat"] for p in points]
     for shape in shapes:
@@ -78,10 +77,7 @@ def _overlaps(a, b) -> bool:
 
 
 def place_labels(items: list[tuple[float, float, str]], font_px: float = 11) -> list[tuple[float, float, str]]:
-    """`(x, y, text)` の並びに対し `(x, y, anchor)` を返す。先に置いた箱と重ならない候補を順に試し、無ければ右に置く。
-
-    同じ点に重なる印は呼ぶ側で `y` をずらして渡す。
-    """
+    """同じ点に重なる印は呼ぶ側で `y` をずらして渡す。"""
     placed = []
     result = []
     for x, y, text in items:

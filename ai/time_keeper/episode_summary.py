@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""話(`Episode`)一話ぶんの概要と文体の覚え書き(`EpisodeSummary`)。次の話を書く人へ、本文の代わりに渡す。"""
 from __future__ import annotations
 
 import json
@@ -30,7 +29,6 @@ _SCHEMA = {
 
 
 def summarize(session: Session, episode: Episode, ai: AIClient) -> dict | None:
-    """`episode` の概要と文体の覚え書き。本文が前に作ったときのままなら作り直さない。作れなければ None。"""
     text = (episode.text or "").strip()
     if not text:
         return None

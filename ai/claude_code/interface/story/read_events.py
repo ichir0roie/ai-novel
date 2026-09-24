@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""出来事を引く、claude が呼ぶ入口。
-
-    ReadEvents(time="4354").run()       その年の出来事と行動を全部
-    ReadEvents(place_id=8).run()        その場所で起きたこと
-    ReadEvents(character_id=8).run()    その人物・対象が当事者の出来事(場所を問わず)
-    ReadEvents(event_id=8).run()        その出来事にぶら下がる行動
-"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story import _rows
@@ -20,10 +13,7 @@ _SELECTS = {
 
 
 class ReadEvents(StoryQuery):
-    """時刻か、場所・人物・出来事の id のどれか一つで出来事を引く。
-
-    場所・人物・出来事の id は別々の表の連番で重なるので、どの表の id かを引数の名前で渡す。
-    """
+    """場所・人物・出来事の id は別々の表の連番で重なるので、どの表の id かを引数の名前で渡す。"""
 
     def __init__(self, time=None, place_id: int | None = None, character_id: int | None = None,
                  event_id: int | None = None, limit: int | None = None, until=None):

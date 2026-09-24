@@ -1,4 +1,3 @@
-"""文体の定数(共通 + 対象ごと)の組み立て。"""
 import pytest
 
 from ai.instructions import style

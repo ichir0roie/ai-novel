@@ -1,4 +1,3 @@
-"""特定の作品(`story_id`)の開始時刻から years 年ぶん進める `loop_time_for_story`。"""
 import pytest
 
 from ai.time_keeper import main

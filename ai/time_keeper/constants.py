@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""time_keeper 配下の各生成器が使う、確率・年齢・件数などのハードコードされた値をまとめる。"""
 from __future__ import annotations
 
 # _format

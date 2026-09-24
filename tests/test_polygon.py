@@ -1,4 +1,3 @@
-"""場所の輪郭 `polygon`: 解析、入口での確定・修正、md との往復、地図への描画。"""
 import json
 import os
 
@@ -88,7 +87,6 @@ def test_polygon_round_trips_through_markdown(session, tmp_path):
 
 @pytest.fixture
 def outlined(session):
-    """輪郭だけの大陸と、輪郭も点も持つ国、点だけの町を置いた星。"""
     planet = Location(name="星", kind="星", text="", area=510_072_000, directory_path="星")
     session.add(planet)
     session.flush()

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""`Select` を実行できる SQL(値を埋め込み済み)にして `tmp/sql/dump/ymdhms.sql` へ書き出す。"""
 from __future__ import annotations
 
 import os

@@ -1,4 +1,3 @@
-"""本文を書く前に直前の話から作る覚え書き(概要と文体)と、それを載せた本文のプロンプト。"""
 import pytest
 
 from ai.claude_code import story_writer
@@ -28,7 +27,6 @@ def add_episodes(session, story, count):
 
 @pytest.fixture
 def calls(monkeypatch):
-    """`try_generate_json` の呼び出しを順に記録し、schema で返す中身を選ぶ。"""
     recorded = []
 
     def fake(prompt, schema, *, system=None, timeout=None, options=None):

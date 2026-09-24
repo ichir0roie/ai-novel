@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""ランダムに選んだサブキャラクター一人について、その者の最新の出来事の次の出来事を一件起こす。毎日のルーチンから呼ぶ。
-
-人物ごとに、生まれてから数年後を起点に自分の時を刻む。作品・筋書きの時期には合わせず、作品の本文も渡さない。
-
-出来事は `event_progression_generator` の場所ごとの進め方でそのまま記録として起こし、本文だけを話と同じ小説の形に書き直す。
-"""
 from __future__ import annotations
 
 import json
@@ -50,7 +44,6 @@ def _latest_event(session: Session, character_id: int) -> Event | None:
 
 
 def _first_base(character: Character, rng: random.Random) -> Stamp | None:
-    """出来事がまだ無い人物の起点。生まれてから `constants.FIRST_EVENT_AGE_YEARS` 年後。作品・筋書きとは関わらせない。"""
     if character.start is None:
         return None
     return add_years(character.start, rng.randint(*constants.FIRST_EVENT_AGE_YEARS))
@@ -59,7 +52,6 @@ def _first_base(character: Character, rng: random.Random) -> Stamp | None:
 def _place_of(
     session: Session, character: Character, time: Stamp,
 ) -> tuple[int, list[Character]] | None:
-    """`time` にその人物が居る場所と、そこに居合わせる者。出来事の対象にならなければ None。"""
     for place_id, members in progression._group_by_place(session, time).items():
         if any(member.id == character.id for member in members):
             return place_id, members
@@ -67,13 +59,13 @@ def _place_of(
 
 
 def _free_after(session: Session, character: Character, time: Stamp) -> bool:
-    """`time` より後に終わる出来事を持たないか。人物ごとに時間が進むので、先の出来事と重ねない。"""
+    """人物ごとに時間が進むので、先の出来事と重ねない。"""
     latest = _latest_event(session, character.id)
     return latest is None or _finished(latest) <= time
 
 
 def _previous_row(session: Session, previous: Event | None, ai: AIClient) -> dict | str:
-    """直前の出来事。本文は写させないよう要約で渡し、要約が作れなければ本文のまま渡す。"""
+    """本文は写させないよう要約で渡す。"""
     # 場所は noload の関連なので、commit で期限切れになる前(読んだ直後)に組んでおく
     if previous is None:
         return "(無し。主役の最初の出来事)"
@@ -104,7 +96,6 @@ def _novelize(
     session: Session, record: Event, focus: Character, participants: list[Character],
     previous_row: dict | str, ai: AIClient,
 ) -> None:
-    """記録として起こした本文を、話と同じ小説の形に書き直す。書けなければ記録のまま残す。"""
     involved_ids = set(session.scalars(
         select(EventCharacter.character_id).where(EventCharacter.event_id == record.id)).all())
     place = session.get(Location, record.location_id) if record.location_id else None
@@ -133,13 +124,6 @@ def _novelize(
 def generate_next(
     session: Session, ai: AIClient, rng: random.Random | None = None, character_id: int | None = None,
 ) -> Event | None:
-    """生きているサブキャラクターをランダムに一人選び、その者の次の出来事を起こす。起こせなければ None。
-    `character_id` を渡すと、その者だけを主役の候補にする。
-
-    始まりは直前の出来事の終わり(出来事が無ければ `_first_base`)から
-    `constants.NEXT_EVENT_GAP_DAYS` 日後。候補は、貯めた出来事の種から引いたものか直前の出来事からの連想で立てる。その時刻に
-    `_group_by_place` が拾わない者(居場所が無い・ランダム生成の対象でない場所に居る等)は選び直す。
-    """
     if rng is None:
         rng = random.Random(random.randrange(10 ** 9))
     query = select(Character).where(character_active_condition()).order_by(Character.id)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""`interface/` 全体の基底。`randomizer/` `story/` `sync/` `world/` に共通する部分。"""
 from __future__ import annotations
 
 import json
@@ -8,8 +7,6 @@ from db.schema import get_env_session
 
 
 class Entrypoint:
-    """すべての入口の基底。サブクラスは `run()` を実装する。"""
-
     def run(self):
         raise NotImplementedError
 
@@ -32,11 +29,8 @@ class UnknownFieldError(ValueError):
 
 
 class CommitEntrypoint(SessionEntrypoint):
-    """確定する系入口の共通処理。サブクラスは `model` を指し、`parse`/`check_columns`/`check_exists` を使う。
-
-    `execute()` はまとめて一つのトランザクションとして `session.begin()` に包む。
-    `execute()` の中で `session.commit()` は呼ばない(成功時は抜けるときに
-    まとめて commit、例外時は rollback される)。
+    """`execute()` は `session.begin()` に包むので、その中で `session.commit()` は呼ばない
+    (成功時は抜けるときにまとめて commit、例外時は rollback される)。
     """
 
     model: type
@@ -58,9 +52,7 @@ class CommitEntrypoint(SessionEntrypoint):
 
     @staticmethod
     def finalize(session, record):
-        """新しく作った record を db へ流し、書き込まれた値で読み直す。
-
-        `StampType` のような列は bind するとき(`process_bind_param`)にしか
+        """`StampType` のような列は bind するとき(`process_bind_param`)にしか
         型変換が掛からない。`flush` しただけでは record の属性は渡した生の値
         (例: 文字列の `"1"`)のまま残るので、`to_dict` に渡す前に `refresh` で
         db に書いた値を読み直し、`process_result_value` を通した本来の型

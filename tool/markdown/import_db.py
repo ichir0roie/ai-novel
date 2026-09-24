@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""`worlds/` の md を db へ読み戻す。`export_db.py` の逆。
-
-"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -19,7 +16,7 @@ __all__ = ["WORLDS_ROOT", "ImportDbError", "import_db"]
 
 
 class ImportDbError(ValueError):
-    """md を読み戻せなかった。"""
+    pass
 
 
 _DATA_RE = re.compile(r"#\s*data\s*```json\s*(.*?)\s*```", re.S)
@@ -124,7 +121,6 @@ def _process_table_dir(
 
 
 def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
-    """md を db へ読み戻して、テーブル名ごとの件数を辞書で返す。"""
     date_str = datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = f"backup/{date_str}.db.bk"
     os.makedirs(os.path.dirname(backup_path), exist_ok=True)

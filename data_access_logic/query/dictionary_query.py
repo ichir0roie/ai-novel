@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""アイデア(辞書)のための問い合わせ。`ai/claude_code/interface/world/` から使う。"""
 from __future__ import annotations
 
 from sqlalchemy import Select, select

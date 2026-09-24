@@ -1,4 +1,3 @@
-"""人物同士の相関(`character_relation`): 確定・修正・一覧の入口と、`export_db` が書く md・HTML、`import_db` の読み戻し。"""
 import json
 import os
 

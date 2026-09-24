@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""世界の側を、時の流れの中で自動的に進める常駐ループの本体。`ai/local_ai/` と `ai/claude_code/` が共用する。
-
-`loop_time` が1日ずつ時刻を進めながら `time_process` を呼び続け、その時刻をカバーする
-作品(`Story`)が一件も無くなったら止まる。再開するには `CommitStory` で作品を足す。
-生成に使う AI は `ai`(`AIClient` の形を満たすモジュール)として受け取り、ここでは選ばない。
-"""
 from __future__ import annotations
 
 import random
@@ -24,10 +18,6 @@ from ai.time_keeper._format import add_days, add_years, days_between, format_tim
 def loop_time(
     ai: AIClient, start_time: Stamp | None = None, max_days: int | None = None,
 ) -> Stamp:
-    """`max_days` を渡すと、その日数だけ進めて途中でも戻る
-    (省けば作品が尽きるまで進め続ける)。
-    戻り値は最後に処理した時刻。
-    """
     if start_time is None:
         with get_env_session() as s:
             start_time = s.scalar(
@@ -66,10 +56,7 @@ def time_process(
 
 
 def daily_event(ai: AIClient, character_id: int | None = None) -> int | None:
-    """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。
-    `character_id` を渡すと、その者を主役にする。
-    先に、まだ抜き出していない元から出来事の種を抜き出し、たまっていれば似た種をまとめる。
-    ルーチンで起こした出来事は `CommitEvent` を通らないので、ミームもここで抜き出す(前の回の出来事が元になる)。"""
+    """ルーチンで起こした出来事は `CommitEvent` を通らないので、ミームもここで抜き出す(前の回の出来事が元になる)。"""
     with get_env_session() as s:
         meme.refresh(s, ai)
         event_seed.refresh(s, ai)
@@ -79,7 +66,6 @@ def daily_event(ai: AIClient, character_id: int | None = None) -> int | None:
 
 
 def loop_time_for_story(ai: AIClient, story_id: int, years: int = 5) -> Stamp:
-    """作品 `story_id` の開始時刻(`start`)から、`years` 年ぶん `loop_time` を回す。"""
     with get_env_session() as s:
         story = s.get(Story, story_id)
         if story is None:

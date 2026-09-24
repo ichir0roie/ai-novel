@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""`redrive_world` を、AI の代わりに `MockAIClient` で `novel.test.db` に対して回す。
-
-使い方:
-    python -m tool.test.redrive_mock_world                     novel.test.db(無ければ novel.db を写して作る)を 2025 年から 120 回ぶん
-    python -m tool.test.redrive_mock_world --max-days 30 --seed 1
-    python -m tool.test.redrive_mock_world --copy-from ../novel.db     いまの novel.db を写し直してから回す
-"""
 from tool.test import TEST_DB_PATH  # noqa: F401  db を novel.test.db に固定する(schema より先に読む)
 
 import argparse
@@ -21,7 +14,6 @@ DEFAULT_SOURCE_DB = NOVEL_DB_PATH
 
 
 def prepare_test_db(copy_from: str | None = None) -> None:
-    """`copy_from` を渡せば必ず写し直す。渡さなければ、test db が無いときだけ `novel.db` から写す。"""
     if copy_from is None:
         if os.path.exists(TEST_DB_PATH):
             return

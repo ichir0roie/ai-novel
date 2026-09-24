@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""アイデアをキーワードで検索する、claude が呼ぶ入口。`idea.text` にそのキーワードを含むアイデアを返す。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.world._base import WorldQuery

@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""作品(`Story`)を一件、db から削除する、claude が呼ぶ入口。
-
-    DeleteStory(story_id).run()
-"""
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -13,8 +9,6 @@ from db.schema import Episode, Story
 
 
 class DeleteStory(StoryCommit):
-    """作品を一件削除して、消す直前の中身を辞書で返す。本文(`episode`)が残っていれば止める。"""
-
     model = Story
 
     def __init__(self, story_id: int):

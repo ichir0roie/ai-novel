@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""星一つぶんの平板図(経度=横、緯度=縦)を SVG 文字列にする。"""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -19,7 +18,6 @@ _NO_PARENT = "(親なし)"
 
 
 def layers_of(points: list[dict]) -> list[str]:
-    """親の名でまとめる。大陸(面)の子を先に、それ以外を後に並べて色と記号を振る。"""
     seen: dict[str, str] = {}
     for p in points:
         seen.setdefault(p["parent_name"] or _NO_PARENT, p["parent_kind"] or "")
@@ -34,7 +32,6 @@ def marker(kind_of_parent: str | None, x: float, y: float, r: float, color: str,
 
 
 def shape_path(frame, polygon: dict) -> str:
-    """外周と穴を一本の `d` にする(穴は evenodd で抜く)。"""
     parts = []
     for ring in polygon["coordinates"]:
         parts.append(" ".join(f"{'M' if i == 0 else 'L'}{frame.x(lon):.1f},{frame.y(lat):.1f}"

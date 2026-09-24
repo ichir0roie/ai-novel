@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Claude Code(`claude -p`)を叩く、`ai/local_ai/ai_client.py` と同じ顔の薄いクライアント。db には触れない。
-
-環境変数: `DEM_CLAUDE_AI_COMMAND`(実行する CLI、既定 `claude`)、
-`DEM_CLAUDE_AI_MODEL`(モデル名、既定 `claude-sonnet-5`)、
-`DEM_CLAUDE_AI_EFFORT`(low / medium / high、既定 `low`)、
-`DEM_CLAUDE_AI_TIMEOUT`(一回の呼び出しを待つ秒数の下限、既定 300。呼び出し側の
-`timeout` が Ollama 向けに短くても、この値までは待つ)。
-認証は CLI 側(`claude login` 済みか `ANTHROPIC_API_KEY`)に任せる。
-"""
 from __future__ import annotations
 
 import json
@@ -23,7 +14,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 class ClaudeAIError(RuntimeError):
-    """Claude Code の起動・応答が失敗したときに投げる。"""
+    pass
 
 
 # 呼んだ回数とトークン・費用の積算。`usage_summary` でループの終わりに出す。
@@ -87,12 +78,7 @@ def generate(
     timeout: float = 120.0,
     options: dict | None = None,
 ) -> str:
-    """`claude -p` に `prompt` を渡し、生成テキストを返す。
-
-    `format` が JSON Schema の辞書なら `--json-schema` で構造化出力に制約し、
-    その JSON を文字列にして返す(`"json"` は制約なしの素通し)。
-    `options`(Ollama の temperature 等)は Claude Code に相当する設定が無いので受け取るだけで使わない。
-    """
+    """`options`(Ollama の temperature 等)は Claude Code に相当する設定が無いので受け取るだけで使わない。"""
     schema = format if isinstance(format, dict) else None
     args = _build_args(system, schema)
     # CLI の起動と思考のぶん、Ollama 向けの timeout(既定 120 秒)では足りないことがある。
@@ -141,7 +127,6 @@ def generate_json(
     timeout: float = 120.0,
     options: dict | None = None,
 ) -> dict:
-    """`generate` を `schema`(JSON Schema)で構造化出力に制約して呼び、パースした辞書を返す。"""
     text = generate(
         prompt, system=system, format=schema, timeout=timeout, options=options)
     try:
@@ -159,7 +144,6 @@ def try_generate_json(
     timeout: float = 120.0,
     options: dict | None = None,
 ) -> dict:
-    """`generate_json` を試し、失敗(起動不可・応答がJSONとして壊れている)なら空の辞書を返す。"""
     try:
         return generate_json(prompt, schema, system=system, timeout=timeout, options=options)
     except ClaudeAIError as error:

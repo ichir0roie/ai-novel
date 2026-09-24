@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""アイデアを一件、db から削除する、claude が呼ぶ入口。下位のアイデアを持つアイデアは消せない。"""
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -10,8 +9,6 @@ from db.schema import Idea
 
 
 class DeleteIdea(CommitDraft):
-    """アイデアを一件削除して、消す直前の中身を辞書で返す。"""
-
     model = Idea
 
     def __init__(self, idea_id: int):

@@ -1,4 +1,3 @@
-"""場所の位置関係: 距離・方角の計算、`list_neighbors`、`export_db` が描く地図。"""
 import os
 
 import pytest
@@ -58,7 +57,6 @@ def test_place_labels_avoid_each_other():
 
 @pytest.fixture
 def star(session):
-    """面積から半径が出る星と、その上の大陸・国、同じ経緯度の真上にある天上の国。"""
     line = Location(name="世界線", kind="世界線", text="", directory_path="線")
     session.add(line)
     session.flush()

@@ -1,5 +1,3 @@
-"""メインキャラクターフラグ(`Character.main_character`)。出来事のランダム生成は
-サブキャラクター(false)だけを対象にし、メインキャラクター(true)は外す。"""
 from ai.time_keeper import event_progression_generator, main
 from ai.time_keeper._export import export_step
 from ai.time_keeper.random_character_generator import _generate_one

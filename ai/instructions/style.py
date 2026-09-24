@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""文体の特徴を、プロンプトへ埋め込める定数として持つ置き場。
+"""土台(`*_BASE`)は手で書く。特徴(`*_EXTRACTED`)は既存の話(`Episode`)の本文から
+抽出して書き換える枠で、本文がまだ無いあいだは空。
 
-土台(`*_BASE`)は手で書く。特徴(`*_EXTRACTED`)は既存の話(`Episode`)の本文から
-抽出して書き換える枠で、本文がまだ無いあいだは空。二つを足したものが
-`*_STYLE_INSTRUCTION` で、プロンプトに埋めるのはこの定数の方。
-
-共通(`SHARED_*`)はどの文にも効き、対象ごと(episode / event_novel / story / event / idea)は
-その対象の文にだけ足す。対象ごとの土台と特徴は共通とは別に持っているので、
-あとから対象ごとに別の文面を用意できる。
+対象ごとの土台と特徴は共通とは別に持っているので、あとから対象ごとに別の文面を用意できる。
 """
 from __future__ import annotations
 
@@ -28,8 +23,6 @@ SCENE_BREAK = "◇"
 
 @dataclass(frozen=True)
 class StyleInstruction:
-    """手で書く土台(`base`)と、本文から抽出した特徴(`extracted`)の対。"""
-
     base: str = ""
     extracted: str = ""
 
@@ -80,7 +73,6 @@ NOVEL_STYLE_BASE = """\
 
 
 def _scale_rule(unit: str, letters: tuple[int, int]) -> str:
-    """`unit`(「一話」など)一つぶんの分量と、場面の切り方。"""
     return f"""\
 孤立させた一行は間を作るための道具なので、{unit}に数回までに抑える。
 {unit}は{letters[0]}〜{letters[1]}字。
@@ -143,7 +135,6 @@ STYLE_INSTRUCTIONS: dict[str, StyleInstruction] = {
 
 
 def style_instruction(target: str) -> str:
-    """`target`(episode / event_novel / story / event / idea)の文へ埋め込む文体の指示。"""
     if target not in STYLE_INSTRUCTIONS:
         raise ValueError(f"文体の指示が無い対象: {target}")
     return "\n".join(

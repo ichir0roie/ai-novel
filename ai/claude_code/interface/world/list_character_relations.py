@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""人物同士の相関の一覧を出す、claude が呼ぶ入口。人物 id を渡すとその人物のものだけに絞る。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.world._base import WorldQuery

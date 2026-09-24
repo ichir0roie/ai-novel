@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""ランダムな人物(Character)一件分の下書きを辞書として組む。db には触れない。"""
 from __future__ import annotations
 
 import factory
@@ -16,7 +15,6 @@ _THIRD_PERSON_CHOICES = ("さん", "くん", "ちゃん", "殿", "氏")
 
 
 def _personality():
-    """性格の一軸。schema.py の PersonalityLevel(無/低/並/高/必)から一つ引く。"""
     return factory.Faker("random_element", elements=PERSONALITY_LEVELS)
 
 

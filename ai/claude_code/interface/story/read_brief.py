@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""世界の断面(場所の道筋・張っている出来事・直近の出来事・アイデア・いま居る者)を取る、claude が呼ぶ入口。
-
-"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story import _rows
@@ -9,8 +6,6 @@ from ai.claude_code.interface.story._base import StoryQuery
 
 
 class ReadBrief(StoryQuery):
-    """その場所・その時点の断面を辞書で返す。"""
-
     def __init__(self, place_id: int, time, reach: int = 60, full: bool = False):
         self.place_id = place_id
         self.time = time

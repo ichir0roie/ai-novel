@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""AI を呼ばずに、渡された JSON Schema の形だけを満たす値を返す `AIClient`。
-
-生成器の流れ(db への確定・時刻の進み・busy の除外など)を、AI 無し・費用無しで
-最後まで通すためのもの。文章はすべて「モック…」の埋め草になる。
+"""生成器の流れ(db への確定・時刻の進み・busy の除外など)を、AI 無し・費用無しで
+最後まで通すためのもの。
 """
 from __future__ import annotations
 

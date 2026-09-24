@@ -1,4 +1,3 @@
-"""アイデアを直す・消す入口。上位のアイデアの付け替えと、下位のアイデアが残っているアイデアの削除を検める。"""
 import pytest
 
 from ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError

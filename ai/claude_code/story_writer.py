@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""作品(`Story`)の次の話(`Episode`)を Claude Code に書かせて db へ確定する。
-
-材料は `start_story` 入口と同じ(作品の見出し・直前の話・断面・顔ぶれ)。
-`local_ai` には本文を書く生成器が無いので、ここだけは claude_ai 固有。
+"""`local_ai` には本文を書く生成器が無いので、ここだけは claude_ai 固有。
 自動生成なので `synced` は立てて確定する(`schema.py` の `Episode.synced` の注記どおり)。
 """
 from __future__ import annotations
@@ -54,7 +51,6 @@ def _episode(session: Session, story_id: int, number: int) -> Episode | None:
 
 
 def _next_number(session: Session, story_id: int) -> int:
-    """次に書く話数。本文の入っている最後の話の次(種だけの話は書かれていない扱い)。"""
     rows = session.scalars(
         select(Episode).where(Episode.story_id == story_id)
         .order_by(Episode.number)).all()
@@ -63,10 +59,7 @@ def _next_number(session: Session, story_id: int) -> int:
 
 
 def _blocking_unsynced(session: Session, story_id: int, number: int) -> list[int]:
-    """`number` より前の、本文があるのに台帳へ戻していない話。
-
-    本文がまだ無い話(種だけ入れてある先の話)は、書きようがないので数えない。
-    """
+    """本文がまだ無い話(種だけ入れてある先の話)は、書きようがないので数えない。"""
     rows = session.scalars(
         select(Episode).where(Episode.story_id == story_id,
                               Episode.number < number,
@@ -75,16 +68,11 @@ def _blocking_unsynced(session: Session, story_id: int, number: int) -> list[int
 
 
 def _episode_recap(session: Session, episode: dict) -> dict:
-    """一話ぶんの概要と文体の覚え書き。`episode_summary.summarize` に委ねる。"""
     record = session.get(Episode, episode["id"])
     return episode_summary.summarize(session, record, ai_client) or {}
 
 
 def _recap(session: Session, episodes: list[dict]) -> dict:
-    """直前の話を本文の代わりに概要で並べたもの(`episodes`)と、一番新しい話の文体の覚え書き(`style`)。
-
-    概要が作れなかった話は本文のまま並べる。
-    """
     rows, styles = [], []
     for episode in episodes:
         if not (episode.get("text") or "").strip():
@@ -104,7 +92,6 @@ def _materials(
     session: Session, story_id: int, time, *,
     number: int, episodes: int, count: int, reach: int, levels: int,
 ) -> dict:
-    """`StartStory` と同じ材料。未同期の話があれば `stopped` を立てて材料を出さない。"""
     story = common_query.get_story(session, story_id)
     unsynced = _blocking_unsynced(session, story_id, number)
     result = {
@@ -128,11 +115,6 @@ def write_next_episode(
     session: Session, story_id: int, time=None, *, number: int | None = None,
     episodes: int = RECAP_EPISODE_LIMIT, count: int = 5, reach: int = 60, levels: int = 1,
 ) -> Episode | None:
-    """話を一件、db へ確定して返す。書けなければ None。
-
-    `number` を省くと、本文の入っている最後の話の次を書く(種だけの話も対象になる)。
-    その話に種(`key`)があればプロンプトへ載せ、本文と題だけを上書きする。
-    """
     story_row = common_query.get_story(session, story_id)
     if number is None:
         number = _next_number(session, story_id)
@@ -190,10 +172,6 @@ def write_next_episode(
 
 def write_story(story_id: int, episodes_to_write: int = 1, time=None,
                 number: int | None = None) -> list[Episode]:
-    """`episodes_to_write` 話ぶん続けて書く。途中で書けなければそこで止める。
-
-    `number` を渡すとその話から書き始める(種だけ入れてある話を埋めるとき)。
-    """
     written: list[Episode] = []
     with get_env_session() as session:
         for offset in range(episodes_to_write):
