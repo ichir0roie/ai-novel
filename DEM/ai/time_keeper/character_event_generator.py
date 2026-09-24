@@ -92,8 +92,9 @@ def _note(character: Character, previous_row: dict | str) -> str:
             f"主役の直前の出来事(これが終わった後に起きる出来事として考える): {previous_row}\n")
 
 
-def _sheet(character: Character) -> dict:
-    return {"name": character.name, "kind": character.kind, "sex": character.sex,
+def _sheet(character: Character, time: Stamp) -> dict:
+    return {"name": character.name, "kind": character.kind, "age": progression.age_at(character, time),
+            "sex": character.sex,
             "first_person": character.first_person, "second_person": character.second_person,
             "third_person": character.third_person, "tone": character.tone,
             "text": character.text}
@@ -107,11 +108,11 @@ def _novelize(
     involved_ids = set(session.scalars(
         select(EventCharacter.character_id).where(EventCharacter.event_id == record.id)).all())
     place = session.get(Location, record.location_id) if record.location_id else None
-    others = [_sheet(c) for c in participants if c.id in involved_ids and c.id != focus.id]
+    others = [_sheet(c, record.start) for c in participants if c.id in involved_ids and c.id != focus.id]
     prompt = "\n".join([
         f"場所: {_dump({'name': place.name, 'kind': place.kind, 'text': place.text} if place else None)}",
         f"時刻: {record.start}〜{record.end}",
-        f"主役: {_dump(_sheet(focus))}",
+        f"主役: {_dump(_sheet(focus, record.start))}",
         f"ほかの当事者: {_dump(others) if others else '(無し)'}",
         f"主役の直前の出来事: {_dump(previous_row)}",
         f"この出来事の記録: {_dump({'name': record.name, 'text': record.text})}",

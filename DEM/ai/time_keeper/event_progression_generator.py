@@ -260,6 +260,28 @@ def _character_recent_event_names(
     return [e.name for e in events]
 
 
+def age_at(character: Character, time: Stamp) -> int | None:
+    """`time` での満年齢。人物以外は成立からの年数。生年が無ければ None。"""
+    if character.start is None:
+        return None
+    born = character.start
+    return time.year - born.year - ((time.month, time.day) < (born.month, born.day))
+
+
+def _relations(session: Session, character: Character, time: Stamp) -> list[str]:
+    """`time` に続いている相関を「甲から見た乙: 関係(説明)」の形で。"""
+    lines = []
+    for relation in session.scalars(
+            common_query.character_relations_at_select(character.id, time)
+            .limit(constants.RELATION_LIMIT)).all():
+        first = session.get(Character, relation.character_id_1)
+        second = session.get(Character, relation.character_id_2)
+        note = f"({relation.text})" if relation.text else ""
+        lines.append(f"{first.name if first else '?'}から見た{second.name if second else '?'}: "
+                     f"{relation.relation}{note}")
+    return lines
+
+
 def _story_recent_event_names(
     session: Session, top_location_id: int | None, place_id: int, time: Stamp,
 ) -> list[str]:
@@ -359,8 +381,10 @@ def _progress_place(
         if stories else []
     )
     characters_payload = [
-        {"character_id": c.id, "kind": c.kind, "name": c.name, "tone": c.tone, "text": c.text,
+        {"character_id": c.id, "kind": c.kind, "name": c.name, "age": age_at(c, time),
+         "tone": c.tone, "text": c.text,
          "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
+         "relations": _relations(session, c, time),
          "recent_events": _character_recent_event_names(session, c.id, time)}
         for c in characters[:20]
     ]
@@ -374,7 +398,7 @@ def _progress_place(
     situation = f"""\
 場所id: {place_id}
 場所の情報: {(place.name, place.kind, place.text) if place else None}
-居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。recent_events はその者自身が場所を問わず関わった直近の出来事): {characters_payload}
+居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。age は人物なら歳、それ以外は成立からの年数。relations はその時点で続いている相関。recent_events はその者自身が場所を問わず関わった直近の出来事): {characters_payload}
 直近の出来事(名前): {[e.name for e in recent_events]}
 {story_lines}{note}現在の時刻: {time}
 """

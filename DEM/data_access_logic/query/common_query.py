@@ -356,6 +356,16 @@ def terms_select(place_ids) -> Select:
             .order_by(Term.id))
 
 
+def character_relations_at_select(character_id: int, time: Stamp) -> Select:
+    """**その時点で続いている、その人物が主体か相手の相関。**"""
+    return (select(CharacterRelation)
+            .where(or_(CharacterRelation.character_id_1 == character_id,
+                       CharacterRelation.character_id_2 == character_id),
+                   or_(CharacterRelation.start.is_(None), CharacterRelation.start <= time),
+                   or_(CharacterRelation.end.is_(None), CharacterRelation.end > time))
+            .order_by(CharacterRelation.id))
+
+
 def character_relations_select(character_id: int | None = None) -> Select:
     """人物の相関(`CharacterRelation`)の一覧。人物を渡すと、その人物が主体か相手のものに絞る。"""
     query = select(CharacterRelation)

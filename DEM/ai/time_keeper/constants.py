@@ -39,6 +39,8 @@ PLACE_PROBABILITY_COOLDOWN_FACTOR = 0.4
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
 REACH_LEVELS = 1
 MOVE_DESTINATION_LIMIT = 20
+# 当事者一人ぶんに渡す相関の上限。
+RELATION_LIMIT = 10
 # event_duration_days の取りうる範囲。範囲外の値は丸める。
 EVENT_DURATION_RANGE_DAYS = (1, 90)
 DEFAULT_EVENT_DURATION_DAYS = 1

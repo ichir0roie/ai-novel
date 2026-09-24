@@ -8,7 +8,8 @@ from DEM.ai.time_keeper import (
 from DEM.ai.time_keeper._format import days_between
 from DEM.data_access_logic.query import common_query
 from DEM.db.schema import (
-    Character, CharacterPlace, Event, EventCharacter, EventSeed, EventSummary, Location, Story,
+    Character, CharacterPlace, CharacterRelation, Event, EventCharacter, EventSeed, EventSummary,
+    Location, Story,
     summary_source_hash,
 )
 from DEM.db.stamp import Stamp
@@ -358,3 +359,38 @@ def test_daily_event_consolidates_the_seeds_once_enough_are_stored(session, monk
 
     seeds = session.query(EventSeed).all()
     assert seeds and all(seed.consolidated for seed in seeds)
+
+
+def test_age_is_counted_in_full_years():
+    character = Character(name="甲", text="", start=Stamp(2080, 3, 10))
+
+    assert event_progression_generator.age_at(character, Stamp(2100, 3, 9)) == 19
+    assert event_progression_generator.age_at(character, Stamp(2100, 3, 10)) == 20
+    assert event_progression_generator.age_at(Character(name="乙", text=""), Stamp(2100)) is None
+
+
+def test_participants_are_told_their_age_and_the_relations_of_that_time(session):
+    place = _place(session)
+    first = _character(session, place, "甲", start=Stamp(2080, 3, 10))
+    second = _character(session, place, "乙", start=Stamp(2090))
+    session.add_all([
+        CharacterRelation(character_id_1=first.id, character_id_2=second.id, relation="弟分",
+                          text="面倒を見ている"),
+        CharacterRelation(character_id_1=second.id, character_id_2=first.id, relation="兄貴",
+                          text="", end=Stamp(2095)),
+    ])
+    session.commit()
+    _event(session, place, [first], Stamp(2100, 5, 1), Stamp(2100, 5, 10))
+    _event(session, place, [second], Stamp(2100, 5, 1), Stamp(2100, 5, 10))
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, _NoShuffle(1))
+
+    think = next(call for call in ai.calls
+                 if call["schema"] is event_progression_generator._JUDGEMENT_SCHEMA)
+    assert "'name': '甲', 'age': 20" in think["prompt"]
+    assert "'name': '乙', 'age': 10" in think["prompt"]
+    assert "甲から見た乙: 弟分(面倒を見ている)" in think["prompt"]
+    assert "兄貴" not in think["prompt"]
+    novel = ai.calls[-1]
+    assert '"name": "甲", "kind": "人物", "age": 20' in novel["prompt"]
