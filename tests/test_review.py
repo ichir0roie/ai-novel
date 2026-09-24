@@ -34,14 +34,33 @@ def fake_review(monkeypatch):
     return fake
 
 
-def test_build_args_allows_given_tools_only():
+def test_build_args_allows_given_tools_only(monkeypatch):
+    monkeypatch.setenv("DEM_CLAUDE_AI_MCP_CONFIG", "mcp.json")
     plain = ai_client._build_args(None, None)
     assert plain[plain.index("--tools") + 1] == ""
-    assert "--allowedTools" not in plain
+    assert "--allowedTools" not in plain and "--mcp-config" not in plain
 
-    searching = ai_client._build_args(None, None, reviewer.REVIEW_TOOLS)
-    assert searching[searching.index("--tools") + 1] == "WebSearch,WebFetch"
-    assert searching[searching.index("--allowedTools") + 1] == "WebSearch,WebFetch"
+    web = ai_client._build_args(None, None, ("WebSearch", "WebFetch"))
+    assert web[web.index("--tools") + 1] == "WebSearch,WebFetch"
+    assert web[web.index("--allowedTools") + 1] == "WebSearch,WebFetch"
+    assert "--mcp-config" not in web
+
+    # MCP の道具は組み込みの `--tools` に混ぜず、許可と MCP の設定だけを渡す
+    mcp = ai_client._build_args(None, None, ("WebSearch", "mcp__d-lab"))
+    assert mcp[mcp.index("--tools") + 1] == "WebSearch"
+    assert mcp[mcp.index("--allowedTools") + 1] == "WebSearch,mcp__d-lab"
+    assert mcp[mcp.index("--mcp-config") + 1] == "mcp.json"
+
+
+def test_review_tools_include_dlab(monkeypatch):
+    monkeypatch.delenv("DEM_CLAUDE_AI_DLAB_TOOLS", raising=False)
+    assert reviewer.review_tools() == ("WebSearch", "WebFetch", "ToolSearch", "mcp__d-lab")
+
+    monkeypatch.setenv("DEM_CLAUDE_AI_DLAB_TOOLS", "mcp__claude_ai_D-Lab, mcp__x")
+    assert reviewer.review_tools()[-2:] == ("mcp__claude_ai_D-Lab", "mcp__x")
+
+    monkeypatch.setenv("DEM_CLAUDE_AI_DLAB_TOOLS", "")
+    assert reviewer.review_tools() == reviewer.WEB_TOOLS
 
 
 def test_review_fills_only_unreviewed_with_text(session, fake_review):
@@ -59,7 +78,7 @@ def test_review_fills_only_unreviewed_with_text(session, fake_review):
     assert rows == {"魔力": "## 妥当性\n検めた:大気に満ちる力", "済み": "前の結果", "空": None}
     prompt, kwargs = fake_review.calls[0]
     assert "アイデア「魔力」" in prompt
-    assert kwargs["tools"] == reviewer.REVIEW_TOOLS
+    assert kwargs["tools"] == reviewer.review_tools()
 
 
 def test_review_by_ids_redoes_reviewed(session, fake_review):

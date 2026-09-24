@@ -11,7 +11,7 @@ ai/claude_code/
                           中身は `claude -p --output-format json --json-schema …` の subprocess
   claude_code_time_keeper.py  `ai/time_keeper/main.py` に claude_code の ai_client を渡して回す入口
   story_writer.py         作品の次の話を書いて db へ確定する(local_ai に無い、ここだけの生成器)
-  reviewer.py             アイデア・ミームをネット検索で検め、妥当性と補足を `review` 欄へ書く(local_ai に無い)
+  reviewer.py             アイデア・ミームを Dラボのナレッジとネット検索で検め、妥当性と補足を `review` 欄へ書く(local_ai に無い)
   interface/              Claude が db を読み書きする入口(一覧は interface/readme.md)
 ```
 
@@ -31,6 +31,8 @@ ai/claude_code/
 | `DEM_CLAUDE_AI_MODEL`   | `--model` に渡す。既定 `claude-sonnet-5`                                                             |
 | `DEM_CLAUDE_AI_EFFORT`  | `--effort` に渡す(low / medium / high)。既定 `low`                                                   |
 | `DEM_CLAUDE_AI_TIMEOUT` | 一回の呼び出しを待つ秒数の下限。既定 300(CLI の起動ぶん、Ollama 向けの 120 秒では足りないことがある) |
+| `DEM_CLAUDE_AI_DLAB_TOOLS` | 検める(`reviewer.py`)ときに許す Dラボの道具。カンマ区切りの許可ルール、既定 `mcp__d-lab`。`claude mcp list` の Dラボのサーバー名に合わせて `mcp__<サーバー名>` にする。空にすると Dラボを使わない |
+| `DEM_CLAUDE_AI_MCP_CONFIG` | MCP の道具を使わせる呼び出しで `--mcp-config` に渡すファイル。Dラボを claude.ai のコネクタ以外で繋ぐときに使う。既定なし |
 
 ## 使い方
 

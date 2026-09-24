@@ -27,8 +27,8 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
-| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, review=True)`。確定したあと AI がネット検索で中身を検め、妥当性と補足を `review` 欄(md の `# review` 節)へ書く。`review=False` で飛ばす |
-| 「アイデア・ミームを検めて」「妥当性を調べて」 | `review.review_records.ReviewRecords(table, ids=None, limit=None)`。`table` は `"idea"` / `"meme"`。AI がネット検索で妥当性と補足を書き、`review` 欄へ入れる。`ids` を省くと `review` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。書いた件数を返す |
+| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, review=True)`。確定したあと AI が Dラボのナレッジとネット検索で中身を検め、妥当性と補足を `review` 欄(md の `# review` 節)へ書く。`review=False` で飛ばす |
+| 「アイデア・ミームを検めて」「妥当性を調べて」 | `review.review_records.ReviewRecords(table, ids=None, limit=None)`。`table` は `"idea"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`review` 欄へ入れる。`ids` を省くと `review` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。書いた件数を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
@@ -147,7 +147,7 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 - `sync/` — db と md の同期
 - `world/` — 場所・人物・アイデア・出来事の一覧(読む専用)
 - `meme/` — アイデア・oracle・人物の筋書き・出来事からのミームの抽出と、人物に持たせるミームの引き出し
-- `review/` — アイデア・ミームを AI にネット検索させて検め、妥当性と補足を書く(`ai/claude_code/reviewer.py`)
+- `review/` — アイデア・ミームを AI に Dラボのナレッジとネット検索で検めさせ、妥当性と補足を書く(`ai/claude_code/reviewer.py`)
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ

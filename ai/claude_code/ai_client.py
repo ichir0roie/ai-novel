@@ -5,7 +5,8 @@
 `DEM_CLAUDE_AI_MODEL`(モデル名、既定 `claude-sonnet-5`)、
 `DEM_CLAUDE_AI_EFFORT`(low / medium / high、既定 `low`)、
 `DEM_CLAUDE_AI_TIMEOUT`(一回の呼び出しを待つ秒数の下限、既定 300。呼び出し側の
-`timeout` が Ollama 向けに短くても、この値までは待つ)。
+`timeout` が Ollama 向けに短くても、この値までは待つ)、
+`DEM_CLAUDE_AI_MCP_CONFIG`(MCP の道具を使わせる呼び出しで `--mcp-config` に渡すファイル。既定なし)。
 認証は CLI 側(`claude login` 済みか `ANTHROPIC_API_KEY`)に任せる。
 """
 from __future__ import annotations
@@ -49,15 +50,20 @@ def _effort() -> str:
 
 
 def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] = ()) -> list[str]:
+    # `--tools` は組み込みの道具だけを絞る。MCP の道具(`mcp__…`)は MCP サーバーから来るので、許可だけ渡す。
+    builtin = [tool for tool in tools if not tool.startswith("mcp__")]
     args = [
         _command(), "-p",
         "--output-format", "json",
-        "--tools", ",".join(tools),
+        "--tools", ",".join(builtin),
         "--no-session-persistence",
     ]
     if tools:
         # -p では許可を尋ねられないので、渡した道具は先に許しておく(許さないと拒まれて使えない)。
         args += ["--allowedTools", ",".join(tools)]
+    mcp_config = os.environ.get("DEM_CLAUDE_AI_MCP_CONFIG")
+    if mcp_config and len(builtin) < len(tools):
+        args += ["--mcp-config", mcp_config]
     if system is not None:
         args += ["--system-prompt", system]
     if schema is not None:
@@ -96,7 +102,7 @@ def generate(
     `format` が JSON Schema の辞書なら `--json-schema` で構造化出力に制約し、
     その JSON を文字列にして返す(`"json"` は制約なしの素通し)。
     `options`(Ollama の temperature 等)は Claude Code に相当する設定が無いので受け取るだけで使わない。
-    `tools` は使わせる道具(`"WebSearch"` など)。既定は道具なし。
+    `tools` は使わせる道具(`"WebSearch"` や MCP の `"mcp__<サーバー名>"` など)。既定は道具なし。
     """
     schema = format if isinstance(format, dict) else None
     args = _build_args(system, schema, tools)
