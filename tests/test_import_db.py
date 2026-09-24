@@ -60,9 +60,10 @@ def test_novel_db_lives_in_parent_world_repo():
     from DEM.tool.markdown.export_db import WORLDS_ROOT as export_root
     from DEM.tool.markdown.import_db import WORLDS_ROOT as import_root
 
-    assert os.path.normpath(NOVEL_DB_PATH) == os.path.normpath("../novel.db")
+    world_dir = os.environ["DEM_WORLD_DIR"]
+    assert os.path.normpath(NOVEL_DB_PATH) == os.path.normpath(os.path.join(world_dir, "novel.db"))
     assert export_root == import_root
-    assert os.path.normpath(export_root) == os.path.normpath("../worlds")
+    assert os.path.normpath(export_root) == os.path.normpath(os.path.join(world_dir, "worlds"))
 
 
 def test_location_markdown_name_uses_name():

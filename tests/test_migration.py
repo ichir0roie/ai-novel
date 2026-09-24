@@ -119,7 +119,7 @@ def old_style_db():
 
 
 def _config() -> Config:
-    return Config("DEM/db/alembic/alembic.ini")
+    return Config("core/DEM/db/alembic/alembic.ini")
 
 
 def _columns(conn, table="character") -> dict[str, tuple[str, int, str | None]]:

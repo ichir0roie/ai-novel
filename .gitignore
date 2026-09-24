@@ -6,7 +6,6 @@ scripts
 
 backup
 
-*.test.db
 tmp
 .pytest_cache
 .markdown_sync

@@ -553,8 +553,8 @@ class EpisodeSummary(Base):
     style: Mapped[str] = mapped_column(String, comment="文体の覚え書き", sort_order=140)
 
 
-# core は世界リポジトリのサブモジュール core/ として置き、core/ から実行する
-WORLD_DIR = os.environ.get("DEM_WORLD_DIR", "..")
+# 既定値は持たない。場所を取り違えると sqlite が空の db を黙って作るので、未設定なら import で止める。
+WORLD_DIR = os.environ["DEM_WORLD_DIR"]
 NOVEL_DB_PATH = os.environ.get("DEM_NOVEL_DB_PATH", os.path.join(WORLD_DIR, "novel.db"))
 WORLDS_ROOT = os.environ.get("DEM_WORLDS_DIR", os.path.join(WORLD_DIR, "worlds"))
 DB_PATH = os.environ.get("DEM_DB_PATH", NOVEL_DB_PATH)
@@ -578,7 +578,7 @@ def create_db(path=DB_PATH):
     return engine
 
 
-TEST_DB_PATH = "novel.test.db"
+TEST_DB_PATH = os.path.join(WORLD_DIR, "novel.test.db")
 
 
 def _make_engine(path):

@@ -2,23 +2,23 @@ Generic single-database configuration.
 
 ## コマンド例
 
-リポジトリのルート(世界リポジトリの `core/`)から実行する。
+世界リポジトリのルートから実行する(環境変数 `DEM_WORLD_DIR` と `PYTHONPATH` を渡しておく)。
 
 ```
 # 今 db がどのリビジョンにいるか見る
-python -m alembic -c DEM/db/alembic/alembic.ini current
+python -m alembic -c core/DEM/db/alembic/alembic.ini current
 
 # 履歴を見る
-python -m alembic -c DEM/db/alembic/alembic.ini history
+python -m alembic -c core/DEM/db/alembic/alembic.ini history
 
 # schema.py を直したあと、差分からマイグレーションを自動生成する
-python -m alembic -c DEM/db/alembic/alembic.ini revision --autogenerate
+python -m alembic -c core/DEM/db/alembic/alembic.ini revision --autogenerate
 
 # 生成された versions/{yyyy}/{mm}/{dd}/ 配下のファイルを確認・手直ししてから、db に反映する
-python -m alembic -c DEM/db/alembic/alembic.ini upgrade head
+python -m alembic -c core/DEM/db/alembic/alembic.ini upgrade head
 
 # 一つ前のリビジョンへ戻す
-python -m alembic -c DEM/db/alembic/alembic.ini downgrade -1
+python -m alembic -c core/DEM/db/alembic/alembic.ini downgrade -1
 ```
 
 `versions/` は `versions/{yyyy}/{mm}/{dd}/{hhmmss}_{rev}_{slug}.py` の形で

@@ -1,5 +1,4 @@
 import os
-import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -7,22 +6,14 @@ from sqlalchemy import pool
 
 from alembic import context
 
-DB_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEM_DIR = os.path.dirname(DB_DIR)
-ROOT = os.path.dirname(DEM_DIR)
-sys.path.insert(0, ROOT)
-sys.path.insert(0, DB_DIR)
-
-from DEM.db.schema import Base, DB_PATH  # noqa: E402
+from DEM.db.schema import Base, DB_PATH
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
 # DEM/schema.py の DB_PATH(DEM_DB_PATH 環境変数で上書き可)をそのまま使う。
-# 実行時のカレントディレクトリに関わらずリポジトリルート基準で解決する。
-_db_path = DB_PATH if os.path.isabs(DB_PATH) else os.path.join(ROOT, DB_PATH)
-config.set_main_option("sqlalchemy.url", f"sqlite:///{_db_path}")
+config.set_main_option("sqlalchemy.url", f"sqlite:///{os.path.abspath(DB_PATH)}")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

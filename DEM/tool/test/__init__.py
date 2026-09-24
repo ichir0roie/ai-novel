@@ -6,7 +6,7 @@
 import os
 import sys
 
-TEST_DB_PATH = "novel.test.db"
+TEST_DB_PATH = os.path.join(os.environ["DEM_WORLD_DIR"], "novel.test.db")
 
 if "DEM.db.schema" in sys.modules:
     loaded = os.path.abspath(sys.modules["DEM.db.schema"].DB_PATH)

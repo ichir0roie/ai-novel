@@ -29,7 +29,9 @@
 
 コード(このリポジトリ `ai-novel-core`)と実データ(`novel.db`・`worlds/`)は別リポジトリに分けている。
 実データ側のリポジトリ(private の `my-novel-world`)が、このリポジトリをサブモジュール `core/` として持つ。
-コードは `core/` から見た親ディレクトリ(`..`)を世界として読み書きする(環境変数 `DEM_WORLD_DIR` で差し替えられる)。
+コードは環境変数 `DEM_WORLD_DIR` で渡されたディレクトリを世界として読み書きする(未設定なら import で止まる)。
+python・pytest・alembic は世界リポジトリのルートを cwd にし、`DEM_WORLD_DIR` にそのルートを、
+`PYTHONPATH` に `<ルート>/core` を渡して動かす。
 md と db の同期(`import_db` / `export_db`)が使う `novel.db` と `worlds/` は、それぞれ `DEM_NOVEL_DB_PATH` / `DEM_WORLDS_DIR` でも個別に差し替えられる。
 自分の世界を作るときは、空のリポジトリで `git submodule add https://github.com/ichir0roie/ai-novel-core.git core` する。
 
@@ -57,7 +59,7 @@ git push
 
 # テスト
 
-- `tests/` に pytest のテストがある。
+- `tests/` に pytest のテストがある。世界リポジトリのルートから `python -m pytest core/tests` で回す。
 - テストは `novel.test.db` だけを読み書きする(`tests/conftest.py` が `DEM.tool.test` を先に読んで固定する)。
   本番の `novel.db` には触れない
 - db・入口・生成器を変えたら、対応するテストを足すか直してから終える
@@ -77,12 +79,13 @@ git push
 - **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
   好きに覗いてよい。読むだけなら `import_db` / `export_db` も回さなくてよい。
   書き込み(`insert` `update` `delete`)は必ず入口越しに行う
-- 調査用の読み取り例(世界リポジトリのルートで `./run_python.sh` を使う。`core/` は `.venv` の場所を持たない):
+- 調査用の読み取り例(世界リポジトリのルートで `.venv/bin/python` を使う。`core/` は `.venv` の場所を持たない):
 
 ```
-./run_python.sh -c "
+.venv/bin/python -c "
 import sqlite3
-c = sqlite3.connect('../novel.db')
+from DEM.db.schema import NOVEL_DB_PATH
+c = sqlite3.connect(NOVEL_DB_PATH)
 print(c.execute('select count(*) from character').fetchone())
 "
 ```
