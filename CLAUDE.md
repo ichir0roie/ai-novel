@@ -103,6 +103,9 @@ python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想
   操作の前にその「依頼内容 → 呼ぶコード」の対応表を引き、依頼に当たる入口を呼ぶ
 - 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
   **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
+- **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
+  好きに覗いてよい。読むだけなら `import_db` / `export_db` も回さなくてよい。
+  書き込み(`insert` `update` `delete`)は必ず入口越しに行う
 - 調査用の読み取り例:
 
 ```
@@ -120,7 +123,8 @@ print(c.execute('select count(*) from character').fetchone())
 `sync_db`は、import_db,export_dbの順に実行する。
 
 worlds/**/*.markdownファイルは直接変更しない。
-db側を修正した後、sync_dbを実行する。
+db を修正する作業は、import_db → 入口越しの修正 → export_db の順で回す(ローカルでもクラウドでも同じ)。
+修正の後に import_db(sync_db)を回すと、md の古い内容で修正が消える。
 修正したレコードが巻き戻った場合は、importされたものを優先する。ユーザの直接編集を優先する。
 
 
