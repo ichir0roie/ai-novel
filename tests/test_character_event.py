@@ -256,6 +256,7 @@ def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
     place = _place(session)
     character = _character(session, place)
     character.first_person = "僕"
+    character.dialect = "東北風の訛り"
     session.commit()
     _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
     ai = MockAIClient(seed=1)
@@ -267,6 +268,7 @@ def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
     assert EVENT_NOVEL_INSTRUCTION in novel["system"]
     assert EVENT_RECORD_INSTRUCTION not in novel["system"]
     assert '"first_person": "僕"' in novel["prompt"]
+    assert '"dialect": "東北風の訛り"' in novel["prompt"]
     assert '"place": "村"' in novel["prompt"] and '"summary": "モックtext1"' in novel["prompt"]
     assert "峠越えの本文" not in novel["prompt"]
     assert "1700〜2700字の小説" in novel["prompt"]

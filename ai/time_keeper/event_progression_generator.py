@@ -55,7 +55,7 @@ _JUDGEMENT_KEYS = ("thought", "emotion", "wish", "fear", "action")
 
 _JUDGEMENT_SYSTEM_PROMPT = """\
 あなたは架空の世界観の中で、ある一人の人物、または人物以外の一つの対象(国・組織・集団・物)の立場に立って考える設定作家です。
-渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」のいまを、その kind・text・口調・性格(traits。各軸は 無/低/並/高/必 の五段階)・立場・世界線への影響度から推測してください。
+渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」のいまを、その kind・text・口調・方言・性格(traits。各軸は 無/低/並/高/必 の五段階)・立場・世界線への影響度から推測してください。
 人物なら性格と人間関係から、人物以外なら方針と力の及ぶ範囲から。
 他の当事者のことは決めない。この当事者自身のことだけを書く。
 JSON で答えてください。キーは次の五つ。各1〜2文。
@@ -377,7 +377,7 @@ def _progress_place(
     )
     characters_payload = [
         {"character_id": c.id, "kind": c.kind, "name": c.name, "age": age_at(c, time),
-         "tone": c.tone, "text": c.text,
+         "tone": c.tone, "dialect": c.dialect, "text": c.text,
          "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
          "relations": _relations(session, c, time),
          "recent_events": _character_recent_event_names(session, c.id, time)}

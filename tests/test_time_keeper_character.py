@@ -117,3 +117,26 @@ def test_generate_without_memes_leaves_no_meme_sections(session):
 
     assert "# meme" not in record.text and "# 行動原理" not in record.text
     assert all("行動原理(ミーム。" not in c["prompt"] for c in ai.calls)
+
+
+def test_generate_person_decides_dialect_and_passes_it_to_naming(session):
+    place = _place(session)
+    ai = MockAIClient(seed=1)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    assert "dialect" in next(c for c in ai.calls if c["system"] == _CONTENT_SYSTEM_PROMPT)["schema"]["required"]
+    assert record.dialect
+    assert f"方言: {record.dialect}" in ai.calls[-1]["prompt"]
+    session.expire_all()
+    assert session.get(Character, record.id).dialect == record.dialect
+
+
+def test_generate_non_person_has_no_dialect(session):
+    place = _place(session)
+    ai = MockAIClient(seed=2)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), ai, person=False)
+
+    assert record.dialect is None
+    assert all("方言: " not in c["prompt"] for c in ai.calls)
