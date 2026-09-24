@@ -2,7 +2,7 @@ Generic single-database configuration.
 
 ## コマンド例
 
-リポジトリのルート(`w:\github\ai-novel`)から実行する。
+リポジトリのルート(世界リポジトリの `core/`)から実行する。
 
 ```
 # 今 db がどのリビジョンにいるか見る

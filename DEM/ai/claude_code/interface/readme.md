@@ -93,8 +93,8 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 
 前日譚をここで閉じる。父の顔は最後まで見せない。
 ```
-- `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`world/worlds/maps/map.html`・
-  人物相関の `world/worlds/maps/relation.html` も描く。`ImportDb` は md → db の逆向き
+- `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`../worlds/maps/map.html`・
+  人物相関の `../worlds/maps/relation.html` も描く。`ImportDb` は md → db の逆向き
 - 場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば
   閉じて揃える)で `CommitPlace` / `UpdatePlace` から入れる。経緯度が無い面の場所
   (大陸など)にも持たせられ、地図では薄い面として描く

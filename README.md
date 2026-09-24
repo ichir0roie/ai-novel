@@ -1,4 +1,4 @@
-# ai-novel
+# ai-novel-core
 
 ※プロット含め、致命的なネタバレが含まれている。
 
@@ -28,9 +28,8 @@ AI にラノベを書いてもらうためのプロジェクト。
 | ディレクトリ | 役割                                                          |
 | ------------ | ------------------------------------------------------------- |
 | `DEM/`       | 仕組み。db の形・入口・問い合わせ・ローカル AI                |
-| `world/`     | 実データのサブモジュール(private の `ai-novel-world`)         |
-| `world/novel.db` | **世界の記録と本文そのもの**(SQLite)                      |
-| `world/worlds/`  | db から書き出した**読む専用の写し**(`ExportDb`。無くてもよい) |
+| `../novel.db` | **世界の記録と本文そのもの**(SQLite。世界リポジトリ側)     |
+| `../worlds/`  | db から書き出した**読む専用の写し**(`ExportDb`。無くてもよい) |
 | `oracle/`    | 覚書とアイデア置き場                                          |
 | `CLAUDE.md`  | **Claude 向けの作業指針**                                     |
 
@@ -53,30 +52,42 @@ DEM/
 
 ## 環境構築
 
-実データ(`novel.db`・`worlds/`)は private リポジトリ `ai-novel-world` にあり、サブモジュール `world/` として参照する。
+コード(このリポジトリ `ai-novel-core`)と実データ(`novel.db`・`worlds/`)は別リポジトリに分けている。
+実データ側のリポジトリ(private の `my-novel-world`)が、このリポジトリをサブモジュール `core/` として持つ。
+コードは `core/` から見た親ディレクトリ(`..`)を世界として読み書きする(環境変数 `DEM_WORLD_DIR` で差し替えられる)。
+自分の世界を作るときは、空のリポジトリで `git submodule add https://github.com/ichir0roie/ai-novel-core.git core` する。
+
+```
+my-novel-world/
+  core/      このリポジトリ(サブモジュール)。python のコマンドはここから実行する
+  novel.db
+  worlds/
+```
+
+git のコマンドは世界リポジトリのルートで打つ。
 
 ```
 # clone(サブモジュールごと)
-git clone --recurse-submodules https://github.com/ichir0roie/ai-novel.git
+git clone --recurse-submodules https://github.com/ichir0roie/my-novel-world.git
 
-# clone 済みで world/ が空のとき
+# clone 済みで core/ が空のとき
 git submodule update --init
 
-# 最新を取り込む(本体と world/ の両方)
+# 最新を取り込む(世界と core/ の両方)
 git pull --recurse-submodules
 git submodule update --init
 
-# コミットは両方のリポジトリに同じメッセージで。world/ 側を先にコミットしてから本体で参照を更新する
-git -C world switch main   # サブモジュールは detached HEAD になっているため
-git -C world add -A
-git -C world commit -m "<メッセージ>"
-git -C world push
+# コミットは両方のリポジトリに同じメッセージで。core/ 側を先にコミットしてから世界側で参照を更新する
+git -C core switch main   # サブモジュールは detached HEAD になっているため
+git -C core add -A
+git -C core commit -m "<メッセージ>"
+git -C core push
 git add -A
 git commit -m "<メッセージ>"
 git push
 ```
 
-VS Code のタスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
+世界リポジトリの VS Code タスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
 
 ## 触り方
 

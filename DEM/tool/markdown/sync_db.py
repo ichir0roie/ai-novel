@@ -2,7 +2,7 @@
 import shutil
 
 from DEM.tool.markdown import export_db, import_db
-WORLDS_ROOT = "world/worlds"
+from DEM.db.schema import WORLDS_ROOT  # noqa: F401
 
 
 def run():

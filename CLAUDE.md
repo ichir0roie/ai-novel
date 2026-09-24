@@ -24,8 +24,8 @@
 - main ブランチへのコミットを頼まれたときは、深く調査しない
 - 変更内容を掘り下げて「なぜ」まで書いた丁寧なメッセージを作らず、diff・変更ファイルの表層だけを見て、端的なメッセージでそのままコミットする
 - プッシュ前に、最新の変更を取り込んで、コンフリクトがあれば解消してからpush
-- コミットは `world/`(ai-novel-world)と本体の **両方のリポジトリに同じメッセージで** 行う。
-  手順は「環境構築」のとおり `world/` → 本体の順
+- コミットは `core/`(このリポジトリ)と世界リポジトリ(my-novel-world)の **両方に同じメッセージで** 行う。
+  手順は「環境構築」のとおり `core/` → 世界の順
 
 # 文字コード
 
@@ -38,36 +38,48 @@
 
 # 環境構築
 
-実データ(`novel.db`・`worlds/`)は private リポジトリ `ai-novel-world` にあり、サブモジュール `world/` として参照する。
+コード(このリポジトリ `ai-novel-core`)と実データ(`novel.db`・`worlds/`)は別リポジトリに分けている。
+実データ側のリポジトリ(private の `my-novel-world`)が、このリポジトリをサブモジュール `core/` として持つ。
+コードは `core/` から見た親ディレクトリ(`..`)を世界として読み書きする(環境変数 `DEM_WORLD_DIR` で差し替えられる)。
+自分の世界を作るときは、空のリポジトリで `git submodule add https://github.com/ichir0roie/ai-novel-core.git core` する。
+
+```
+my-novel-world/
+  core/      このリポジトリ(サブモジュール)。python のコマンドはここから実行する
+  novel.db
+  worlds/
+```
+
+git のコマンドは世界リポジトリのルートで打つ。
 
 ```
 # clone(サブモジュールごと)
-git clone --recurse-submodules https://github.com/ichir0roie/ai-novel.git
+git clone --recurse-submodules https://github.com/ichir0roie/my-novel-world.git
 
-# clone 済みで world/ が空のとき
+# clone 済みで core/ が空のとき
 git submodule update --init
 
-# 最新を取り込む(本体と world/ の両方)
+# 最新を取り込む(世界と core/ の両方)
 git pull --recurse-submodules
 git submodule update --init
 
-# コミットは両方のリポジトリに同じメッセージで。world/ 側を先にコミットしてから本体で参照を更新する
-git -C world switch main   # サブモジュールは detached HEAD になっているため
-git -C world add -A
-git -C world commit -m "<メッセージ>"
-git -C world push
+# コミットは両方のリポジトリに同じメッセージで。core/ 側を先にコミットしてから世界側で参照を更新する
+git -C core switch main   # サブモジュールは detached HEAD になっているため
+git -C core add -A
+git -C core commit -m "<メッセージ>"
+git -C core push
 git add -A
 git commit -m "<メッセージ>"
 git push
 ```
 
-VS Code のタスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
+世界リポジトリの VS Code タスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
 
 # 実行環境
 
 - python は **`.venv/Scripts/python.exe`** を使う(`which python` は別の virtualenv を指す)。
   bash なら `PYTHONUTF8=1 .venv/Scripts/python.exe -m ...`
-- リポジトリのルートから実行する(`DEM.` から始まる import はルート基準)
+- このリポジトリ(世界リポジトリの `core/`)のルートから実行する(`DEM.` から始まる import はルート基準)
 - `sqlite3` CLI は入っていない。db を覗くときは python の `sqlite3` モジュールか SQLAlchemy を使う
 - `ModuleNotFoundError` など依存不足で実行が失敗したら、まず
   `.venv/Scripts/python.exe -m pip install -r requirements.txt` を試してから調査する
@@ -85,7 +97,7 @@ VS Code のタスク `git push` は、この順で両方に同じメッセージ
 
 # db への接続
 
-- 実体は **サブモジュール `world/` の `novel.db`**(SQLite。private リポジトリ `ai-novel-world`)。
+- 実体は **世界リポジトリ(`..`)の `novel.db`**(SQLite。private リポジトリ `my-novel-world`)。
   コマンドは「環境構築」を見る。パスは `DEM/db/schema.py` の `DB_PATH`
   で、環境変数 `DEM_DB_PATH` で差し替えられる
 - コードから触るときは `from DEM.db.schema import get_env_session` で `Session` を開く。
@@ -107,7 +119,7 @@ VS Code のタスク `git push` は、この順で両方に同じメッセージ
 ```
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
 import sqlite3
-c = sqlite3.connect('world/novel.db')
+c = sqlite3.connect('../novel.db')
 print(c.execute('select count(*) from character').fetchone())
 "
 ```
@@ -125,7 +137,7 @@ print(c.execute('select count(*) from character').fetchone())
   古い内容でその変更が消える(`export_db` の直前に `import_db` を回してはいけない)
 - 途中で md を直したくなったら、挟まずに区切る。いったん `export_db` で db を
   md へ落とし、そこから直して `import_db` する(＝次の作業の頭にする)
-- 手直しが残っているかは `git -C world status --short worlds/` で見る
+- 手直しが残っているかは `git -C .. status --short worlds/` で見る
 - `ExportDb` は、前回の同期(`.markdown_sync` の mtime)より後に書かれた md が
   あれば止まる。止まったら `ImportDb` で取り込んでから db 側の変更をやり直す。
   md を捨ててよいと分かっているときだけ `ExportDb(force=True)`
@@ -148,7 +160,7 @@ for t in Base.metadata.sorted_tables:
 ```
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
 import sqlite3
-c = sqlite3.connect('world/novel.db')
+c = sqlite3.connect('../novel.db')
 print([r[0] for r in c.execute(\"select name from sqlite_master where type='table'\")])
 print(c.execute('PRAGMA table_info(character)').fetchall())
 "

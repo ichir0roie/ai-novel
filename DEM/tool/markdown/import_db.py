@@ -10,11 +10,10 @@ import os
 import re
 import shutil
 
-from DEM.db.schema import NOVEL_DB_PATH, Base, MarkdownBase, StampType, get_novel_session
+from DEM.db.schema import NOVEL_DB_PATH, WORLDS_ROOT, Base, MarkdownBase, StampType, get_novel_session
 from DEM.db.stamp import Stamp
 from DEM.tool.markdown import export_db, sync_stamp
 
-WORLDS_ROOT = "world/worlds"
 
 __all__ = ["WORLDS_ROOT", "ImportDbError", "import_db"]
 

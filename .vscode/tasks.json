@@ -24,22 +24,6 @@
         "kind": "build",
         "isDefault": true
       }
-    },
-    {
-      "label": "git push",
-      "type": "shell",
-      "command": "m=\"$(date '+%Y-%m-%d %H:%M:%S')\"; git -C world switch -q main; git -C world add -A; git -C world commit -m \"$m\"; git -C world pull --rebase && git -C world push && { git add -A; git commit -m \"$m\"; git pull --rebase && git push; }",
-      "windows": {
-        "command": "$m = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'; git -C world switch -q main; git -C world add -A; git -C world commit -m $m; git -C world pull --rebase; if ($?) { git -C world push }; if ($?) { git add -A; git commit -m $m; git pull --rebase; if ($?) { git push } }"
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      }
     }
   ]
 }

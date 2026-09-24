@@ -8,13 +8,12 @@ import os
 import shutil
 from decimal import Decimal
 
-from DEM.db.schema import Base, MarkdownBase, get_novel_session
+from DEM.db.schema import WORLDS_ROOT, Base, MarkdownBase, get_novel_session
 from DEM.db.stamp import Stamp
 from DEM.tool.map.render import render_maps
 from DEM.tool.markdown import sync_stamp
 from DEM.tool.relation.render import render_relations
 
-WORLDS_ROOT = "world/worlds"
 
 __all__ = ["WORLDS_ROOT", "ExportError", "export_db"]
 

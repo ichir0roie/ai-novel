@@ -4,7 +4,7 @@
 使い方:
     python -m DEM.tool.test.redrive_mock_world                     novel.test.db(無ければ novel.db を写して作る)を 2025 年から 120 回ぶん
     python -m DEM.tool.test.redrive_mock_world --max-days 30 --seed 1
-    python -m DEM.tool.test.redrive_mock_world --copy-from world/novel.db  いまの novel.db を写し直してから回す
+    python -m DEM.tool.test.redrive_mock_world --copy-from ../novel.db     いまの novel.db を写し直してから回す
 """
 from DEM.tool.test import TEST_DB_PATH  # noqa: F401  db を novel.test.db に固定する(schema より先に読む)
 
@@ -13,11 +13,11 @@ import os
 import shutil
 
 from DEM.ai.time_keeper.main import loop_time
-from DEM.db.schema import Stamp
+from DEM.db.schema import NOVEL_DB_PATH, Stamp
 from DEM.tool.danger import reset_world
 from DEM.tool.test.mock_ai_client import MockAIClient
 
-DEFAULT_SOURCE_DB = "world/novel.db"
+DEFAULT_SOURCE_DB = NOVEL_DB_PATH
 
 
 def prepare_test_db(copy_from: str | None = None) -> None:

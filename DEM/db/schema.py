@@ -467,7 +467,11 @@ class Episode(MarkdownBase):
         return None, {"story_id": int(story_part), "title": rest or None}
 
 
-DB_PATH = os.environ.get("DEM_DB_PATH", "world/novel.db")
+# core は世界リポジトリのサブモジュール core/ として置き、core/ から実行する
+WORLD_DIR = os.environ.get("DEM_WORLD_DIR", "..")
+NOVEL_DB_PATH = os.path.join(WORLD_DIR, "novel.db")
+WORLDS_ROOT = os.path.join(WORLD_DIR, "worlds")
+DB_PATH = os.environ.get("DEM_DB_PATH", NOVEL_DB_PATH)
 
 
 def create_db(path=DB_PATH):
@@ -488,7 +492,6 @@ def create_db(path=DB_PATH):
     return engine
 
 
-NOVEL_DB_PATH = "world/novel.db"
 TEST_DB_PATH = "novel.test.db"
 
 
