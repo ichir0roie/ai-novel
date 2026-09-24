@@ -2,8 +2,8 @@
 """下書き(一段目)と清書(二段目)のあいだに挟む中間段。
 
 下書きから語を洗い出してアイデアと照らし、当たったアイデアとその上位・下位を清書に渡す。
-どのアイデアにも当たらなかった固有の語(`coined`)は、種別「候補」のアイデアとして足す(候補は検索・清書には出さない)。
-下書きが踏まえたアイデアと候補は、中間テーブル(`event_idea` など)で清書したレコードに結ぶ。
+どのアイデアにも当たらなかった固有の語(`coined`)は、自動生成(`auto_generated`)のアイデアとして足す(候補)。
+候補も他のアイデアと同じく検索・清書に出る。下書きが踏まえたアイデアと候補は、中間テーブル(`event_idea` など)で清書したレコードに結ぶ。
 """
 from __future__ import annotations
 
@@ -16,9 +16,10 @@ from ai.time_keeper import constants, idea_search
 from ai.time_keeper._ai import AIClient
 from data_access_logic.query import common_query, dictionary_query
 from db.schema import (
-    IDEA_CANDIDATE_DIRECTORY, IDEA_KIND_CANDIDATE, IDEA_LINK_MODELS,
+    IDEA_CANDIDATE_DIRECTORY, IDEA_LINK_MODELS,
     Character, Idea, Location, Session,
 )
+from db.stamp import Stamp
 
 
 @dataclass
@@ -44,17 +45,17 @@ def _is_proper_name(session: Session, word: str) -> bool:
             or session.scalar(select(Location.id).where(Location.name == word).limit(1)) is not None)
 
 
-def _candidate_for(session: Session, term: dict, place_id: int | None) -> Idea | None:
+def _candidate_for(session: Session, term: dict, place_id: int | None, time: Stamp | None) -> Idea | None:
     names = idea_search.spellings(term["keyword"])
     existing = session.scalars(
-        dictionary_query.candidate_ideas_select().where(Idea.name.in_(names))).first()
+        dictionary_query.auto_generated_ideas_select().where(Idea.name.in_(names))).first()
     if existing is not None:
         return existing
     if _is_proper_name(session, term["keyword"]):
         return None
     candidate = Idea(
-        name=term["keyword"], kind=IDEA_KIND_CANDIDATE, text=term["description"],
-        restrict_world_id=_world_id(session, place_id),
+        name=term["keyword"], kind=term["kind"], auto_generated=True, text=term["description"],
+        location_id=_world_id(session, place_id), start=time,
         directory_path=IDEA_CANDIDATE_DIRECTORY)
     session.add(candidate)
     session.flush()
@@ -62,43 +63,47 @@ def _candidate_for(session: Session, term: dict, place_id: int | None) -> Idea |
     return candidate
 
 
-def _related(session: Session, hits: list[Idea], place_id: int | None) -> list[Idea]:
+def _related(session: Session, hits: list[Idea], place_id: int | None, time: Stamp | None) -> list[Idea]:
     place_ids = common_query.idea_scope_ids(session, place_id) if place_id is not None else None
     related = {idea.id: idea for idea in hits}
     for idea in hits:
         parent_id = idea.parent_idea_id
         while parent_id is not None and parent_id not in related:
             parent = session.get(Idea, parent_id)
-            if parent is None or parent.kind == IDEA_KIND_CANDIDATE:
+            if parent is None:
                 break
             related[parent.id] = parent
             parent_id = parent.parent_idea_id
     if hits:
         for child in session.scalars(
-                dictionary_query.ideas_by_parent_select([idea.id for idea in hits], place_ids)).all():
+                dictionary_query.ideas_by_parent_select([idea.id for idea in hits], place_ids, time)).all():
             related.setdefault(child.id, child)
     return list(related.values())[:constants.IDEA_CONTEXT_LIMIT]
 
 
-def resolve(session: Session, keywords, place_id: int | None = None) -> IdeaContext:
-    """洗い出した語(`idea_search.terms_of` の形)をアイデアと照らし、当たらなかった語を候補として足す。"""
+def resolve(session: Session, keywords, place_id: int | None = None, time=None) -> IdeaContext:
+    """洗い出した語(`idea_search.terms_of` の形)をアイデアと照らし、当たらなかった語を候補として足す。
+
+    `time` は出来事の時刻。その時刻に効くアイデアだけを引き、足す候補はその時刻から効かせる。
+    """
+    time = Stamp.parse(time)
     terms = idea_search.terms_of(keywords)
-    hits = idea_search.search(session, terms, place_id)
+    hits = idea_search.search(session, terms, place_id, time)
     matched = {keyword for hit in hits for keyword in hit.keywords}
     context = IdeaContext(hits=[hit.idea for hit in hits[:constants.IDEA_CONTEXT_LIMIT]])
     for term in terms:
         if term["keyword"] in matched or not term["coined"]:
             continue
-        candidate = _candidate_for(session, term, place_id)
+        candidate = _candidate_for(session, term, place_id, time)
         if candidate is not None and candidate not in context.candidates:
             context.candidates.append(candidate)
-    context.related = _related(session, context.hits, place_id)
+    context.related = _related(session, context.hits, place_id, time)
     return context
 
 
-def gather(session: Session, draft: str, ai: AIClient, place_id: int | None = None) -> IdeaContext:
+def gather(session: Session, draft: str, ai: AIClient, place_id: int | None = None, time=None) -> IdeaContext:
     """下書き `draft` から語を洗い出して `resolve` する。"""
-    return resolve(session, idea_search.keywords_of(draft, ai), place_id)
+    return resolve(session, idea_search.keywords_of(draft, ai), place_id, time)
 
 
 def prompt_section(ideas: list[Idea]) -> str:

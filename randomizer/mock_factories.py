@@ -194,9 +194,9 @@ class IdeaFactory(_ModelFactory):
     name = factory.Sequence(lambda n: f"アイデア{n}")
     kind = factory.Faker("random_element", elements=_IDEA_KINDS)
     text = _text()
-    restrict_world_id = _pool(Location, "LocationFactory", p_none=0.5)
-    restrict_planet_id = _pool(Location, "LocationFactory", p_none=0.5)
-    restrict_place_id = _pool(Location, "LocationFactory", p_none=0.5)
+    location_id = _pool(Location, "LocationFactory", p_none=0.2)
+    start = _optional_stamp()
+    end = _end_after_start()
     parent_idea_id = _pool(Idea, p_none=0.3)
 
 

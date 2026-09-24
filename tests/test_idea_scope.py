@@ -3,6 +3,7 @@ import pytest
 from ai.claude_code.interface.story import _rows
 from data_access_logic.query import common_query
 from db.schema import Idea, Location
+from db.stamp import Stamp
 
 
 @pytest.fixture
@@ -19,52 +20,55 @@ def places(session):
     return {"world": world.id, "planet": planet.id, "country": country.id}
 
 
-def add_idea(session, name, **restrict):
-    record = Idea(name=name, kind="概念", text="", **restrict)
+def add_idea(session, name, **columns):
+    record = Idea(name=name, kind="概念", text="", **columns)
     session.add(record)
     session.flush()
     return record.id
 
 
-def test_scope_holds_both_descendants_and_ancestors(session, places):
-    ids = common_query.idea_scope_ids(session, places["planet"])
-
-    assert places["planet"] in ids
-    assert places["country"] in ids
-    assert places["world"] in ids
+def brief_names(session, place_id, when="0001/01/01"):
+    return sorted(idea["name"] for idea in _rows.brief(session, place_id, when)["ideas"])
 
 
-def test_world_wide_idea_reaches_the_brief(session, places):
-    add_idea(session, "世界線のアイデア", restrict_world_id=places["world"])
+def test_scope_runs_from_the_place_up_to_the_top(session, places):
+    assert common_query.idea_scope_ids(session, places["country"]) == [
+        places["country"], places["planet"], places["world"]]
+    assert common_query.idea_scope_ids(session, places["planet"]) == [places["planet"], places["world"]]
+
+
+def test_ideas_of_the_place_and_above_reach_the_brief(session, places):
+    add_idea(session, "世界線のアイデア", location_id=places["world"])
+    add_idea(session, "星のアイデア", location_id=places["planet"])
+    add_idea(session, "国のアイデア", location_id=places["country"])
     session.commit()
 
-    names = [idea["name"] for idea in _rows.brief(session, places["planet"], "0001/01/01")["ideas"]]
-
-    assert names == ["世界線のアイデア"]
-
-
-def test_planet_and_descendant_ideas_reach_the_brief(session, places):
-    add_idea(session, "星のアイデア", restrict_planet_id=places["planet"])
-    add_idea(session, "国のアイデア", restrict_place_id=places["country"])
-    session.commit()
-
-    names = [idea["name"] for idea in _rows.brief(session, places["planet"], "0001/01/01")["ideas"]]
-
-    assert sorted(names) == ["国のアイデア", "星のアイデア"]
+    assert brief_names(session, places["country"]) == ["世界線のアイデア", "国のアイデア", "星のアイデア"]
+    assert brief_names(session, places["planet"]) == ["世界線のアイデア", "星のアイデア"]
 
 
-def test_idea_without_restriction_is_left_out(session, places):
+def test_idea_without_location_is_left_out(session, places):
     add_idea(session, "掛かる先の無いアイデア")
     session.commit()
 
-    assert _rows.brief(session, places["planet"], "0001/01/01")["ideas"] == []
+    assert brief_names(session, places["planet"]) == []
 
 
 def test_idea_of_another_branch_is_left_out(session, places):
     other = Location(name="別の星", kind="星", parent_id=places["world"], text="")
     session.add(other)
     session.flush()
-    add_idea(session, "別の星のアイデア", restrict_planet_id=other.id)
+    add_idea(session, "別の星のアイデア", location_id=other.id)
     session.commit()
 
-    assert _rows.brief(session, places["planet"], "0001/01/01")["ideas"] == []
+    assert brief_names(session, places["planet"]) == []
+
+
+def test_idea_counts_from_start_until_before_end(session, places):
+    add_idea(session, "時代のアイデア", location_id=places["world"], start=Stamp(100), end=Stamp(200))
+    session.commit()
+
+    assert brief_names(session, places["planet"], "99/12/31") == []
+    assert brief_names(session, places["planet"], "100/01/01") == ["時代のアイデア"]
+    assert brief_names(session, places["planet"], "199/12/31") == ["時代のアイデア"]
+    assert brief_names(session, places["planet"], "200/01/01") == []

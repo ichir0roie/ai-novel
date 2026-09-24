@@ -327,7 +327,7 @@ def _generate_one(
     draft["text"] = decided.get("text") or draft["text"]
     if person:
         draft["dialect"] = (decided.get("dialect") or "").strip() or None
-    context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None)
+    context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None, time)
     if context.related:
         polished = ai.try_generate_json(
             f"下書き: {draft['text']}\n{idea_context.prompt_section(context.related)}この説明を清書してください。",

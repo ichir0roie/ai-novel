@@ -92,17 +92,13 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
 
 
 def idea_scope_ids(session: Session, place_id: int) -> list[int]:
-    """`restrict_world_id` / `restrict_planet_id` が指すのは自分より上の場所なので、
-    配下だけで引くと世界線に掛かるアイデアが一件も当たらない。
-    """
-    found = descendant_place_ids(session, place_id)
-    seen = set(found)
+    """アイデアの `location_id` は、そこから配下で効く。現在地から最上位までをたどる。"""
+    found = [_get(session, Location, place_id, "place_id").id]
     current = session.get(Location, place_id)
-    while current is not None and current.parent_id:
+    while current is not None and current.parent_id and current.parent_id not in found:
         current = session.get(Location, current.parent_id)
-        if current is None or current.id in seen:
+        if current is None:
             break
-        seen.add(current.id)
         found.append(current.id)
     return found
 
@@ -323,9 +319,9 @@ def unsynced_episodes_select(story_id: int | None = None) -> Select:
 
 # ---------------------------------------------------------------- 断面
 
-def ideas_select(place_ids) -> Select:
+def ideas_select(place_ids, time: Stamp | None = None) -> Select:
     return (select(Idea)
-            .where(dictionary_query.idea_in_scope(place_ids), dictionary_query.idea_not_candidate())
+            .where(dictionary_query.idea_in_scope(place_ids, time))
             .order_by(Idea.id))
 
 

@@ -130,7 +130,7 @@ def write_next_episode(
 
     record = _episode(session, story_id, number)
     seed = (record.key or "").strip() if record is not None else ""
-    context = (idea_context.gather(session, seed, ai_client, story_row.place_id)
+    context = (idea_context.gather(session, seed, ai_client, story_row.place_id, materials["time"])
                if seed else idea_context.IdeaContext())
     recap = _recap(session, materials["episodes"])
     lines = [

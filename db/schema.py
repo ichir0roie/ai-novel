@@ -442,7 +442,6 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-IDEA_KIND_CANDIDATE = "候補"
 IDEA_CANDIDATE_DIRECTORY = "候補"
 
 
@@ -450,13 +449,19 @@ class Idea(FactCheckMixin, MemeSeededMixin, MarkdownBase):
     __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
-    kind: Mapped[str] = mapped_column(
-        String, comment=f"種別。「{IDEA_KIND_CANDIDATE}」は本文から自動で足した未確認の語で、検索・生成には出さない",
-        sort_order=210)
+    kind: Mapped[str] = mapped_column(String, comment="種別(技術・制度・概念など)", sort_order=210)
+    auto_generated: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="本文から自動で足した未確認のアイデアか。検索・生成には他と同じく出る。確かめたら false にする",
+        sort_order=215)
 
-    restrict_world_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=220)
-    restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=230)
-    restrict_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=240)
+    location_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("location.id"), index=True,
+        comment="効く場所。この場所とその配下で効く。空ならどこにも効かない", sort_order=220)
+    start: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="効き始める時刻。出来事の時刻と比べる。空なら始まりを限らない", sort_order=230)
+    end: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="効き終わる時刻(この時刻からは効かない)。空なら終わりを限らない", sort_order=240)
 
     parent_idea_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("idea.id"), comment="上位のアイデア。置いたディレクトリで決まる", sort_order=250)

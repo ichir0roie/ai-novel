@@ -30,7 +30,7 @@ def _appearances(session: Session, idea: Idea) -> str:
 
 def candidate_items(session: Session) -> list[dict]:
     items = []
-    for idea in session.scalars(dictionary_query.candidate_ideas_select()).all():
+    for idea in session.scalars(dictionary_query.auto_generated_ideas_select()).all():
         items.append({
             "key": f"idea:{idea.id}",
             "kind": "候補",
@@ -39,7 +39,8 @@ def candidate_items(session: Session) -> list[dict]:
                 idea.text or "(説明なし)",
                 f"出てきた所: {_appearances(session, idea)}",
                 f"md: {md_path(idea)}",
-                f"確定: md の kind を直し、置き場所のディレクトリへ移す / "
+                f"種別: {idea.kind}",
+                f"確定: md の auto_generated を false にし、置き場所のディレクトリへ移す / "
                 f"統合: MergeIdea({idea.id}, 統合先の id) / 削除: DeleteIdea({idea.id})",
             ]),
         })
