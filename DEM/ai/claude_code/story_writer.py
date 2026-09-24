@@ -15,26 +15,26 @@ from DEM.ai.instructions.style import EPISODE_STYLE_INSTRUCTION
 from DEM.ai.claude_code import ai_client
 from DEM.ai.claude_code.interface.story import _rows
 from DEM.data_access_logic.query import common_query
-from DEM.db.schema import Episode, Session, get_env_session
+from DEM.db.schema import Episode, Session, StorySummary, get_env_session, summary_source_hash
 
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
 
-# 概要と文体を写し取る材料にする、直前の話の本数。
-RECAP_EPISODE_LIMIT = 2
+# 本文の代わりに概要で渡す、直前の話の本数。文体の覚え書きは一番新しい話のものを使う。
+RECAP_EPISODE_LIMIT = 3
 RECAP_TIMEOUT = 300.0
 
 _SYSTEM_PROMPT = f"""\
 あなたは日本語のライトノベルを書く作家です。
 作品の見出し・直前の話・世界の断面・顔ぶれを渡すので、この作品の次の話を一話ぶん書いてください。
-直前の話の概要と文体の覚え書きを渡したときは、概要の筋をそのまま受け継ぎ、文体をその覚え書きに揃えてください。
+直前の話は本文の代わりに概要(summary)で渡します。概要の筋をそのまま受け継ぎ、文体の覚え書きを渡したときはそれに揃えてください。
 {EPISODE_STYLE_INSTRUCTION}
 種(key)を渡したときは、それを場面まで展開したものを本文にしてください。種に無い出来事を足さないでください。
 JSON で答えてください。キーは title(サブタイトル。短く)と text(本文)の二つだけ。"""
 
 _RECAP_SYSTEM_PROMPT = """\
 あなたは日本語のライトノベルの担当編集者です。
-直前の話の本文を渡すので、次の話を書く作家へ渡す覚え書きを作ってください。
+話の本文を一話ぶん渡すので、次の話を書く作家へ渡す覚え書きを作ってください。
 summary には、誰が何をして何がどうなったか、次の話へ引き継ぐ筋と、人物の立場・関係の変わりようを書いてください。
 style には、地の文と会話の混ぜ方・一文の長さ・視点の置き方・語り口の癖を、真似できる言い方で書いてください。
 どちらも本文を写さず、四〜六文にまとめてください。
@@ -92,18 +92,49 @@ def _blocking_unsynced(session: Session, story_id: int, number: int) -> list[int
     return [record.number for record in rows if (record.text or "").strip()]
 
 
-def _recap(episodes: list[dict]) -> dict:
-    """直前の `RECAP_EPISODE_LIMIT` 話の本文から、概要と文体の覚え書きを作る。"""
-    sources = [episode for episode in episodes
-               if (episode.get("text") or "").strip()][-RECAP_EPISODE_LIMIT:]
-    if not sources:
-        return {}
+def _episode_recap(session: Session, story_id: int, episode: dict) -> dict:
+    """一話ぶんの概要と文体の覚え書き。本文が前に作ったときのままなら `StorySummary` のものを使う。"""
+    text = (episode.get("text") or "").strip()
+    digest = summary_source_hash(text)
+    row = session.scalars(
+        select(StorySummary).where(StorySummary.episode_id == episode["id"])).first()
+    if row is not None and row.source_hash == digest:
+        return {"summary": row.summary, "style": row.style}
+
     decided = ai_client.try_generate_json(
-        f"直前の話(古い順): {_dump(sources)}\n"
-        f"この{len(sources)}話の概要と文体を覚え書きにしてください。",
+        f"話: {_dump(episode)}\nこの話の概要と文体を覚え書きにしてください。",
         _RECAP_SCHEMA, system=_RECAP_SYSTEM_PROMPT, timeout=RECAP_TIMEOUT)
-    return {key: (decided.get(key) or "").strip() for key in ("summary", "style")
-            if (decided.get(key) or "").strip()}
+    note = {key: (decided.get(key) or "").strip() for key in ("summary", "style")}
+    if not all(note.values()):
+        return {key: value for key, value in note.items() if value}
+    if row is None:
+        row = StorySummary(story_id=story_id, episode_id=episode["id"])
+        session.add(row)
+    row.source_hash = digest
+    row.summary = note["summary"]
+    row.style = note["style"]
+    session.commit()
+    return note
+
+
+def _recap(session: Session, story_id: int, episodes: list[dict]) -> dict:
+    """直前の話を本文の代わりに概要で並べたもの(`episodes`)と、一番新しい話の文体の覚え書き(`style`)。
+
+    概要が作れなかった話は本文のまま並べる。
+    """
+    rows, styles = [], []
+    for episode in episodes:
+        if not (episode.get("text") or "").strip():
+            rows.append(episode)
+            continue
+        note = _episode_recap(session, story_id, episode)
+        if note.get("summary"):
+            rows.append({**{k: v for k, v in episode.items() if k != "text"}, "summary": note["summary"]})
+        else:
+            rows.append(episode)
+        if note.get("style"):
+            styles.append(note["style"])
+    return {"episodes": rows, "style": styles[-1] if styles else ""}
 
 
 def _materials(
@@ -132,7 +163,7 @@ def _materials(
 
 def write_next_episode(
     session: Session, story_id: int, time=None, *, number: int | None = None,
-    episodes: int = 10, count: int = 5, reach: int = 60, levels: int = 1,
+    episodes: int = RECAP_EPISODE_LIMIT, count: int = 5, reach: int = 60, levels: int = 1,
 ) -> Episode | None:
     """話を一件、db へ確定して返す。書けなければ None。
 
@@ -153,15 +184,13 @@ def write_next_episode(
 
     record = _episode(session, story_id, number)
     seed = (record.key or "").strip() if record is not None else ""
-    recap = _recap(materials["episodes"])
+    recap = _recap(session, story_id, materials["episodes"])
     lines = [
         f"作品: {_dump(story)}",
         f"時刻: {materials['time']}",
-        f"直前の話(古い順): {_dump(materials['episodes']) if materials['episodes'] else '(無し。第一話)'}",
+        f"直前の話(古い順): {_dump(recap['episodes']) if recap['episodes'] else '(無し。第一話)'}",
     ]
-    if recap.get("summary"):
-        lines.append(f"直前の話の概要: {recap['summary']}")
-    if recap.get("style"):
+    if recap["style"]:
         lines.append(f"直前の話の文体(これに揃える): {recap['style']}")
     lines += [
         f"顔ぶれ: {_dump(materials['cast'])}",

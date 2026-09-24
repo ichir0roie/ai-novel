@@ -14,6 +14,7 @@ from DEM.ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION
 from DEM.ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS
 from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper import event_progression_generator as progression
+from DEM.ai.time_keeper import event_summary
 from DEM.ai.time_keeper._ai import AIClient
 from DEM.ai.time_keeper._format import add_days, format_time
 from DEM.data_access_logic.query import common_query
@@ -76,15 +77,18 @@ def _free_after(session: Session, character: Character, time: Stamp) -> bool:
     return latest is None or _finished(latest) <= time
 
 
-def _previous_row(previous: Event | None) -> dict | str:
+def _previous_row(session: Session, previous: Event | None, ai: AIClient) -> dict | str:
+    """直前の出来事。本文は写させないよう要約で渡し、要約が作れなければ本文のまま渡す。"""
     # 場所は noload の関連なので、commit で期限切れになる前(読んだ直後)に組んでおく
     if previous is None:
         return "(無し。主役の最初の出来事)"
-    return {"name": previous.name,
-            "start": str(previous.start) if previous.start else None,
-            "end": str(previous.end) if previous.end else None,
-            "place": previous.location.name if previous.location else None,
-            "text": previous.text}
+    row = {"name": previous.name,
+           "start": str(previous.start) if previous.start else None,
+           "end": str(previous.end) if previous.end else None,
+           "place": previous.location.name if previous.location else None}
+    text = previous.text
+    summary = event_summary.summarize(session, previous, ai)
+    return {**row, "summary": summary} if summary else {**row, "text": text}
 
 
 def _note(character: Character, previous_row: dict | str) -> str:
@@ -162,7 +166,7 @@ def generate_next(
         print(f"[time_keepr/daily] {character.name}(id={character.id}) の次の出来事: "
               f"{format_time(time)} 場所id={place_id} / "
               + (f"直前: {previous.name}" if previous is not None else "最初の出来事"))
-        previous_row = _previous_row(previous)
+        previous_row = _previous_row(session, previous, ai)
         record = progression._progress_place(
             session, place_id, participants, time, rng, ai,
             focus=character, note=_note(character, previous_row))

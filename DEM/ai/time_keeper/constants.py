@@ -59,3 +59,5 @@ MAX_CHARACTER_PER_LOCATION = 5
 NEXT_EVENT_GAP_DAYS = (1, 7)
 # 本文を小説の形で書かせるので、記録の JSON より長く待つ秒数。
 EVENT_NOVEL_TIMEOUT = 300.0
+# 直前の出来事の本文を要約させるのを待つ秒数。
+EVENT_SUMMARY_TIMEOUT = 120.0

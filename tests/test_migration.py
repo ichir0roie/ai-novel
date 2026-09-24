@@ -9,6 +9,7 @@
 - 5d316428a6aa: character に sub_character を足す
 - 5c15aeb8dd47: plot / character_plot を畳んで落とす
 - 052069310f38: 話に start/end・視点・場所・キーテキストを足す
+- 24327ee59e1c: event_summary / story_summary を足す
 """
 import sqlite3
 
@@ -20,7 +21,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "052069310f38"
+HEAD_REVISION = "24327ee59e1c"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -44,7 +45,7 @@ def old_style_db():
     """性格列を旧来の INTEGER、text を NOT NULL に戻し、read と world_influence を持つ人物を並べた db。
 
     あとのリビジョンで足す character_relation・location.polygon・話の
-    start/end/viewpoint/place/key も無い形にする。
+    start/end/viewpoint/place/key・要約の二つのテーブルも無い形にする。
     """
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -64,6 +65,8 @@ def old_style_db():
     conn.execute("DROP TABLE character")
     conn.execute(create_sql)
     conn.execute("DROP TABLE character_relation")
+    conn.execute("DROP TABLE event_summary")
+    conn.execute("DROP TABLE story_summary")
     location_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'location'").fetchone()[0]
     assert "\tpolygon JSON, " in location_sql
     conn.execute("DROP TABLE location")
@@ -304,4 +307,22 @@ def test_downgrade_puts_episode_key_back_into_text(old_style_db):
     text = conn.execute("SELECT text FROM episode").fetchone()[0]
     assert text.startswith("- 時期: 1586年\n- 場所: ヴァレンツァ 外れの川\n- 視点: ノア(十四歳)")
     assert "## 出来事" in text
+    conn.close()
+
+
+def test_upgrade_adds_summary_tables_and_downgrade_drops_them(old_style_db):
+    cfg = _config()
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert set(_columns(conn, "event_summary")) == {"id", "event_id", "source_hash", "text"}
+    assert set(_columns(conn, "story_summary")) == {
+        "id", "story_id", "episode_id", "source_hash", "summary", "style"}
+    conn.close()
+
+    command.downgrade(cfg, "052069310f38")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "event_summary" not in tables and "story_summary" not in tables
     conn.close()

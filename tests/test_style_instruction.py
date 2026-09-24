@@ -52,8 +52,31 @@ def test_event_novel_shares_the_episode_novel_style():
 
 def test_episode_style_keeps_its_length_rule():
     base = style.EPISODE_STYLE_BASE
-    assert "一話は5000〜8000字。4〜6個の場面に分け、一場面は1200〜1600字を目安にする。" in base
+    assert "一話は5000〜8000字。" in base
     assert base.endswith("種(key)に場面が足りないときは、足りないぶんを場面として立ててから書く。")
+
+
+@pytest.mark.parametrize("target", ["episode", "event_novel"])
+def test_novel_style_leaves_the_scene_count_and_length_to_the_content(target):
+    text = style.style_instruction(target)
+    assert "場面の数と一場面の長さは決めず、中身に合わせる。" in text
+    assert "個の場面に分け" not in text
+    assert "一場面は" not in text
+
+
+@pytest.mark.parametrize("target", ["episode", "event_novel"])
+def test_novel_style_sets_how_detailed_to_write(target):
+    text = style.style_instruction(target)
+    assert "描写の細かさは中身の重さで変える。" in text
+    assert "一〜二文で飛ばす" in text
+
+
+@pytest.mark.parametrize("target", ["episode", "event_novel"])
+def test_novel_style_closes_by_whether_the_content_is_over(target):
+    text = style.style_instruction(target)
+    assert "中身が終わっていないときは、謎・伏線・この先への期待を残して切る。" in text
+    assert "中身が終わったときは、余韻を残すか、気の利いた落ちを付けて締める。" in text
+    assert "気の利いた落ちを付けない" not in text
 
 
 def test_episode_prompt_embeds_the_episode_style():
