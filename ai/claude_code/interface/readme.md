@@ -27,13 +27,13 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
-| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea)`                                    |
+| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea)`。確定したあと、その場でミームも抜き出す(`ExtractMemes` と同じ。足した件数を `memes_added` で返す) |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
 | 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる |
-| 「覚え書きを足して」「oracle に書いて」 | `randomizer.commit_oracle.CommitOracle(oracle)`。`text` 必須。置き場所は `directory_path`(`worlds/oracle/` からの相対)と `filename` で決める |
+| 「覚え書きを足して」「oracle に書いて」 | `randomizer.commit_oracle.CommitOracle(oracle)`。`text` 必須。置き場所は `directory_path`(`worlds/oracle/` からの相対)と `filename` で決める。確定したあと、その場でミームも抜き出す(`memes_added`) |
 | 「覚え書きを直して」                 | `randomizer.update_oracle.UpdateOracle(oracle)`。`id` 必須、渡した欄だけ直す |
 | 「ミームを直して」「ミームの分類を直して」 | `randomizer.update_meme.UpdateMeme(meme)`。`id` 必須、渡した欄だけ直す。`category` は 信条/欲求/境遇/集団/理 のいずれか |
 | 「ミームを消して」                   | `randomizer.delete_meme.DeleteMeme(meme_id)`                                 |

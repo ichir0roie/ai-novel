@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""アイデア(`Idea`)を一件、db へ確定する、claude が呼ぶ入口。"""
+"""アイデア(`Idea`)を一件、db へ確定し、そこからミームを抜き出す、claude が呼ぶ入口。"""
 from __future__ import annotations
 
-from ai.claude_code.interface.randomizer._base import CommitDraft
+from ai.claude_code.interface.randomizer._base import CommitMemeSource
 from db.schema import Idea, Location
 from db.schema_pydantic import to_dict
 
 
-class CommitIdea(CommitDraft):
+class CommitIdea(CommitMemeSource):
     model = Idea
 
     def __init__(self, idea: str | dict):
