@@ -39,13 +39,21 @@ def _effort() -> str:
     return os.environ.get("DEM_CLAUDE_AI_EFFORT", _DEFAULT_EFFORT)
 
 
-def _build_args(system: str | None, schema: dict | None) -> list[str]:
+def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] = ()) -> list[str]:
+    # `--tools` は組み込みの道具だけを絞る。MCP の道具(`mcp__…`)は MCP サーバーから来るので、許可だけ渡す。
+    builtin = [tool for tool in tools if not tool.startswith("mcp__")]
     args = [
         _command(), "-p",
         "--output-format", "json",
-        "--tools", "",
+        "--tools", ",".join(builtin),
         "--no-session-persistence",
     ]
+    if tools:
+        # -p では許可を尋ねられないので、渡した道具は先に許しておく(許さないと拒まれて使えない)。
+        args += ["--allowedTools", ",".join(tools)]
+    mcp_config = os.environ.get("DEM_CLAUDE_AI_MCP_CONFIG")
+    if mcp_config and len(builtin) < len(tools):
+        args += ["--mcp-config", mcp_config]
     if system is not None:
         args += ["--system-prompt", system]
     if schema is not None:
@@ -77,10 +85,11 @@ def generate(
     format: dict | str | None = None,
     timeout: float = 120.0,
     options: dict | None = None,
+    tools: tuple[str, ...] = (),
 ) -> str:
     """`options`(Ollama の temperature 等)は Claude Code に相当する設定が無いので受け取るだけで使わない。"""
     schema = format if isinstance(format, dict) else None
-    args = _build_args(system, schema)
+    args = _build_args(system, schema, tools)
     # CLI の起動と思考のぶん、Ollama 向けの timeout(既定 120 秒)では足りないことがある。
     timeout = max(float(timeout), float(os.environ.get("DEM_CLAUDE_AI_TIMEOUT", 300)))
     # プロジェクトの CLAUDE.md・設定を拾わせない(生成の指示は system だけにする)。
@@ -126,9 +135,10 @@ def generate_json(
     system: str | None = None,
     timeout: float = 120.0,
     options: dict | None = None,
+    tools: tuple[str, ...] = (),
 ) -> dict:
     text = generate(
-        prompt, system=system, format=schema, timeout=timeout, options=options)
+        prompt, system=system, format=schema, timeout=timeout, options=options, tools=tools)
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:
@@ -143,9 +153,10 @@ def try_generate_json(
     system: str | None = None,
     timeout: float = 120.0,
     options: dict | None = None,
+    tools: tuple[str, ...] = (),
 ) -> dict:
     try:
-        return generate_json(prompt, schema, system=system, timeout=timeout, options=options)
+        return generate_json(prompt, schema, system=system, timeout=timeout, options=options, tools=tools)
     except ClaudeAIError as error:
         print(f"[claude_ai] Claude Code の応答が使えなかったため既定値で進める: {error}")
         return {}

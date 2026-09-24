@@ -200,6 +200,14 @@ class MemeSeededMixin:
         sort_order=9010)
 
 
+class FactCheckMixin:
+    TEXT_SECTIONS = ("text", "fact_check")
+
+    fact_check: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="AI が Dラボ・ネット検索で検めた妥当性と補足。空ならまだ検めていない",
+        sort_order=10010)
+
+
 class Event(EventSeededMixin, MemeSeededMixin, MarkdownBase):
 
     __tablename__ = "event"
@@ -276,7 +284,7 @@ class MemeCategory(enum.StrEnum):
 MEME_CATEGORIES = tuple(category.value for category in MemeCategory)
 
 
-class Meme(MarkdownBase):
+class Meme(FactCheckMixin, MarkdownBase):
     """ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
     (元の側の `meme_seeded` で、抜き出し済みかだけを管理する)。
     """
@@ -289,7 +297,7 @@ class Meme(MarkdownBase):
         sort_order=200)
 
 
-class Oracle(MemeSeededMixin, MarkdownBase):
+class Oracle(FactCheckMixin, MemeSeededMixin, MarkdownBase):
     """著者自身の創作・AI についての覚え書き。物語のデータではない。"""
 
     __tablename__ = "oracle"
@@ -436,7 +444,7 @@ IDEA_KIND_CANDIDATE = "候補"
 IDEA_CANDIDATE_DIRECTORY = "候補"
 
 
-class Idea(MemeSeededMixin, MarkdownBase):
+class Idea(FactCheckMixin, MemeSeededMixin, MarkdownBase):
     __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)

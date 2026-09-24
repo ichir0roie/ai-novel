@@ -9,8 +9,9 @@ from db.schema_pydantic import to_dict
 class CommitOracle(CommitMemeSource):
     model = Oracle
 
-    def __init__(self, oracle: str | dict):
+    def __init__(self, oracle: str | dict, fact_check: bool = True):
         self.oracle = oracle
+        self.fact_check = fact_check
 
     def execute(self, session) -> dict:
         data = self.parse(self.oracle)
