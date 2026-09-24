@@ -90,3 +90,15 @@ def test_term_markdown_name_uses_name():
 
     assert Term(id=29, name="霊纏", kind="技術", text="").markdown_name == "29_霊纏.md"
     assert Term(id=30, name="語", kind="概念", text="", filename="別名").markdown_name == "30_別名.md"
+
+
+def test_sync_paths_follow_env(tmp_path):
+    import subprocess
+    import sys
+
+    env = dict(os.environ, DEM_NOVEL_DB_PATH=str(tmp_path / "a.db"), DEM_WORLDS_DIR=str(tmp_path / "w"))
+    code = ("from DEM.db.schema import NOVEL_DB_PATH, get_novel_session;"
+            "from DEM.tool.markdown.export_db import WORLDS_ROOT;"
+            "print(NOVEL_DB_PATH); print(WORLDS_ROOT); print(get_novel_session().get_bind().url.database)")
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True).stdout.split()
+    assert out == [str(tmp_path / "a.db"), str(tmp_path / "w"), str(tmp_path / "a.db")]
