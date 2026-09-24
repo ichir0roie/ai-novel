@@ -14,6 +14,7 @@
 - cd51e8d34592: event_seed_source / event_seed を足す
 - 76fbe5ec1c2e: event_seed_source を元テーブルごとの id 列にする
 - f8eefc75dad5: event_seed_source を落とし、元の表の event_seeded で管理する
+- 56c6bd7ffe26: event_seed に consolidated を足す
 """
 import sqlite3
 
@@ -25,7 +26,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "f8eefc75dad5"
+HEAD_REVISION = "56c6bd7ffe26"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -373,7 +374,7 @@ def test_upgrade_adds_event_seed_and_downgrade_drops_it(old_style_db):
 
     conn = sqlite3.connect(TEST_DB_PATH)
     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert set(_columns(conn, "event_seed")) == {"id", "text"}
+    assert set(_columns(conn, "event_seed")) == {"id", "text", "consolidated"}
     assert "event_seed_source" not in tables
     for table in ("story", "episode", "character", "event"):
         assert _columns(conn, table)["event_seeded"][:2] == ("BOOLEAN", 1), table
@@ -445,6 +446,8 @@ def test_upgrade_flags_seeded_records_and_keeps_the_seeds(old_style_db):
                for table in ("story", "episode", "character", "event")}
     assert flagged == {"story": {1}, "episode": {1}, "character": {3}, "event": {2}}
     assert [row[0] for row in conn.execute("SELECT text FROM event_seed ORDER BY id")] == ["作品の種", "出来事の種"]
+    # 移した種は棚卸し前として扱い、次の毎日のルーチンで棚卸しする
+    assert {row[0] for row in conn.execute("SELECT consolidated FROM event_seed")} == {0}
     conn.close()
 
     command.downgrade(cfg, "76fbe5ec1c2e")

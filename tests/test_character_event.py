@@ -347,3 +347,14 @@ def test_daily_event_returns_the_id_of_the_new_event(session):
     assert character.id in _involved(session, record)
     # 先に、作品「村の話」の筋書きから種を抜き出している
     assert session.query(EventSeed).count() > 0
+
+
+def test_daily_event_consolidates_the_seeds_once_enough_are_stored(session, monkeypatch):
+    place = _place(session)
+    _character(session, place)
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_EVERY", 1)
+
+    main.daily_event(MockAIClient(seed=1))
+
+    seeds = session.query(EventSeed).all()
+    assert seeds and all(seed.consolidated for seed in seeds)

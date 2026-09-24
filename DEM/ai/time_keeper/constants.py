@@ -70,3 +70,7 @@ EVENT_SEED_BATCH_LETTERS = 6000
 EVENT_SEED_TIMEOUT = 300.0
 # 毎日のルーチンで、一件の出来事に引く種の件数。候補はこの種か、直前の出来事からの連想で立てる。
 EVENT_SEED_DRAW_COUNT = 3
+# 棚卸し前の種がこの件数たまったら、似た種をまとめる。
+EVENT_SEED_CONSOLIDATE_EVERY = 50
+# 棚卸しで一度に見比べる、棚卸し済みの種の字数の上限(棚卸し前の種は毎回すべて添える)。
+EVENT_SEED_CONSOLIDATE_LETTERS = 15000

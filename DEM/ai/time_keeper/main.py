@@ -67,9 +67,10 @@ def time_process(
 
 def daily_event(ai: AIClient) -> int | None:
     """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。
-    先に、作品・話・人物の筋書きのうち変わったものから出来事の種を抜き出し直す。"""
+    先に、まだ抜き出していない元から出来事の種を抜き出し、たまっていれば似た種をまとめる。"""
     with get_env_session() as s:
         event_seed.refresh(s, ai)
+        event_seed.consolidate(s, ai)
         record = character_event_generator.generate_next(s, ai)
         return record.id if record is not None else None
 

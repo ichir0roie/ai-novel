@@ -272,6 +272,9 @@ class EventSeed(Base):
     __tablename__ = "event_seed"
 
     text: Mapped[str] = mapped_column(String, comment="種", sort_order=100)
+    consolidated: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="棚卸し(似た種をまとめる)を済ませたか。新しい種は false", sort_order=110)
 
 
 CHARACTER_KIND_PERSON = "人物"

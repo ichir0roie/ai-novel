@@ -127,3 +127,93 @@ def test_draw_picks_distinct_seeds_at_random(session):
 
 def test_draw_from_an_empty_pool_is_empty(session):
     assert event_seed.draw(session, random.Random(1)) == []
+
+
+class _Merges(MockAIClient):
+    """棚卸しで、決めた組をまとめると答える。"""
+
+    def __init__(self, merges, seed=1):
+        super().__init__(seed=seed)
+        self.merges = merges
+
+    def try_generate_json(self, prompt, schema, **kwargs):
+        super().try_generate_json(prompt, schema, **kwargs)
+        return {"merges": self.merges}
+
+
+def _seeds(session, texts, *, consolidated=False) -> list[EventSeed]:
+    seeds = [EventSeed(text=text, consolidated=consolidated) for text in texts]
+    session.add_all(seeds)
+    session.commit()
+    return seeds
+
+
+def _texts(session) -> dict[str, bool]:
+    return {seed.text: seed.consolidated for seed in session.query(EventSeed).all()}
+
+
+def test_consolidation_waits_until_enough_fresh_seeds(session, monkeypatch):
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_EVERY", 3)
+    _seeds(session, ["甲", "乙"])
+    ai = _Merges([{"numbers": [1, 2], "text": "甲乙"}])
+
+    assert event_seed.consolidate(session, ai) == 0
+    assert ai.calls == []
+
+
+def test_similar_seeds_are_merged_and_the_rest_are_marked(session, monkeypatch):
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_EVERY", 3)
+    _seeds(session, ["既存"], consolidated=True)
+    _seeds(session, ["新一", "新二", "新三"])
+    # 番号は 新一=1 新二=2 新三=3 既存=4
+    ai = _Merges([{"numbers": [1, 4], "text": "新一と既存"}])
+
+    removed = event_seed.consolidate(session, ai)
+
+    assert removed == 1
+    assert _texts(session) == {"新一と既存": True, "新二": True, "新三": True}
+    prompt = ai.calls[0]["prompt"]
+    assert "## 新しい種\n1. 新一\n2. 新二\n3. 新三\n\n## 棚卸し済みの種\n4. 既存" in prompt
+    assert ai.calls[0]["system"] == event_seed._CONSOLIDATE_SYSTEM_PROMPT
+
+
+def test_invalid_merges_are_ignored(session, monkeypatch):
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_EVERY", 2)
+    _seeds(session, ["既存一", "既存二"], consolidated=True)
+    _seeds(session, ["新一", "新二"])
+    ai = _Merges([
+        {"numbers": [3, 4], "text": "棚卸し済みどうし"},
+        {"numbers": [1], "text": "一件だけ"},
+        {"numbers": [1, 9], "text": "無い番号"},
+        {"numbers": [1, 2], "text": ""},
+        {"numbers": [1, 3], "text": "新一と既存一"},
+        {"numbers": [1, 2], "text": "使った番号をもう一度"},
+    ])
+
+    event_seed.consolidate(session, ai)
+
+    assert _texts(session) == {"新一と既存一": True, "既存二": True, "新二": True}
+
+
+def test_settled_seeds_are_split_and_the_fresh_ones_come_along_each_time(session, monkeypatch):
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_EVERY", 2)
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_LETTERS", 4)
+    _seeds(session, ["あああ", "いいい"], consolidated=True)
+    _seeds(session, ["新一", "新二"])
+    ai = _Merges([{"numbers": [1, 3], "text": "新一とあああ"}])
+
+    event_seed.consolidate(session, ai)
+
+    assert len(ai.calls) == 2
+    assert "1. 新一" in ai.calls[0]["prompt"] and "3. あああ" in ai.calls[0]["prompt"]
+    # 一回目でまとめた新一は、二回目には添えない
+    assert "新一" not in ai.calls[1]["prompt"] and "1. 新二" in ai.calls[1]["prompt"]
+    assert "2. いいい" in ai.calls[1]["prompt"]
+
+
+def test_fresh_seeds_stay_unmarked_when_the_ai_fails(session, monkeypatch):
+    monkeypatch.setattr(event_seed.constants, "EVENT_SEED_CONSOLIDATE_EVERY", 2)
+    _seeds(session, ["新一", "新二"])
+
+    assert event_seed.consolidate(session, _Fails(seed=1)) == 0
+    assert _texts(session) == {"新一": False, "新二": False}
