@@ -198,7 +198,7 @@ def _should_roll(time: Stamp) -> bool:
 def _place_roll_probability(session: Session, place_id: int, time: Stamp) -> float:
     """直近でこの場所に出来事が集中しているほど、この回のロール確率を下げる。"""
     last_event = session.scalars(
-        common_query.events_of_select(place_id, until=time, limit=1)
+        common_query.events_of_place_select(place_id, until=time, limit=1)
     ).first()
     if last_event is None:
         return constants.PLACE_PROBABILITY
@@ -255,7 +255,7 @@ def _character_recent_event_names(
 ) -> list[str]:
     """その人物・対象自身が、場所を問わず関わった直近の出来事の名前。"""
     events = session.scalars(
-        common_query.events_of_select(character_id, until=time, limit=RECENT_EVENT_LIMIT)
+        common_query.events_of_character_select(character_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
     return [e.name for e in events]
 
@@ -349,7 +349,7 @@ def _progress_place(
     `seeds`(出来事の種)を渡すと、候補をその種か直近の出来事からの連想で立てさせる。
     `use_story` が false なら、作品の本文(筋書き)を渡さず、筋書きへ向かう出来事も優先させない。"""
     recent_events = session.scalars(
-        common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
+        common_query.events_of_place_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
     place = session.get(Location, place_id)
     stories = story_createion_query.load_location_story(session, place_id, time) if use_story else []

@@ -199,8 +199,8 @@ def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
     """**複数の場所にまたがる出来事を新しい順に。** `place_ids` が空/None なら場所を問わず全件。
 
     一つの作品(`Story`)が指す範囲(場所の配下全体、無指定なら世界全体)で
-    「直近どんな出来事が使われたか」を見るのに使う。単一の id で引く
-    `events_of_select` と違い、場所の集合をそのまま渡す。
+    「直近どんな出来事が使われたか」を見るのに使う。一つの場所で引く
+    `events_of_place_select` と違い、場所の集合をそのまま渡す。
     """
     query = select(Event).options(*EVENT_LOAD_OPTIONS)
     if place_ids:
@@ -213,25 +213,30 @@ def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
     return query
 
 
-def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
-    """**その id に掛かる出来事と行動を、新しい順に。**
-
-    場所の id ならそこで起きたこと、人物の id ならその者の行動、
-    出来事の id ならそれにぶら下がる行動。
-    """
-    query = (select(Event)
-             .options(*EVENT_LOAD_OPTIONS)
-             .where(or_(
-                 Event.location_id == record_id,
-                 Event.parent_event_id == record_id,
-                 Event.event_characters.any(EventCharacter.character_id == record_id),
-             )))
+def _events_where(condition, until, limit) -> Select:
+    query = select(Event).options(*EVENT_LOAD_OPTIONS).where(condition)
     if until is not None:
         query = query.where(Event.time <= span(until)[1])
     query = query.order_by(Event.time.desc(), Event.id.desc())
     if limit:
         query = query.limit(limit)
     return query
+
+
+def events_of_place_select(place_id: int, *, until=None, limit=5) -> Select:
+    """**その場所で起きた出来事を、新しい順に。**"""
+    return _events_where(Event.location_id == place_id, until, limit)
+
+
+def events_of_character_select(character_id: int, *, until=None, limit=5) -> Select:
+    """**その人物・対象が当事者の出来事を、場所を問わず新しい順に。**"""
+    return _events_where(
+        Event.event_characters.any(EventCharacter.character_id == character_id), until, limit)
+
+
+def events_under_select(event_id: int, *, until=None, limit=5) -> Select:
+    """**その出来事にぶら下がる出来事・行動を、新しい順に。**"""
+    return _events_where(Event.parent_event_id == event_id, until, limit)
 
 
 def events_select() -> Select:

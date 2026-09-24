@@ -27,10 +27,10 @@ def events_at(session: Session, when, *, place_ids=None, limit=None,
     return [event_row(row, text=text) for row in rows]
 
 
-def events_of(session: Session, record_id: int, *, until=None, limit=5,
+def events_of(session: Session, select_fn, record_id: int, *, until=None, limit=5,
               text: bool = True) -> list[dict]:
-    rows = session.scalars(
-        common_query.events_of_select(record_id, until=until, limit=limit)).all()
+    """`select_fn` は `common_query.events_of_place_select` などの、id で出来事を引く Select。"""
+    rows = session.scalars(select_fn(record_id, until=until, limit=limit)).all()
     return [event_row(row, text=text) for row in rows]
 
 
@@ -66,7 +66,7 @@ def character_sheet(session: Session, character_id: int, *, until=None,
     sheet = to_dict_with(character, text=text)
     sheet["place"] = _place_at(session, common_query.character_place_select, character_id, at)
     sheet["recent_events"] = events_of(
-        session, character_id, until=None if until is None else at,
+        session, common_query.events_of_character_select, character_id, until=None if until is None else at,
         limit=count, text=text)
     return sheet
 
