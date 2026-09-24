@@ -10,7 +10,7 @@ from ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION
 from ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS
 from ai.time_keeper import constants
 from ai.time_keeper import event_progression_generator as progression
-from ai.time_keeper import event_seed, event_summary
+from ai.time_keeper import event_seed, event_summary, idea_context
 from ai.time_keeper._ai import AIClient
 from ai.time_keeper._format import add_days, add_years, format_time
 from data_access_logic.query import common_query
@@ -20,6 +20,7 @@ from db.schema import Character, Event, EventCharacter, Location, Session, Stamp
 _NOVEL_SYSTEM_PROMPT = f"""\
 あなたは日本語のライトノベルを書く作家です。
 ある人物(主役)の身に起きた出来事の記録と、場所・当事者・主役の直前の出来事を渡すので、この出来事を小説の本文に書き起こしてください。
+「関係する設定」を渡したときは、それを踏まえて書いてください。
 {EVENT_NOVEL_INSTRUCTION}
 JSON で答えてください。キーは text(本文)だけ。"""
 
@@ -94,7 +95,7 @@ def _sheet(character: Character, time: Stamp) -> dict:
 
 def _novelize(
     session: Session, record: Event, focus: Character, participants: list[Character],
-    previous_row: dict | str, ai: AIClient,
+    previous_row: dict | str, ai: AIClient, ideas: list | None = None,
 ) -> None:
     involved_ids = set(session.scalars(
         select(EventCharacter.character_id).where(EventCharacter.event_id == record.id)).all())
@@ -107,6 +108,7 @@ def _novelize(
         f"ほかの当事者: {_dump(others) if others else '(無し)'}",
         f"主役の直前の出来事: {_dump(previous_row)}",
         f"この出来事の記録: {_dump({'name': record.name, 'text': record.text})}",
+        idea_context.prompt_section(ideas or []),
         f"この出来事を、{focus.name}を視点人物にした"
         f"{EVENT_NOVEL_TARGET_LETTERS[0]}〜{EVENT_NOVEL_TARGET_LETTERS[1]}字の小説の本文に書き起こしてください。",
     ])
@@ -157,7 +159,10 @@ def generate_next(
             session, place_id, participants, time, rng, ai,
             focus=character, note=_note(character, previous_row), seeds=seeds, use_story=False)
         if record is not None:
-            _novelize(session, record, character, participants, previous_row, ai)
+            context = idea_context.gather(session, f"{record.name}\n{record.text}", ai, record.location_id)
+            _novelize(session, record, character, participants, previous_row, ai, context.related)
+            idea_context.link(session, record, context.linked)
+            session.commit()
         return record
 
     print("[time_keepr/daily] 出来事を起こせるサブキャラクターがいない")

@@ -38,7 +38,7 @@ def test_list_places_filters_by_kind(session):
     assert ListPlaces("町").run() == []
 
 
-def test_search_ideas_matches_text(session):
+def test_search_ideas_matches_name_and_text(session):
     session.add_all([
         Idea(name="霊纏", kind="技術", text="霊を纏う技"),
         Idea(name="魔力灯り", kind="道具", text="魔力で灯す"),
@@ -48,4 +48,5 @@ def test_search_ideas_matches_text(session):
     rows = SearchIdeas("霊").run()
     assert [row["name"] for row in rows] == ["霊纏"]
     assert rows[0]["text"] == "霊を纏う技"
-    assert SearchIdeas("魔力灯り").run() == []
+    assert [row["name"] for row in SearchIdeas("魔力灯り").run()] == ["魔力灯り"]
+    assert SearchIdeas("鉄").run() == []

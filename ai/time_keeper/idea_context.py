@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""下書き(一段目)と清書(二段目)のあいだに挟む中間段。
+
+下書きから語を洗い出してアイデアと照らし、当たったアイデアとその上位・下位を清書に渡す。
+どのアイデアにも当たらなかった固有の語(`coined`)は、種別「候補」のアイデアとして足す(候補は検索・清書には出さない)。
+下書きが踏まえたアイデアと候補は、中間テーブル(`event_idea` など)で清書したレコードに結ぶ。
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from sqlalchemy import select
+
+from ai.instructions.idea_context import IDEA_CONTEXT_INSTRUCTION
+from ai.time_keeper import constants, idea_search
+from ai.time_keeper._ai import AIClient
+from data_access_logic.query import common_query, dictionary_query
+from db.schema import (
+    IDEA_CANDIDATE_DIRECTORY, IDEA_KIND_CANDIDATE, IDEA_LINK_MODELS,
+    Character, Idea, Location, Session,
+)
+
+
+@dataclass
+class IdeaContext:
+    hits: list[Idea] = field(default_factory=list)
+    related: list[Idea] = field(default_factory=list)
+    candidates: list[Idea] = field(default_factory=list)
+
+    @property
+    def linked(self) -> list[Idea]:
+        return list({idea.id: idea for idea in self.hits + self.candidates}.values())
+
+
+def _world_id(session: Session, place_id: int | None) -> int | None:
+    if place_id is None:
+        return None
+    path = common_query.place_path(session, place_id)
+    return path[0]["id"] if path else None
+
+
+def _is_proper_name(session: Session, word: str) -> bool:
+    return (session.scalar(select(Character.id).where(Character.name == word).limit(1)) is not None
+            or session.scalar(select(Location.id).where(Location.name == word).limit(1)) is not None)
+
+
+def _candidate_for(session: Session, term: dict, place_id: int | None) -> Idea | None:
+    names = idea_search.spellings(term["keyword"])
+    existing = session.scalars(
+        dictionary_query.candidate_ideas_select().where(Idea.name.in_(names))).first()
+    if existing is not None:
+        return existing
+    if _is_proper_name(session, term["keyword"]):
+        return None
+    candidate = Idea(
+        name=term["keyword"], kind=IDEA_KIND_CANDIDATE, text=term["description"],
+        restrict_world_id=_world_id(session, place_id),
+        directory_path=IDEA_CANDIDATE_DIRECTORY)
+    session.add(candidate)
+    session.flush()
+    print(f"[time_keepr/idea] 候補を足した: {candidate.name}(id={candidate.id})")
+    return candidate
+
+
+def _related(session: Session, hits: list[Idea], place_id: int | None) -> list[Idea]:
+    place_ids = common_query.idea_scope_ids(session, place_id) if place_id is not None else None
+    related = {idea.id: idea for idea in hits}
+    for idea in hits:
+        parent_id = idea.parent_idea_id
+        while parent_id is not None and parent_id not in related:
+            parent = session.get(Idea, parent_id)
+            if parent is None or parent.kind == IDEA_KIND_CANDIDATE:
+                break
+            related[parent.id] = parent
+            parent_id = parent.parent_idea_id
+    if hits:
+        for child in session.scalars(
+                dictionary_query.ideas_by_parent_select([idea.id for idea in hits], place_ids)).all():
+            related.setdefault(child.id, child)
+    return list(related.values())[:constants.IDEA_CONTEXT_LIMIT]
+
+
+def resolve(session: Session, keywords, place_id: int | None = None) -> IdeaContext:
+    """洗い出した語(`idea_search.terms_of` の形)をアイデアと照らし、当たらなかった語を候補として足す。"""
+    terms = idea_search.terms_of(keywords)
+    hits = idea_search.search(session, terms, place_id)
+    matched = {keyword for hit in hits for keyword in hit.keywords}
+    context = IdeaContext(hits=[hit.idea for hit in hits[:constants.IDEA_CONTEXT_LIMIT]])
+    for term in terms:
+        if term["keyword"] in matched or not term["coined"]:
+            continue
+        candidate = _candidate_for(session, term, place_id)
+        if candidate is not None and candidate not in context.candidates:
+            context.candidates.append(candidate)
+    context.related = _related(session, context.hits, place_id)
+    return context
+
+
+def gather(session: Session, draft: str, ai: AIClient, place_id: int | None = None) -> IdeaContext:
+    """下書き `draft` から語を洗い出して `resolve` する。"""
+    return resolve(session, idea_search.keywords_of(draft, ai), place_id)
+
+
+def prompt_section(ideas: list[Idea]) -> str:
+    """清書のプロンプトに足す「関係する設定」の節。アイデアが無ければ空。"""
+    if not ideas:
+        return ""
+    lines = []
+    for idea in ideas:
+        text = (idea.text or "").strip()
+        if len(text) > constants.IDEA_CONTEXT_LETTERS:
+            text = text[:constants.IDEA_CONTEXT_LETTERS] + "…"
+        lines.append(f"- {idea.name}({idea.kind}): {text}")
+    return f"関係する設定:\n{IDEA_CONTEXT_INSTRUCTION}\n" + "\n".join(lines) + "\n"
+
+
+def link(session: Session, record, ideas: list[Idea]) -> int:
+    """`record`(出来事・話・人物)に `ideas` を結ぶ。結んだ件数を返す(既に結んであるものは数えない)。"""
+    model = IDEA_LINK_MODELS[type(record)]
+    owner_column = f"{record.__tablename__}_id"
+    existing = set(session.scalars(
+        select(model.idea_id).where(getattr(model, owner_column) == record.id)).all())
+    added = 0
+    for idea in ideas:
+        if idea.id in existing:
+            continue
+        session.add(model(**{owner_column: record.id, "idea_id": idea.id}))
+        existing.add(idea.id)
+        added += 1
+    session.flush()
+    return added
+
+
+def linked_records(session: Session, idea_id: int) -> dict[str, list]:
+    """アイデアを結んでいる出来事・話・人物。"""
+    found = {}
+    for owner, model in IDEA_LINK_MODELS.items():
+        owner_column = getattr(model, f"{owner.__tablename__}_id")
+        found[owner.__tablename__] = list(session.scalars(
+            select(owner).join(model, owner_column == owner.id)
+            .where(model.idea_id == idea_id).order_by(owner.id)).all())
+    return found
+
+
+def relink(session: Session, source_id: int, target_id: int | None) -> int:
+    """`source_id` に結んであるものを `target_id` へ付け替える(None なら外す)。動かした件数を返す。"""
+    moved = 0
+    for owner, model in IDEA_LINK_MODELS.items():
+        owner_column = f"{owner.__tablename__}_id"
+        for row in session.scalars(select(model).where(model.idea_id == source_id)).all():
+            session.delete(row)
+            moved += 1
+            if target_id is None:
+                continue
+            duplicate = session.scalar(select(model.id).where(
+                getattr(model, owner_column) == getattr(row, owner_column), model.idea_id == target_id))
+            if duplicate is None:
+                session.add(model(**{owner_column: getattr(row, owner_column), "idea_id": target_id}))
+    session.flush()
+    return moved

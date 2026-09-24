@@ -9,6 +9,7 @@ from sqlalchemy import (
     BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator,
     create_engine,
     ForeignKey,
+    UniqueConstraint,
     select,
     Select,
     text,
@@ -431,11 +432,17 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
+IDEA_KIND_CANDIDATE = "候補"
+IDEA_CANDIDATE_DIRECTORY = "候補"
+
+
 class Idea(MemeSeededMixin, MarkdownBase):
     __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
-    kind: Mapped[str] = mapped_column(String, sort_order=210)
+    kind: Mapped[str] = mapped_column(
+        String, comment=f"種別。「{IDEA_KIND_CANDIDATE}」は本文から自動で足した未確認の語で、検索・生成には出さない",
+        sort_order=210)
 
     restrict_world_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=220)
     restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=230)
@@ -538,6 +545,39 @@ class EpisodeSummary(Base):
         String, comment="要約した本文の sha256。本文と食い違ったら作り直す", sort_order=120)
     summary: Mapped[str] = mapped_column(String, comment="概要", sort_order=130)
     style: Mapped[str] = mapped_column(String, comment="文体の覚え書き", sort_order=140)
+
+
+class EventIdea(Base):
+    """出来事の本文が踏まえたアイデア。md には出さない。"""
+
+    __tablename__ = "event_idea"
+    __table_args__ = (UniqueConstraint("event_id", "idea_id"),)
+
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True, sort_order=100)
+    idea_id: Mapped[int] = mapped_column(Integer, ForeignKey("idea.id"), index=True, sort_order=110)
+
+
+class EpisodeIdea(Base):
+    """話の本文が踏まえたアイデア。md には出さない。"""
+
+    __tablename__ = "episode_idea"
+    __table_args__ = (UniqueConstraint("episode_id", "idea_id"),)
+
+    episode_id: Mapped[int] = mapped_column(Integer, ForeignKey("episode.id"), index=True, sort_order=100)
+    idea_id: Mapped[int] = mapped_column(Integer, ForeignKey("idea.id"), index=True, sort_order=110)
+
+
+class CharacterIdea(Base):
+    """人物・対象の説明が踏まえたアイデア。md には出さない。"""
+
+    __tablename__ = "character_idea"
+    __table_args__ = (UniqueConstraint("character_id", "idea_id"),)
+
+    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("character.id"), index=True, sort_order=100)
+    idea_id: Mapped[int] = mapped_column(Integer, ForeignKey("idea.id"), index=True, sort_order=110)
+
+
+IDEA_LINK_MODELS = {Event: EventIdea, Episode: EpisodeIdea, Character: CharacterIdea}
 
 
 # 既定値は持たない。場所を取り違えると sqlite が空の db を黙って作るので、未設定なら import で止める。

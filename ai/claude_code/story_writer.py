@@ -11,7 +11,7 @@ from sqlalchemy import select
 from ai.instructions.style import EPISODE_STYLE_INSTRUCTION
 from ai.claude_code import ai_client
 from ai.claude_code.interface.story import _rows
-from ai.time_keeper import episode_summary
+from ai.time_keeper import episode_summary, idea_context
 from data_access_logic.query import common_query
 from db.schema import Episode, Session, get_env_session
 
@@ -27,6 +27,7 @@ _SYSTEM_PROMPT = f"""\
 直前の話は本文の代わりに概要(summary)で渡します。概要の筋をそのまま受け継ぎ、文体の覚え書きを渡したときはそれに揃えてください。
 {EPISODE_STYLE_INSTRUCTION}
 種(key)を渡したときは、それを場面まで展開したものを本文にしてください。種に無い出来事を足さないでください。
+「関係する設定」を渡したときは、それを踏まえて書いてください。
 JSON で答えてください。キーは title(サブタイトル。短く)と text(本文)の二つだけ。"""
 
 _SCHEMA = {
@@ -129,6 +130,8 @@ def write_next_episode(
 
     record = _episode(session, story_id, number)
     seed = (record.key or "").strip() if record is not None else ""
+    context = (idea_context.gather(session, seed, ai_client, story_row.place_id)
+               if seed else idea_context.IdeaContext())
     recap = _recap(session, materials["episodes"])
     lines = [
         f"作品: {_dump(story)}",
@@ -143,6 +146,8 @@ def write_next_episode(
     ]
     if seed:
         lines.append(f"この話の種(これを場面まで展開する。種に無い出来事を足さない): {seed}")
+    if context.related:
+        lines.append(idea_context.prompt_section(context.related))
     if record is not None and (record.viewpoint or record.place):
         lines.append(f"視点と場所: {record.viewpoint or ''} / {record.place or ''}")
     lines.append(f"この作品の第{number}話を書いてください。")
@@ -164,6 +169,8 @@ def write_next_episode(
         record.text = text
         record.letters = len(text)
         record.synced = True
+    session.flush()
+    idea_context.link(session, record, context.linked)
     session.commit()
     print(f"[claude_ai/story] {story_row.name} 第{record.number}話「{record.title}」"
           f" id={record.id} {record.letters}字")

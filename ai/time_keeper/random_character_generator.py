@@ -15,7 +15,7 @@ from data_access_logic.query.base import *
 from db.schema import *
 from db.schema import PERSONALITY_COLUMNS, PERSONALITY_LEVELS
 from ai.time_keeper._ai import AIClient
-from ai.time_keeper import constants, meme
+from ai.time_keeper import constants, idea_context, meme
 from ai.time_keeper._format import format_time
 from randomizer.random_character_generator import build_character
 
@@ -102,6 +102,20 @@ _NON_PERSON_NAME_SYSTEM_PROMPT = f"""\
 居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、同じ場所のものとして馴染む名にしてください(固有名詞をそのまま持ち込まない)。
 「既にいる人物・対象の名」が渡されているときは、それらと紛らわしい名にしない。
 キーは name(名前)だけ。"""
+
+_POLISH_SYSTEM_PROMPT = f"""\
+あなたは架空の世界観を構築する設定作家です。
+決まったばかりの人物・対象の説明(下書き)と、その下書きに関係する設定を渡すので、設定を踏まえて説明を清書してください。
+下書きの人物像・生い立ち・関係・長さは変えない。設定と食い違うところ、設定を踏まえると具体的にできるところだけを直す。
+{_PLACEHOLDER_INSTRUCTION}
+キーは text(清書した説明)だけ。"""
+
+_POLISH_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+    "additionalProperties": False,
+}
 
 _NAME_SCHEMA = {
     "type": "object",
@@ -274,6 +288,12 @@ def _generate_one(
         draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
 
     draft["text"] = decided.get("text") or draft["text"]
+    context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None)
+    if context.related:
+        polished = ai.try_generate_json(
+            f"下書き: {draft['text']}\n{idea_context.prompt_section(context.related)}この説明を清書してください。",
+            _POLISH_SCHEMA, system=_POLISH_SYSTEM_PROMPT, timeout=constants.IDEA_POLISH_TIMEOUT)
+        draft["text"] = (polished.get("text") or "").strip() or draft["text"]
     if drawn_memes:
         draft["text"] += f"\n\n# meme\n{meme.meme_section(drawn_memes)}"
         principle = (decided.get("principle") or "").strip()
@@ -316,6 +336,7 @@ def _generate_one(
         session.add(CharacterPlace(
             character_id=record.id, location_id=born_place.id,
             start=record.start, end=record.end))
+    idea_context.link(session, record, context.linked)
 
     session.commit()
     when = format_time(time)

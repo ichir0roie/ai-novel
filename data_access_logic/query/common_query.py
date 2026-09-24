@@ -11,6 +11,7 @@ from db.schema import (
     Event, EventCharacter, Idea, Location,
     Story,
 )
+from data_access_logic.query import dictionary_query
 from db.stamp import Stamp, StampError
 
 EVENT_RELATIONS = {"location": "place_name"}
@@ -313,11 +314,8 @@ def unsynced_episodes_select(story_id: int | None = None) -> Select:
 # ---------------------------------------------------------------- 断面
 
 def ideas_select(place_ids) -> Select:
-    place_ids = list(place_ids)
     return (select(Idea)
-            .where(or_(Idea.restrict_place_id.in_(place_ids),
-                       Idea.restrict_planet_id.in_(place_ids),
-                       Idea.restrict_world_id.in_(place_ids)))
+            .where(dictionary_query.idea_in_scope(place_ids), dictionary_query.idea_not_candidate())
             .order_by(Idea.id))
 
 
