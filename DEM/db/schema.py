@@ -298,10 +298,10 @@ class Character(MarkdownBase):
         String, default=CHARACTER_KIND_PERSON, nullable=False,
         comment="種別。「人物」か、人物以外の対象(国・組織・商会・氏族・集団・物など)", sort_order=230)
 
-    sub_character: Mapped[bool] = mapped_column(
+    main_character: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
-        comment="メインキャラクター以外のサブキャラクターか。"
-        "出来事・筋書きのランダム生成は、この列が true の人物・対象だけを対象にする",
+        comment="メインキャラクターか。"
+        "出来事・筋書きのランダム生成は、この列が false(サブキャラクター)の人物・対象だけを対象にする",
         sort_order=240)
 
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)

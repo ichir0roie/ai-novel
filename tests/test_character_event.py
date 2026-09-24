@@ -40,8 +40,8 @@ def _place(session, *, active=True) -> Location:
     return place
 
 
-def _character(session, place, name="甲", *, sub_character=True, start=Stamp(2080), end=None) -> Character:
-    record = Character(name=name, text=f"{name}の説明", sub_character=sub_character,
+def _character(session, place, name="甲", *, main_character=False, start=Stamp(2080), end=None) -> Character:
+    record = Character(name=name, text=f"{name}の説明", main_character=main_character,
                        start=start, end=end)
     session.add(record)
     session.flush()
@@ -117,7 +117,7 @@ def test_first_event_counts_from_the_birth_when_born_after_the_story_start(sessi
 
 def test_only_alive_sub_characters_become_the_focus(session):
     place = _place(session)
-    _character(session, place, "主役格", sub_character=False)
+    _character(session, place, "主役格", main_character=True)
     _character(session, place, "故人", end=Stamp(2090))
     alive = _character(session, place, "生者")
 
@@ -139,7 +139,7 @@ def test_character_without_a_place_is_passed_over(session):
 
 def test_returns_none_when_no_sub_character_can_move(session):
     place = _place(session)
-    _character(session, place, sub_character=False)
+    _character(session, place, main_character=True)
 
     assert character_event_generator.generate_next(session, MockAIClient(seed=1)) is None
 

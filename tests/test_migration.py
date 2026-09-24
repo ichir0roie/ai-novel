@@ -10,6 +10,7 @@
 - 5c15aeb8dd47: plot / character_plot を畳んで落とす
 - 052069310f38: 話に start/end・視点・場所・キーテキストを足す
 - 24327ee59e1c: event_summary / story_summary を足す
+- 82c20d8db0c5: sub_character を反転して main_character へ移す
 """
 import sqlite3
 
@@ -21,7 +22,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "24327ee59e1c"
+HEAD_REVISION = "82c20d8db0c5"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -59,9 +60,9 @@ def old_style_db():
     create_sql = (create_sql
                   .replace("\ttext VARCHAR, ", "\ttext VARCHAR NOT NULL, ")
                   .replace("\tname VARCHAR, ", "\tname VARCHAR, \n\tread VARCHAR, \n\tworld_influence INTEGER NOT NULL, ")
-                  .replace("\n\tsub_character BOOLEAN NOT NULL, ", ""))
+                  .replace("\n\tmain_character BOOLEAN NOT NULL, ", ""))
     assert "world_influence" in create_sql and "text VARCHAR NOT NULL" in create_sql
-    assert "sub_character" not in create_sql
+    assert "main_character" not in create_sql
     conn.execute("DROP TABLE character")
     conn.execute(create_sql)
     conn.execute("DROP TABLE character_relation")
@@ -325,4 +326,30 @@ def test_upgrade_adds_summary_tables_and_downgrade_drops_them(old_style_db):
     conn = sqlite3.connect(TEST_DB_PATH)
     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert "event_summary" not in tables and "story_summary" not in tables
+    conn.close()
+
+
+def test_upgrade_inverts_sub_character_into_main_character(old_style_db):
+    cfg = _config()
+    command.upgrade(cfg, "24327ee59e1c")
+    conn = sqlite3.connect(TEST_DB_PATH)
+    conn.execute("UPDATE character SET sub_character = (name = 'v0')")
+    conn.commit()
+    conn.close()
+
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert "sub_character" not in _columns(conn)
+    rows = dict(conn.execute("SELECT name, main_character FROM character").fetchall())
+    assert rows["v0"] == 0
+    assert {name for name, main in rows.items() if main} == set(rows) - {"v0"}
+    conn.close()
+
+    command.downgrade(cfg, "24327ee59e1c")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert "main_character" not in _columns(conn)
+    rows = dict(conn.execute("SELECT name, sub_character FROM character").fetchall())
+    assert {name for name, sub in rows.items() if sub} == {"v0"}
     conn.close()

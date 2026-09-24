@@ -227,7 +227,7 @@ def _current_place_id(session: Session, character: Character, time: Stamp) -> in
 
 def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]:
     """その時点で生きているサブキャラクターを、いま居る場所ごとにまとめる。
-    メインキャラクター(`sub_character` が false)と、進行中の出来事に関わる者は外す。"""
+    メインキャラクター(`main_character` が true)と、進行中の出来事に関わる者は外す。"""
     grouped: dict[int, list[Character]] = defaultdict(list)
 
     busy_character_ids = set(session.scalars(
