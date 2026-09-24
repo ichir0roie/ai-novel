@@ -41,6 +41,8 @@ REACH_LEVELS = 1
 MOVE_DESTINATION_LIMIT = 20
 # 当事者一人ぶんに渡す相関の上限。
 RELATION_LIMIT = 10
+# 出来事を起こす時点より後に既にある出来事を、いくつまで渡すか。
+LATER_EVENT_LIMIT = 5
 # event_duration_days の取りうる範囲。範囲外の値は丸める。
 EVENT_DURATION_RANGE_DAYS = (1, 90)
 DEFAULT_EVENT_DURATION_DAYS = 1

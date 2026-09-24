@@ -31,7 +31,7 @@ from DEM.db.schema import (
     Location, Session, Stamp,
 )
 from DEM.ai.time_keeper._ai import AIClient
-from DEM.ai.time_keeper import constants
+from DEM.ai.time_keeper import constants, event_summary
 from DEM.ai.time_keeper._format import add_days, days_between, format_time
 from DEM.randomizer.random_location_generator import build_location
 
@@ -302,6 +302,21 @@ def _story_recent_event_names(
     return [e.name for e in events]
 
 
+def _later_events(
+    session: Session, place_id: int, characters: list[Character], time: Stamp, ai: AIClient,
+) -> list[dict]:
+    """`time` より後に既にある、この場所か当事者の出来事。本文は写させないよう要約で渡す。"""
+    events = session.scalars(common_query.events_after_select(
+        place_id, [c.id for c in characters], time, limit=constants.LATER_EVENT_LIMIT)).all()
+    rows = []
+    for event in events:
+        row = {"name": event.name, "start": str(event.start or event.time),
+               "end": str(event.end) if event.end else None}
+        summary = event_summary.summarize(session, event, ai)
+        rows.append({**row, "summary": summary} if summary else row)
+    return rows
+
+
 def _think_participants(
     situation: str, characters_payload: list[dict], ai: AIClient,
 ) -> list[dict]:
@@ -389,6 +404,11 @@ def _progress_place(
         for c in characters[:20]
     ]
     destinations = _move_destinations(session, place_id, time)
+    later_events = _later_events(session, place_id, characters, time, ai)
+    later_lines = (
+        "この時点より後に既に決まっている出来事(これと矛盾させず、先回りして起こさない): "
+        f"{later_events}\n"
+    ) if later_events else ""
     story_lines = f"""\
 進めたい筋書き(上位の場所のものから順につなげた作品の本文):
 {story_text or '(指定なし)'}
@@ -400,7 +420,7 @@ def _progress_place(
 場所の情報: {(place.name, place.kind, place.text) if place else None}
 居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。age は人物なら歳、それ以外は成立からの年数。relations はその時点で続いている相関。recent_events はその者自身が場所を問わず関わった直近の出来事): {characters_payload}
 直近の出来事(名前): {[e.name for e in recent_events]}
-{story_lines}{note}現在の時刻: {time}
+{later_lines}{story_lines}{note}現在の時刻: {time}
 """
     judgements = _think_participants(situation, characters_payload, ai)
     candidate = _roll_candidate(rng, situation, judgements, ai, seeds)

@@ -239,6 +239,20 @@ def events_under_select(event_id: int, *, until=None, limit=5) -> Select:
     return _events_where(Event.parent_event_id == event_id, until, limit)
 
 
+def events_after_select(place_id: int, character_ids, after: Stamp, *, limit=5) -> Select:
+    """**`after` より後に始まる、その場所で起きるか、その人物・対象のだれかが当事者の出来事。** 近い順。
+
+    人物ごとに時を刻むので、ある人物の出来事を起こす時点より後に、別の人物の出来事が既にあることがある。
+    """
+    return (select(Event)
+            .options(*EVENT_LOAD_OPTIONS)
+            .where(Event.time > after,
+                   or_(Event.location_id == place_id,
+                       Event.event_characters.any(EventCharacter.character_id.in_(list(character_ids)))))
+            .order_by(Event.time.asc(), Event.id.asc())
+            .limit(limit))
+
+
 def events_select() -> Select:
     """**db にある出来事を全件、新しい順に。**"""
     return (select(Event)

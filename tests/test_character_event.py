@@ -394,3 +394,39 @@ def test_participants_are_told_their_age_and_the_relations_of_that_time(session)
     assert "兄貴" not in think["prompt"]
     novel = ai.calls[-1]
     assert '"name": "甲", "kind": "人物", "age": 20' in novel["prompt"]
+
+
+def test_events_already_decided_after_that_time_are_told(session):
+    place = _place(session)
+    elsewhere = Location(name="町", kind="町", text="", start=Stamp(2000), active_random_generation=True)
+    session.add(elsewhere)
+    session.commit()
+    focus = _character(session, place, "甲")
+    ahead = _character(session, place, "乙")
+    stranger = _character(session, elsewhere, "丙")
+    _event(session, place, [focus], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "甲の前の出来事")
+    # 乙の時は先に進んでいて、甲の次の出来事より後の出来事が既にある
+    _event(session, place, [ahead], Stamp(2100, 6, 1), Stamp(2100, 6, 2), "乙の先の出来事")
+    _event(session, elsewhere, [stranger], Stamp(2100, 6, 1), Stamp(2100, 6, 2), "よその出来事")
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, _NoShuffle(1))
+
+    think = next(call for call in ai.calls
+                 if call["schema"] is event_progression_generator._JUDGEMENT_SCHEMA)
+    later = next(line for line in think["prompt"].splitlines()
+                 if line.startswith("この時点より後に既に決まっている出来事"))
+    assert "'name': '乙の先の出来事'" in later and "'summary': 'モックtext" in later
+    assert "よその出来事" not in later and "甲の前の出来事" not in later
+    assert "乙の先の出来事の本文" not in think["prompt"]
+
+
+def test_nothing_is_told_when_no_event_lies_ahead(session):
+    place = _place(session)
+    focus = _character(session, place, "甲")
+    _event(session, place, [focus], Stamp(2100, 5, 1), Stamp(2100, 5, 10))
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    assert all("この時点より後に既に決まっている出来事" not in call["prompt"] for call in ai.calls)
