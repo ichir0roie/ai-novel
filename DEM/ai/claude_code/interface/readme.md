@@ -34,6 +34,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
 | 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる |
 | 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)から抜き出し、`meme` テーブルへ足す。足した件数を返す |
+| 「ミームと要約の取りこぼしをまとめて作って」 | `meme.refresh_generated_content.RefreshGeneratedContent()`。`ExtractMemes` に加えて、まだ要約の無い出来事・話もすべて見て `event_summary` / `episode_summary` を作る。`CommitEvent` / `CommitStory` / `CommitEpisode` は確定した一件だけを見るので、md を直接編集して `import_db` した分などの取りこぼしを拾うのはこちら |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
 | 「話を書き始める」「次の話を書く」   | `story.start_story.StartStory(story_id)`。同期確認・見出し・直前の話・断面・顔ぶれを一度に出す |
 | 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)` |
@@ -65,8 +66,8 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 - `CommitEvent` / `CommitStory` / `CommitEpisode` は、確定したあとに毎回
   `DEM/ai/time_keeper/generated_content.py` の `refresh` を自分で呼ぶ。ミームの棚卸し
   (`meme.refresh`)と、出来事・話ならその場での要約(`event_summary` / `episode_summary`)を
-  まとめて行うので、`ExtractMemes` を別に呼ぶ必要は無い(まだ抜き出していない元が残って
-  いたときの取りこぼし対策としてなら呼んでよい)
+  まとめて行うので、`ExtractMemes` を別に呼ぶ必要は無い。確定の入口を通らなかった分の
+  取りこぼしをまとめて拾いたいときは `RefreshGeneratedContent` を呼ぶ
 - 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
   入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
   `# data` の `start` / `end` / `place` / `viewpoint` に入る

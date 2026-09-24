@@ -2,7 +2,7 @@
 
 出来事・話を確定したときに毎回呼ぶ、パックにした処理。
 """
-from DEM.ai.time_keeper import generated_content
+from DEM.ai.time_keeper import event_summary, generated_content
 from DEM.db.schema import Episode, Event, EventSummary, EpisodeSummary, Idea, Location, Story
 from DEM.db.stamp import Stamp
 from DEM.tool.test.mock_ai_client import MockAIClient
@@ -60,3 +60,27 @@ def test_refresh_skips_summary_for_a_record_without_text(session):
 
     assert result["summarized"] is False
     assert session.query(EventSummary).count() == 0
+
+
+def test_refresh_all_catches_up_events_and_episodes_missing_a_summary(session):
+    place = Location(name="村", kind="村", text="")
+    session.add(place)
+    session.flush()
+    story = Story(name="作品", place_id=place.id, text="", narration="", state="")
+    session.add(story)
+    session.flush()
+    summarized_event = Event(name="出来事1", text="本文1", time=Stamp(2100))
+    unsummarized_event = Event(name="出来事2", text="本文2", time=Stamp(2101))
+    empty_event = Event(name="出来事3", text="", time=Stamp(2102))
+    episode = Episode(story_id=story.id, number=1, title="第一話", text="本文", letters=2)
+    session.add_all([summarized_event, unsummarized_event, empty_event, episode])
+    session.commit()
+    event_summary.summarize(session, summarized_event, MockAIClient(seed=1))
+
+    result = generated_content.refresh_all(session, MockAIClient(seed=2))
+
+    assert result["events_summarized"] == 2
+    assert result["episodes_summarized"] == 1
+    assert session.query(EventSummary).filter_by(event_id=unsummarized_event.id).count() == 1
+    assert session.query(EpisodeSummary).filter_by(episode_id=episode.id).count() == 1
+    assert session.query(EventSummary).filter_by(event_id=empty_event.id).count() == 0
