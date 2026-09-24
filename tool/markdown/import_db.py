@@ -87,14 +87,17 @@ def _upsert(
     values.update(sections)
 
     row = session.get(model, row_id) if row_id is not None else None
+    # md 名は前回の書き出し時の名前のままなので、`# data` で名前を直した md は直す前の名前と比べる
+    default_filenames = {row.default_filename()} if row is not None else set()
     if row is None:
         row = model(**values)
         session.add(row)
     else:
         for key, value in values.items():
             setattr(row, key, value)
+    default_filenames.add(row.default_filename())
     # 名前から自動で付く部分(人物名など)は filename に残さない。名前が変わったら md 名も追従する
-    if row.filename is not None and row.filename == row.default_filename():
+    if row.filename is not None and row.filename in default_filenames:
         row.filename = None
     session.flush()
     if row_id is None:

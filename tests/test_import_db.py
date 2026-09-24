@@ -86,6 +86,30 @@ def test_import_location_id_only_file_gets_named_on_export(session, tmp_path):
     assert sorted(os.listdir(os.path.join(root, "location"))) == ["71_パンデム.md"]
 
 
+def test_name_edited_in_markdown_renames_file_on_export(session, tmp_path):
+    session.add(Location(id=71, name="パンデム", text=""))
+    session.commit()
+    root = str(tmp_path / "worlds")
+    _write(os.path.join(root, "location", "71_パンデム.md"), "# data\n```json\n{\"name\": \"新パンデム\"}\n```\n\n# text\n本文\n")
+
+    import_db(root)
+    assert session.get(Location, 71).filename is None
+
+    from tool.markdown.export_db import export_db
+    export_db(root)
+    assert sorted(os.listdir(os.path.join(root, "location"))) == ["71_新パンデム.md"]
+
+
+def test_name_edited_in_markdown_keeps_explicit_filename(session, tmp_path):
+    session.add(Location(id=73, name="町", text="", filename="別名"))
+    session.commit()
+    root = str(tmp_path / "worlds")
+    _write(os.path.join(root, "location", "73_別名.md"), "# data\n```json\n{\"name\": \"新しい町\"}\n```\n\n# text\n本文\n")
+
+    import_db(root)
+    assert session.get(Location, 73).filename == "別名"
+
+
 def test_idea_markdown_name_uses_name():
     from db.schema import Idea
 

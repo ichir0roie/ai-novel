@@ -485,6 +485,9 @@ class Story(EventSeededMixin, MarkdownBase):
     episodes: Mapped[list["Episode"]] = relationship(
         back_populates="story", lazy="noload", order_by="Episode.number.asc()")
 
+    def default_filename(self) -> str | None:
+        return self.name
+
 
 class Episode(EventSeededMixin, MarkdownBase):
 

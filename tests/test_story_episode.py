@@ -155,7 +155,7 @@ def test_episode_markdown_keeps_empty_sections(session, place, tmp_path):
     assert (episode.key, episode.text) == ("種だけ", "")
 
 
-def test_story_markdown_name_keeps_filename(session, place, tmp_path):
+def test_story_markdown_name_uses_name(session, place, tmp_path):
     CommitStory({"name": "遥かなる幻想郷まで", "place_id": place,
                  "filename": "遥かなる幻想郷まで"}).run()
     root = str(tmp_path / "worlds")
@@ -164,4 +164,20 @@ def test_story_markdown_name_keeps_filename(session, place, tmp_path):
 
     import_db(root)
     session.expire_all()
-    assert session.get(Story, 1).filename == "遥かなる幻想郷まで"
+    assert session.get(Story, 1).filename is None
+    assert session.get(Story, 1).markdown_name == "1_遥かなる幻想郷まで.md"
+
+
+def test_story_markdown_name_follows_name_edited_in_markdown(session, place, tmp_path):
+    CommitStory({"name": "遥かなる幻想郷まで・アルバ編", "place_id": place}).run()
+    root = str(tmp_path / "worlds")
+    export_db(root)
+    path = os.path.join(root, "story", "1_遥かなる幻想郷まで・アルバ編.md")
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content.replace('"name": "遥かなる幻想郷まで・アルバ編"', '"name": "アルバ"'))
+
+    import_db(root)
+    export_db(root)
+    assert os.listdir(os.path.join(root, "story")) == ["1_アルバ.md"]
