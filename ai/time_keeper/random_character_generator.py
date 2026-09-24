@@ -44,10 +44,11 @@ _CONTENT_SYSTEM_PROMPT = f"""\
 「性格」は各軸を {'/'.join(PERSONALITY_LEVELS)} の五段階で渡す(サイコロで決まっていて変えられない)。人物説明はこの段階と矛盾しないようにし、「無」「必」の軸はその極端さが生活・仕事・人との関わり方に具体的な癖として表れるように書く。段階の語をそのまま書き写さない。
 {_meme_instruction("人物")}
 {_PLACEHOLDER_INSTRUCTION}
-キーは次の三つだけ。
+キーは次の四つだけ。
 - text: 具体的な生活・仕事・関係が伝わる2〜3文の人物説明。目立った能力・特技があれば地の文として含め、別項目には分けない。「優しい」「謎めいた」のような、誰にでも当てはまる抽象的な形容だけで済ませず、この人物固有の具体的な癖・関わり・生い立ちを最低一つ含める。
 - age: 年齢(整数)。{_AGE_RANGE}の範囲で、text の人物説明と矛盾しない値をあなた自身で決める。例えば老成した説明なら年長めに、幼さの残る説明なら年少めに。
-- principle: 行動原理(ミーム)どうしの関係を整理した2〜4文。ミームが渡されていなければ空文字。"""
+- principle: 行動原理(ミーム)どうしの関係を整理した2〜4文。ミームが渡されていなければ空文字。
+- dialect: 方言。出身地・参考地域・参考文化・生業・生い立ち・年齢・性格・口調から、この人物がどんな言葉で話すかを1〜2文で決める。土地の言葉で話すなら、どの地方風の方言か(現実の方言を手本にしてよい)と、特徴的な語尾・言い回しを一つ以上。標準語で話すなら、その人物らしい癖(語尾・口ぐせ・言い淀み・訛りの名残など)を一つ以上。誰にでも当てはまる「普通の話し方」で済ませない。"""
 
 _CONTENT_SCHEMA = {
     "type": "object",
@@ -55,8 +56,9 @@ _CONTENT_SCHEMA = {
         "text": {"type": "string"},
         "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
         "principle": {"type": "string"},
+        "dialect": {"type": "string"},
     },
-    "required": ["text", "age", "principle"],
+    "required": ["text", "age", "principle", "dialect"],
     "additionalProperties": False,
 }
 
@@ -128,7 +130,7 @@ _NAME_SCHEMA = {
 
 # 人物だけが持つ列。人物以外の対象では空にする。
 _PERSON_ONLY_COLUMNS = (
-    "sex", "height", "build", "first_person", "second_person", "third_person", "tone",
+    "sex", "height", "build", "first_person", "second_person", "third_person", "tone", "dialect",
 )
 
 
@@ -288,6 +290,8 @@ def _generate_one(
         draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
 
     draft["text"] = decided.get("text") or draft["text"]
+    if person:
+        draft["dialect"] = (decided.get("dialect") or "").strip() or None
     context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None)
     if context.related:
         polished = ai.try_generate_json(
@@ -310,12 +314,14 @@ def _generate_one(
     draft["start"] = Stamp(time.year - age)
     draft["end"] = Stamp(time.year - age + dead_age)
 
+    dialect_line = f"方言: {draft['dialect']}\n" if person and draft.get("dialect") else ""
     # 名前は、説明・年齢など中身が決まったあとに、その内容から連想して決める。
     name_prompt = (
         f"種別: {draft['kind']}\n"
         f"説明: {draft['text']}\n"
         f"年齢: {age}\n"
         f"{person_line}"
+        f"{dialect_line}"
         f"居場所: {born_place.name if born_place else '不明'}\n"
         f"場所の特徴:\n{_location_context(born_place)}\n"
         f"所属する地域: {region_label}\n"
@@ -344,6 +350,7 @@ def _generate_one(
     print(f"[time_keepr/character] {when} 生成: {record.name}"
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
           + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
+             f"    方言: {record.dialect}\n"
              f"    性格: {_personality_label(record)}\n"
              if person else "")
           + f"    筋書きの要素: {chosen_element or '(無し)'}\n"

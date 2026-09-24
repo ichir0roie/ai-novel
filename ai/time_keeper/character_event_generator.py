@@ -90,6 +90,7 @@ def _sheet(character: Character, time: Stamp) -> dict:
             "sex": character.sex,
             "first_person": character.first_person, "second_person": character.second_person,
             "third_person": character.third_person, "tone": character.tone,
+            "dialect": character.dialect,
             "text": character.text}
 
 

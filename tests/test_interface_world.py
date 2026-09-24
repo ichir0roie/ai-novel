@@ -8,7 +8,7 @@ def test_list_characters_includes_place(session):
     place = Location(name="村", kind="村", text="")
     session.add(place)
     session.flush()
-    resident = Character(name="アル", text="村の子", sex="男", tone="です・ます")
+    resident = Character(name="アル", text="村の子", sex="男", tone="です・ます", dialect="京言葉風")
     wanderer = Character(name="ベル", text="")
     session.add_all([resident, wanderer])
     session.flush()
@@ -21,6 +21,7 @@ def test_list_characters_includes_place(session):
     assert rows[0]["text"] == "村の子"
     assert rows[0]["sex"] == "男"
     assert rows[0]["tone"] == "です・ます"
+    assert rows[0]["dialect"] == "京言葉風"
     assert rows[1]["place_id"] is None
 
 

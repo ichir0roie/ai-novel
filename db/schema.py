@@ -368,6 +368,8 @@ class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
     second_person: Mapped[str | None] = mapped_column(String,  comment="二人称", sort_order=360)
     third_person: Mapped[str | None] = mapped_column(String,  comment="三人称", sort_order=370)
     tone: Mapped[str | None] = mapped_column(String,  comment="口調", sort_order=380)
+    dialect: Mapped[str | None] = mapped_column(
+        String, comment="方言。方言の種類か、標準語で話すならその癖(語尾・言い回し・訛り)", sort_order=385)
 
     # --- 性格 -----------------------------------------------------------
     # 各列は PersonalityLevel の値(無/低/並/高/必)。

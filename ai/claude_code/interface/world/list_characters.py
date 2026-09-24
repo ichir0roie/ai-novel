@@ -13,6 +13,6 @@ class ListCharacters(WorldQuery):
         place = row.places[0] if row.places else None
         return {
             "id": row.id, "name": row.name, "kind": row.kind, "text": row.text,
-            "sex": row.sex, "tone": row.tone,
+            "sex": row.sex, "tone": row.tone, "dialect": row.dialect,
             "place_id": place.location_id if place else None,
         }
