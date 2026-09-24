@@ -44,11 +44,12 @@ _CONTENT_SYSTEM_PROMPT = f"""\
 「性格」は各軸を {'/'.join(PERSONALITY_LEVELS)} の五段階で渡す(サイコロで決まっていて変えられない)。人物説明はこの段階と矛盾しないようにし、「無」「必」の軸はその極端さが生活・仕事・人との関わり方に具体的な癖として表れるように書く。段階の語をそのまま書き写さない。
 {_meme_instruction("人物")}
 {_PLACEHOLDER_INSTRUCTION}
-キーは次の四つだけ。
+キーは次の五つだけ。
 - text: 具体的な生活・仕事・関係が伝わる2〜3文の人物説明。目立った能力・特技があれば地の文として含め、別項目には分けない。「優しい」「謎めいた」のような、誰にでも当てはまる抽象的な形容だけで済ませず、この人物固有の具体的な癖・関わり・生い立ちを最低一つ含める。
 - age: 年齢(整数)。{_AGE_RANGE}の範囲で、text の人物説明と矛盾しない値をあなた自身で決める。例えば老成した説明なら年長めに、幼さの残る説明なら年少めに。
 - principle: 行動原理(ミーム)どうしの関係を整理した2〜4文。ミームが渡されていなければ空文字。
-- dialect: 方言。出身地・参考地域・参考文化・生業・生い立ち・年齢・性格・口調から、この人物がどんな言葉で話すかを1〜2文で決める。土地の言葉で話すなら、どの地方風の方言か(現実の方言を手本にしてよい)と、特徴的な語尾・言い回しを一つ以上。標準語で話すなら、その人物らしい癖(語尾・口ぐせ・言い淀み・訛りの名残など)を一つ以上。誰にでも当てはまる「普通の話し方」で済ませない。"""
+- dialect: 方言。出身地・参考地域・参考文化・生業・生い立ち・年齢・性格・口調から、この人物がどんな言葉で話すかを1〜2文で決める。土地の言葉で話すなら、どの地方風の方言か(現実の方言を手本にしてよい)と、特徴的な語尾・言い回しを一つ以上。標準語で話すなら、その人物らしい癖(語尾・口ぐせ・言い淀み・訛りの名残など)を一つ以上。誰にでも当てはまる「普通の話し方」で済ませない。
+- history: 来歴。生まれてから現在(age の歳)までの節目を、歳の順に3〜5件。各要素は age(その時の歳。0 以上、上の age 以下の整数)と text(その歳に何があり、立場・仕事・住まい・人間関係がどう変わったかの1文)。人物説明の立場・仕事・住まいには、いつそうなったかの節目を必ず含める。最後の一件は現在(age の歳)の暮らしにする。"""
 
 _CONTENT_SCHEMA = {
     "type": "object",
@@ -57,8 +58,21 @@ _CONTENT_SCHEMA = {
         "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
         "principle": {"type": "string"},
         "dialect": {"type": "string"},
+        "history": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "age": {"type": "integer", "minimum": 0,
+                            "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
+                    "text": {"type": "string"},
+                },
+                "required": ["age", "text"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["text", "age", "principle", "dialect"],
+    "required": ["text", "age", "principle", "dialect", "history"],
     "additionalProperties": False,
 }
 
@@ -132,6 +146,27 @@ _NAME_SCHEMA = {
 _PERSON_ONLY_COLUMNS = (
     "sex", "height", "build", "first_person", "second_person", "third_person", "tone", "dialect",
 )
+
+
+def history_section(items, born_year: int, age: int) -> str:
+    """来歴の各行に年と歳を併記する。最後の行は現在の歳にそろえ、後から読む側がその時点の段階を引けるようにする。"""
+    rows = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        text = (item.get("text") or "").strip()
+        try:
+            at = int(item.get("age"))
+        except (TypeError, ValueError):
+            continue
+        if text and 0 <= at <= age:
+            rows.append((at, text))
+    rows.sort(key=lambda row: row[0])
+    if rows and rows[-1][0] == age:
+        rows[-1] = (age, f"現在。{rows[-1][1]}")
+    else:
+        rows.append((age, "現在。"))
+    return "\n".join(f"- {born_year + at}年({at}歳): {text}" for at, text in rows)
 
 
 def _should_roll(time: Stamp) -> bool:
@@ -298,16 +333,19 @@ def _generate_one(
             f"下書き: {draft['text']}\n{idea_context.prompt_section(context.related)}この説明を清書してください。",
             _POLISH_SCHEMA, system=_POLISH_SYSTEM_PROMPT, timeout=constants.IDEA_POLISH_TIMEOUT)
         draft["text"] = (polished.get("text") or "").strip() or draft["text"]
-    if drawn_memes:
-        draft["text"] += f"\n\n# meme\n{meme.meme_section(drawn_memes)}"
-        principle = (decided.get("principle") or "").strip()
-        if principle:
-            draft["text"] += f"\n\n# 行動原理\n{principle}"
     try:
         age = int(decided.get("age", 0))
     except (TypeError, ValueError):
         age = rng.randint(*constants.GENERATION_CHARACTER_AGE_RANGE)
     age = min(max(age, constants.GENERATION_CHARACTER_AGE_RANGE[0]), constants.GENERATION_CHARACTER_AGE_RANGE[1])
+
+    if person:
+        draft["text"] += f"\n\n# 来歴\n{history_section(decided.get('history'), time.year - age, age)}"
+    if drawn_memes:
+        draft["text"] += f"\n\n# meme\n{meme.meme_section(drawn_memes)}"
+        principle = (decided.get("principle") or "").strip()
+        if principle:
+            draft["text"] += f"\n\n# 行動原理\n{principle}"
 
     dead_age = age + rng.randint(10, 100)
 
