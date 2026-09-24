@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import enum
+import hashlib
 import os
 
 from sqlalchemy import (
@@ -236,6 +237,23 @@ class EventCharacter(Base):
     character: Mapped["Character"] = relationship(lazy="noload")
 
 
+def summary_source_hash(text: str) -> str:
+    """要約テーブルの `source_hash`。要約した本文と今の本文が同じかを見るのに使う。"""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class EventSummary(Base):
+    """出来事の本文の要約。md には出さない(import/export の外)。"""
+
+    __tablename__ = "event_summary"
+
+    event_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("event.id"), unique=True, index=True, sort_order=100)
+    source_hash: Mapped[str] = mapped_column(
+        String, comment="要約した本文の sha256。本文と食い違ったら作り直す", sort_order=110)
+    text: Mapped[str] = mapped_column(String, comment="要約", sort_order=120)
+
+
 CHARACTER_KIND_PERSON = "人物"
 
 
@@ -467,6 +485,20 @@ class Episode(MarkdownBase):
         return None, {"story_id": int(story_part), "title": rest or None}
 
 
+class StorySummary(Base):
+    """作品の話(`Episode`)一話ぶんの要約と文体の覚え書き。md には出さない(import/export の外)。"""
+
+    __tablename__ = "story_summary"
+
+    story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"), index=True, sort_order=100)
+    episode_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("episode.id"), unique=True, index=True, sort_order=110)
+    source_hash: Mapped[str] = mapped_column(
+        String, comment="要約した本文の sha256。本文と食い違ったら作り直す", sort_order=120)
+    summary: Mapped[str] = mapped_column(String, comment="概要", sort_order=130)
+    style: Mapped[str] = mapped_column(String, comment="文体の覚え書き", sort_order=140)
+
+
 # core は世界リポジトリのサブモジュール core/ として置き、core/ から実行する
 WORLD_DIR = os.environ.get("DEM_WORLD_DIR", "..")
 NOVEL_DB_PATH = os.environ.get("DEM_NOVEL_DB_PATH", os.path.join(WORLD_DIR, "novel.db"))
@@ -522,3 +554,4 @@ def get_novel_session():
 def get_test_session():
     """環境変数に関わらず novel.test.db。"""
     return Session(_fixed_engine(TEST_DB_PATH))
+

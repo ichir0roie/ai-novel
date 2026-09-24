@@ -2,7 +2,7 @@
 import pytest
 
 from DEM.ai.claude_code import story_writer
-from DEM.db.schema import Episode, Location, Story
+from DEM.db.schema import Episode, Location, Story, StorySummary, summary_source_hash
 from DEM.db.stamp import Stamp
 
 
@@ -40,15 +40,16 @@ def calls(monkeypatch):
     return recorded
 
 
-def test_recap_reads_only_the_last_two_episodes(session, story, calls):
+def test_recap_reads_only_the_last_two_episodes_one_by_one(session, story, calls):
     add_episodes(session, story, 3)
 
     story_writer.write_next_episode(session, story.id)
 
-    recap_prompt = calls[0]["prompt"]
-    assert calls[0]["schema"] is story_writer._RECAP_SCHEMA
-    assert "2話の本文" in recap_prompt and "3話の本文" in recap_prompt
-    assert "1話の本文" not in recap_prompt
+    recaps = [call for call in calls if call["schema"] is story_writer._RECAP_SCHEMA]
+    assert len(recaps) == 2
+    assert "2話の本文" in recaps[0]["prompt"] and "3話の本文" not in recaps[0]["prompt"]
+    assert "3話の本文" in recaps[1]["prompt"]
+    assert all("1話の本文" not in call["prompt"] for call in recaps)
 
 
 def test_episode_prompt_carries_the_recap(session, story, calls):
@@ -56,10 +57,49 @@ def test_episode_prompt_carries_the_recap(session, story, calls):
 
     record = story_writer.write_next_episode(session, story.id)
 
-    episode_prompt = calls[1]["prompt"]
-    assert "直前の話の概要: 二人が村を出た" in episode_prompt
+    episode_prompt = calls[-1]["prompt"]
+    assert "直前の話の概要: 第1話: 二人が村を出た\n第2話: 二人が村を出た" in episode_prompt
     assert "直前の話の文体(これに揃える): 短い地の文と会話" in episode_prompt
     assert record.number == 3
+
+
+def test_recap_is_kept_in_the_story_summary_table(session, story, calls):
+    add_episodes(session, story, 2)
+
+    story_writer.write_next_episode(session, story.id)
+
+    rows = session.query(StorySummary).order_by(StorySummary.episode_id).all()
+    assert [(row.story_id, row.summary, row.style) for row in rows] == [
+        (story.id, "二人が村を出た", "短い地の文と会話")] * 2
+    assert rows[0].source_hash == summary_source_hash("1話の本文")
+
+
+def test_recap_is_reused_while_the_episode_text_is_unchanged(session, story, calls):
+    add_episodes(session, story, 2)
+    story_writer.write_next_episode(session, story.id)
+    calls.clear()
+
+    story_writer.write_next_episode(session, story.id)
+
+    recaps = [call for call in calls if call["schema"] is story_writer._RECAP_SCHEMA]
+    assert len(recaps) == 1
+    assert "本文" in recaps[0]["prompt"] and "2話の本文" not in recaps[0]["prompt"]
+
+
+def test_recap_is_rewritten_when_the_episode_text_changes(session, story, calls):
+    add_episodes(session, story, 2)
+    story_writer.write_next_episode(session, story.id, number=3)
+    episode = session.query(Episode).filter_by(story_id=story.id, number=2).one()
+    episode.text = "2話の書き直した本文"
+    session.commit()
+    calls.clear()
+
+    story_writer.write_next_episode(session, story.id, number=3)
+
+    recaps = [call for call in calls if call["schema"] is story_writer._RECAP_SCHEMA]
+    assert len(recaps) == 1 and "2話の書き直した本文" in recaps[0]["prompt"]
+    row = session.query(StorySummary).filter_by(episode_id=episode.id).one()
+    assert row.source_hash == summary_source_hash("2話の書き直した本文")
 
 
 def test_first_episode_skips_the_recap(session, story, calls):
@@ -84,8 +124,9 @@ def test_episode_is_written_without_a_usable_recap(session, story, monkeypatch):
 
     record = story_writer.write_next_episode(session, story.id)
 
-    assert "直前の話の概要" not in prompts[1]
-    assert "直前の話の文体" not in prompts[1]
+    assert "直前の話の概要" not in prompts[-1]
+    assert "直前の話の文体" not in prompts[-1]
+    assert session.query(StorySummary).count() == 0
     assert record.text == "本文"
 
 

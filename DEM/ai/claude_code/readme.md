@@ -66,6 +66,8 @@ ExportDb().run()
   居場所に一番近く掛かる作品の `start`(生まれより後なら生まれ)から数える
 - その時刻に居場所が無い者・`active_random_generation` でない場所に居る者は選び直す
   (常駐ループが出来事の対象にしない者は、ここでも対象にしない)
+- 直前の出来事は、本文の代わりに要約(`event_summary.py`)を渡す。要約は `event_summary` テーブル
+  (md には出さない)に残し、本文が変わっていなければ作り直さない。要約が作れなければ本文のまま渡す
 - 組み立ては常駐ループの `event_progression_generator` と同じ(当事者ごとの推測 → 候補をサイコロ → 記録)。
   選んだ者は必ず当事者に入る。居合わせる者のうち、自分の時間が既に先へ進んでいる者は加えない
 - 記録として起こしたあと、本文(`text`)だけを話と同じ小説の形、一話の三分の一(`EVENT_NOVEL_TARGET_LETTERS`)に
@@ -82,8 +84,9 @@ write_story(story_id=1, number=4)          # 種だけ入っている第4話を�
 ```
 
 材料は `start_story` 入口と同じ(作品の見出し・直前の話・断面・顔ぶれ)。
-書く前に直前の 2 話(`RECAP_EPISODE_LIMIT`)の本文を読ませ、概要と文体の覚え書きを
-作らせてから、それを本文のプロンプトへ載せる。
+書く前に直前の 2 話(`RECAP_EPISODE_LIMIT`)の本文を一話ずつ読ませ、概要と文体の覚え書きを
+作らせてから、それを本文のプロンプトへ載せる。覚え書きは `story_summary` テーブル(md には出さない)に
+一話ずつ残し、本文が変わっていなければ作り直さない。
 
 - 書く話は `number` で指す。省くと**本文の入っている最後の話の次**を書く。
   種(`key`)だけ入れてある先の話は「まだ書かれていない」扱いなので、
@@ -92,4 +95,4 @@ write_story(story_id=1, number=4)          # 種だけ入っている第4話を�
 - 止めるのは、**その話より前に**「本文はあるのに `synced` が下りている話」がある場合だけ
 - 書いた話は `synced=True` で確定する
 - 本文の長さ・場面の切り方・文体は `DEM/ai/instructions/style.py`
-  (`EPISODE_TARGET_LETTERS` / `EPISODE_TARGET_SCENES` / `EPISODE_STYLE_BASE`)
+  (`EPISODE_TARGET_LETTERS` / `EPISODE_STYLE_BASE`)

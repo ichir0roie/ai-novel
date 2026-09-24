@@ -16,14 +16,11 @@ from dataclasses import dataclass
 # 文体の特徴を抽出する材料にする、直近の話の本数。
 STYLE_SOURCE_EPISODE_LIMIT = 10
 
-# 一話ぶんの本文の目安。長さは場面の数で作るので、場面の側にも目安を持つ。
+# 一話ぶんの本文の目安。
 EPISODE_TARGET_LETTERS = (5000, 8000)
-EPISODE_TARGET_SCENES = (4, 6)
-EPISODE_TARGET_SCENE_LETTERS = (1200, 1600)
 
 # 話と同じ小説の形で書く出来事の本文(毎日のルーチン)の目安。一話の三分の一。
 EVENT_NOVEL_TARGET_LETTERS = tuple(int(round(letters / 3, -2)) for letters in EPISODE_TARGET_LETTERS)
-EVENT_NOVEL_TARGET_SCENES = tuple(max(1, round(scenes / 3)) for scenes in EPISODE_TARGET_SCENES)
 
 # 場面の切れ目に置く行。
 SCENE_BREAK = "◇"
@@ -72,23 +69,28 @@ NOVEL_STYLE_BASE = """\
 情景は視点人物が実際に見聞きした範囲で書き、説明のための地の文を挟まない。
 セリフは人物ごとの口調の差が読み分けられる長さで切る。
 空行は、言動の主体が変わるとき・場面が動くとき(時間が飛ぶ、場所が移る、人物から視点が外れる)・一行だけを孤立させて間を作るときにだけ置く。
-一人の人物の言動が続くあいだは、そのセリフと、誰が言ったか・どう動いたかの地の文を、空行を挟まず改行だけで続ける。"""
+一人の人物の言動が続くあいだは、そのセリフと、誰が言ったか・どう動いたかの地の文を、空行を挟まず改行だけで続ける。
+描写の細かさは中身の重さで変える。筋が動くところ・人物の気持ちが揺れるところは、動作・セリフ・間を一つずつ追って細かく書く。
+移動・待ち時間・繰り返しの作業のように筋が動かないところは、一〜二文で飛ばす。
+情景は、視点人物の目に留まった物を一か所に一つか二つだけ書き、見えるものを並べ立てない。
+気持ちは地の文で説明しきらず、動作・セリフに出す分と、書かずに読み手へ預ける分を分ける。
+締め方は、書いている出来事の中身が終わったかどうかで変える。
+中身が終わっていないときは、謎・伏線・この先への期待を残して切る。
+中身が終わったときは、余韻を残すか、気の利いた落ちを付けて締める。"""
 
 
-def _scale_rule(unit: str, letters: tuple[int, int], scenes: tuple[int, int]) -> str:
+def _scale_rule(unit: str, letters: tuple[int, int]) -> str:
     """`unit`(「一話」など)一つぶんの分量と、場面の切り方。"""
     return f"""\
 孤立させた一行は間を作るための道具なので、{unit}に数回までに抑える。
-{unit}は{letters[0]}〜{letters[1]}字。\
-{scenes[0]}〜{scenes[1]}個の場面に分け、\
-一場面は{EPISODE_TARGET_SCENE_LETTERS[0]}〜{EPISODE_TARGET_SCENE_LETTERS[1]}字を目安にする。
-場面は「どこで・誰が・何が変わるか」が一つ決まる単位で、切れ目には「{SCENE_BREAK}」だけの行を置く。
-字数は場面の数と、その場面で実際に起きることで作る。修飾・言い換え・心情の反芻を足して伸ばさない。"""
+{unit}は{letters[0]}〜{letters[1]}字。
+場面の数と一場面の長さは決めず、中身に合わせる。場面が変わる(時間が飛ぶ・場所が移る)ところにだけ、「{SCENE_BREAK}」だけの行を置く。
+字数は、実際に起きることで作る。修飾・言い換え・心情の反芻を足して伸ばさない。"""
 
 
 EPISODE_STYLE_BASE = f"""\
 {NOVEL_STYLE_BASE}
-{_scale_rule("一話", EPISODE_TARGET_LETTERS, EPISODE_TARGET_SCENES)}
+{_scale_rule("一話", EPISODE_TARGET_LETTERS)}
 種(key)に場面が足りないときは、足りないぶんを場面として立ててから書く。"""
 
 EPISODE_STYLE_EXTRACTED = """\
@@ -98,7 +100,6 @@ EPISODE_STYLE_EXTRACTED = """\
 セリフで理屈を積み上げて説明しない。短く言い切り、相手には理屈ではなく感情で返させる。
 地の文の独白は、視点人物がその場で思った言葉のまま書く。比喩や警句・一般論へ言い換えず、好き・困ったといった感情を隠さない(「これがこんなに大きいものだと忘れている」より「こんなに大きかったっけ」)。
 制度や事務の側に立つ人物の口調だけは硬いまま残し、人間の口調との差を広げる。
-話を締める一行に、気の利いた落ちを付けない。
 題は詩的な体言止めへ寄せず、人物の言葉に近い言い回しにする(「堕ちる翼」より「翼は捨てて」)。
 設定や制度は、察させる言い方に寄せず、その場の人物が分かる言葉で言い切らせる(「この部屋の記録は、局の様式に無い」より「この部屋の会話は記録されない」)。
 「AではなくBだ」の対句で決めない。整った言い換えより、話者がそう思っていることをそのまま言わせる(「規格の外じゃない。規格より前だ」より「規格なんて問題じゃない」)。
@@ -112,7 +113,7 @@ EPISODE_STYLE_EXTRACTED = """\
 # 話と同じ小説の形で書く出来事の本文(毎日のルーチン)。特徴は話のもの(EPISODE_STYLE_EXTRACTED)を使う。
 EVENT_NOVEL_STYLE_BASE = f"""\
 {NOVEL_STYLE_BASE}
-{_scale_rule("出来事一件", EVENT_NOVEL_TARGET_LETTERS, EVENT_NOVEL_TARGET_SCENES)}"""
+{_scale_rule("出来事一件", EVENT_NOVEL_TARGET_LETTERS)}"""
 
 STORY_STYLE_BASE = """\
 作品の筋書きは読ませる文ではなく、後から段階を測るための文として書く。

@@ -2,10 +2,12 @@
 import random
 
 from DEM.ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION
-from DEM.ai.time_keeper import character_event_generator, event_progression_generator, main
+from DEM.ai.time_keeper import character_event_generator, event_progression_generator, event_summary, main
 from DEM.ai.time_keeper._format import days_between
 from DEM.data_access_logic.query import common_query
-from DEM.db.schema import Character, CharacterPlace, Event, EventCharacter, Location, Story
+from DEM.db.schema import (
+    Character, CharacterPlace, Event, EventCharacter, EventSummary, Location, Story, summary_source_hash,
+)
 from DEM.db.stamp import Stamp
 from DEM.tool.test.mock_ai_client import MockAIClient
 
@@ -181,7 +183,9 @@ def test_event_is_decided_by_the_monthly_logic_told_the_focus_and_the_previous_e
     assert decide["system"] == event_progression_generator._PLACE_SYSTEM_PROMPT
     assert (f"この出来事の主役(主役の身に起きる次の出来事として考え、当事者に必ず含める): "
             f"{{'character_id': {character.id}, 'name': '{character.name}'}}") in decide["prompt"]
-    assert "峠越えの本文" in decide["prompt"]
+    assert "'name': '峠越え'" in decide["prompt"]
+    assert "'summary': 'モックtext1'" in decide["prompt"]
+    assert "峠越えの本文" not in decide["prompt"]
 
 
 def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
@@ -199,7 +203,8 @@ def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
     assert EVENT_NOVEL_INSTRUCTION in novel["system"]
     assert EVENT_RECORD_INSTRUCTION not in novel["system"]
     assert '"first_person": "僕"' in novel["prompt"]
-    assert '"place": "村"' in novel["prompt"] and "峠越えの本文" in novel["prompt"]
+    assert '"place": "村"' in novel["prompt"] and '"summary": "モックtext1"' in novel["prompt"]
+    assert "峠越えの本文" not in novel["prompt"]
     assert "1700〜2700字の小説" in novel["prompt"]
     assert record.text == f"モックtext{len(ai.calls)}"
 
@@ -218,6 +223,74 @@ def test_record_text_is_kept_when_the_novel_is_not_written(session):
     record = character_event_generator.generate_next(session, _WritesNoNovel(seed=1), random.Random(1))
 
     assert record.text.startswith("モックevent_text")
+
+
+def test_previous_event_is_summarized_first_and_kept(session):
+    place = _place(session)
+    character = _character(session, place)
+    previous = _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    summarize = ai.calls[0]
+    assert summarize["schema"] is event_summary._SCHEMA
+    assert "峠越えの本文" in summarize["prompt"]
+    row = session.query(EventSummary).filter_by(event_id=previous.id).one()
+    assert row.text == "モックtext1"
+    assert row.source_hash == summary_source_hash("峠越えの本文")
+
+
+def test_summary_is_reused_while_the_text_is_unchanged(session):
+    place = _place(session)
+    character = _character(session, place)
+    previous = _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
+    session.add(EventSummary(event_id=previous.id, source_hash=summary_source_hash("峠越えの本文"),
+                             text="峠を越えた"))
+    session.commit()
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    assert all(call["schema"] is not event_summary._SCHEMA for call in ai.calls)
+    assert "'summary': '峠を越えた'" in ai.calls[0]["prompt"]
+
+
+def test_summary_is_rewritten_when_the_text_changes(session):
+    place = _place(session)
+    character = _character(session, place)
+    previous = _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
+    session.add(EventSummary(event_id=previous.id, source_hash=summary_source_hash("古い本文"),
+                             text="古い要約"))
+    session.commit()
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    assert ai.calls[0]["schema"] is event_summary._SCHEMA
+    row = session.query(EventSummary).filter_by(event_id=previous.id).one()
+    assert row.text == "モックtext1"
+    assert row.source_hash == summary_source_hash("峠越えの本文")
+
+
+class _WritesNoSummary(MockAIClient):
+    def try_generate_json(self, prompt, schema, **kwargs):
+        if schema is event_summary._SCHEMA:
+            self.calls.append({"prompt": prompt, "system": kwargs.get("system"), "schema": schema})
+            return {}
+        return super().try_generate_json(prompt, schema, **kwargs)
+
+
+def test_previous_text_is_passed_when_the_summary_is_not_written(session):
+    place = _place(session)
+    character = _character(session, place)
+    _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
+    ai = _WritesNoSummary(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    assert "'text': '峠越えの本文'" in ai.calls[1]["prompt"]
+    assert session.query(EventSummary).count() == 0
 
 
 def test_monthly_progression_keeps_writing_records():

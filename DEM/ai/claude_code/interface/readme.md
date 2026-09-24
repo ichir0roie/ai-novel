@@ -74,9 +74,8 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 - 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
   入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
   `# data` の `start` / `end` / `place` / `viewpoint` に入る
-- 本文は一話 5000〜8000 字、4〜6 個の場面に分ける(`DEM/ai/instructions/style.py` の
-  `EPISODE_TARGET_LETTERS` / `EPISODE_TARGET_SCENES`)。長さは場面の数で作るので、
-  **書く直前に種を場面まで割ってから本文に入る**。種はその話ぶんで 300〜500 字を目安に、
+- 本文は一話 5000〜8000 字(`DEM/ai/instructions/style.py` の `EPISODE_TARGET_LETTERS`)。
+  場面の数と一場面の長さは決めず、中身に合わせる。**書く直前に種を場面まで割ってから本文に入る**。種はその話ぶんで 300〜500 字を目安に、
   `## 場面` の箇条書き(`場所 / 出る人 / そこで変わること`)と `## 狙い` で書く:
 
 ```
