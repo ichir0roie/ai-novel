@@ -1,9 +1,0 @@
-{
-  "model": "opus",
-  "effortLevel": "high",
-  "modelSettings": {
-    "opus": {
-      "effortLevel": "high"
-    }
-  }
-}

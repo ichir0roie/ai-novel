@@ -77,8 +77,15 @@ git push
 - **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
   好きに覗いてよい。読むだけなら `import_db` / `export_db` も回さなくてよい。
   書き込み(`insert` `update` `delete`)は必ず入口越しに行う
-- 調査用の読み取り例:
+- 調査用の読み取り例(世界リポジトリのルートで `./run_python.sh` を使う。`core/` は `.venv` の場所を持たない):
 
+```
+./run_python.sh -c "
+import sqlite3
+c = sqlite3.connect('../novel.db')
+print(c.execute('select count(*) from character').fetchone())
+"
+```
 
 # md と db の同期(import / export)
 
