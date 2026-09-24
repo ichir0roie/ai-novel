@@ -248,12 +248,22 @@ def character_place_select(character_id: int, until: Stamp) -> Select:
             .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc()))
 
 
-def latest_character_event_select(character_id: int) -> Select:
+def latest_character_event_select(character_id: int, *, until: Stamp | None = None) -> Select:
+    finished = func.coalesce(Event.end, Event.start, Event.time)
+    query = (select(Event)
+             .options(*EVENT_LOAD_OPTIONS)
+             .where(Event.event_characters.any(EventCharacter.character_id == character_id))
+             .order_by(finished.desc(), Event.id.desc())
+             .limit(1))
+    return query.where(finished <= until) if until is not None else query
+
+
+def character_events_overlapping_select(character_id: int, time: Stamp) -> Select:
+    started = func.coalesce(Event.start, Event.time)
     finished = func.coalesce(Event.end, Event.start, Event.time)
     return (select(Event)
-            .options(*EVENT_LOAD_OPTIONS)
-            .where(Event.event_characters.any(EventCharacter.character_id == character_id))
-            .order_by(finished.desc(), Event.id.desc())
+            .where(Event.event_characters.any(EventCharacter.character_id == character_id),
+                   started <= time, finished > time)
             .limit(1))
 
 
