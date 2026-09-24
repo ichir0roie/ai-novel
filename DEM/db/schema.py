@@ -193,7 +193,16 @@ class Location(MarkdownBase):
         return self.name
 
 
-class Event(MarkdownBase):
+class EventSeededMixin:
+    """出来事の種(`EventSeed`)を抜き出す元に付ける、抜き出し済みの印。"""
+
+    event_seeded: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="出来事の種を抜き出し済みか。false に戻すと、次の毎日のルーチンで抜き出し直す",
+        sort_order=9000)
+
+
+class Event(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "event"
 
@@ -254,36 +263,15 @@ class EventSummary(Base):
     text: Mapped[str] = mapped_column(String, comment="要約", sort_order=120)
 
 
-class EventSeedSource(Base):
-    """出来事の種を抜き出した元。元のテーブルごとに id の列を持ち、どれか一つだけを埋める。md には出さない(import/export の外)。
-
-    種が一件も取れなかった元も行を持つ。そうしないと、毎回抜き出し直すことになる。
-    """
-
-    __tablename__ = "event_seed_source"
-
-    story_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("story.id"), unique=True, nullable=True, comment="作品の本文から", sort_order=100)
-    episode_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("episode.id"), unique=True, nullable=True,
-        comment="話の種(key)から。無ければ本文から", sort_order=110)
-    character_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("character.id"), unique=True, nullable=True,
-        comment="人物の text の # plot の節から", sort_order=120)
-    event_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("event.id"), unique=True, nullable=True, comment="出来事の本文から", sort_order=130)
-    source_hash: Mapped[str] = mapped_column(
-        String, comment="種を抜き出した本文の sha256。本文と食い違ったら抜き出し直す", sort_order=140)
-
-
 class EventSeed(Base):
-    """出来事の種。時代・場所・固有名詞を抜いた、抽象的な出来事のアイデア。md には出さない(import/export の外)。"""
+    """出来事の種。時代・場所・固有名詞を抜いた、抽象的な出来事のアイデア。md には出さない(import/export の外)。
+
+    どの元から抜き出したかは持たない。元の側の `event_seeded` で、抜き出し済みかを管理する。
+    """
 
     __tablename__ = "event_seed"
 
-    event_seed_source_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("event_seed_source.id"), index=True, sort_order=100)
-    text: Mapped[str] = mapped_column(String, comment="種", sort_order=110)
+    text: Mapped[str] = mapped_column(String, comment="種", sort_order=100)
 
 
 CHARACTER_KIND_PERSON = "人物"
@@ -318,7 +306,7 @@ def check_personality(data) -> None:
             f"性格は {'/'.join(PERSONALITY_LEVELS)} のいずれか: {bad}")
 
 
-class Character(MarkdownBase):
+class Character(EventSeededMixin, MarkdownBase):
     """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。"""
 
     __tablename__ = "character"
@@ -440,7 +428,7 @@ class Term(MarkdownBase):
         return self.name
 
 
-class Story(MarkdownBase):
+class Story(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "story"
 
@@ -464,7 +452,7 @@ class Story(MarkdownBase):
         back_populates="story", lazy="noload", order_by="Episode.number.asc()")
 
 
-class Episode(MarkdownBase):
+class Episode(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "episode"
 

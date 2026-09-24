@@ -57,6 +57,8 @@ MAX_CHARACTER_PER_LOCATION = 5
 # character_event_generator
 # 前の出来事の終わりから、次の出来事の始まりまでに空ける日数(両端を含む)。
 NEXT_EVENT_GAP_DAYS = (1, 7)
+# 出来事がまだ無い人物の最初の出来事を、生まれてから何年後に置くか(両端を含む)。
+FIRST_EVENT_AGE_YEARS = (5, 20)
 # 本文を小説の形で書かせるので、記録の JSON より長く待つ秒数。
 EVENT_NOVEL_TIMEOUT = 300.0
 # 直前の出来事の本文を要約させるのを待つ秒数。

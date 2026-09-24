@@ -99,31 +99,41 @@ def test_next_event_starts_one_to_seven_days_after_the_previous_end(session):
         assert character.id in _involved(session, record)
 
 
-def test_first_event_counts_from_the_first_place_not_the_story(session):
+def test_first_event_comes_five_to_twenty_years_after_the_birth_not_the_story(session):
     place = _place(session)
-    moved = Location(name="町", kind="町", text="", start=Stamp(2000), active_random_generation=True)
-    session.add(moved)
-    session.flush()
-    character = _character(session, place, start=Stamp(2080))
-    session.add(CharacterPlace(character_id=character.id, location_id=moved.id, start=Stamp(2095)))
-    session.commit()
-
-    record = character_event_generator.generate_next(session, MockAIClient(seed=1), random.Random(1))
-
-    assert 1 <= days_between(Stamp(2080), record.start) <= 7
-    assert record.location_id == place.id
-
-
-def test_first_event_counts_from_the_birth_when_the_place_has_no_start(session):
-    place = _place(session)
-    born = Stamp(2105, 6, 1)
+    born = Stamp(2080, 3, 10)
     _character(session, place, start=born)
-    session.query(CharacterPlace).update({"start": None})
-    session.commit()
 
-    record = character_event_generator.generate_next(session, MockAIClient(seed=1), random.Random(1))
+    for seed in range(5):
+        session.query(EventCharacter).delete()
+        session.query(Event).delete()
+        session.commit()
+        record = character_event_generator.generate_next(
+            session, MockAIClient(seed=seed), random.Random(seed))
 
-    assert 1 <= days_between(born, record.start) <= 7
+        assert Stamp(2085, 3, 11) <= record.start <= Stamp(2100, 3, 17)
+
+
+def test_character_without_a_birth_is_passed_over(session):
+    place = _place(session)
+    _character(session, place, "生年なし", start=None)
+    born = _character(session, place, "生年あり")
+
+    record = character_event_generator.generate_next(session, MockAIClient(seed=1), _NoShuffle(1))
+
+    assert born.id in _involved(session, record)
+
+
+def test_the_story_is_not_told_to_the_daily_event(session):
+    place = _place(session)
+    _character(session, place)
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    prompts = "\n".join(call["prompt"] for call in ai.calls)
+    assert "村の筋書き" not in prompts
+    assert "進めたい筋書き" not in prompts
 
 
 def test_candidates_are_told_the_drawn_seeds(session):
@@ -337,17 +347,3 @@ def test_daily_event_returns_the_id_of_the_new_event(session):
     assert character.id in _involved(session, record)
     # 先に、作品「村の話」の筋書きから種を抜き出している
     assert session.query(EventSeed).count() > 0
-
-
-def test_first_character_place_is_the_oldest(session):
-    place = _place(session)
-    moved = Location(name="町", kind="町", text="", start=Stamp(2000))
-    session.add(moved)
-    session.flush()
-    character = _character(session, place, start=Stamp(2080))
-    session.add(CharacterPlace(character_id=character.id, location_id=moved.id, start=Stamp(2095)))
-    session.commit()
-
-    row = session.scalars(common_query.first_character_place_select(character.id)).first()
-
-    assert row.location_id == place.id

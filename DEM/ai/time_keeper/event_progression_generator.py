@@ -343,14 +343,16 @@ def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], time: Stamp, rng: random.Random, ai: AIClient,
     *, focus: Character | None = None, note: str = "", seeds: list[str] | None = None,
+    use_story: bool = True,
 ) -> Event | None:
     """`focus` は AI が選ばなくても当事者に入れる。`note` は状況の、時刻の直前に足す。
-    `seeds`(出来事の種)を渡すと、候補をその種か直近の出来事からの連想で立てさせる。"""
+    `seeds`(出来事の種)を渡すと、候補をその種か直近の出来事からの連想で立てさせる。
+    `use_story` が false なら、作品の本文(筋書き)を渡さず、筋書きへ向かう出来事も優先させない。"""
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
     place = session.get(Location, place_id)
-    stories = story_createion_query.load_location_story(session, place_id, time)
+    stories = story_createion_query.load_location_story(session, place_id, time) if use_story else []
     story_text = story_createion_query.join_story_text(stories)
     story_recent_events = (
         _story_recent_event_names(session, stories[0].place_id, place_id, time)
@@ -363,16 +365,18 @@ def _progress_place(
         for c in characters[:20]
     ]
     destinations = _move_destinations(session, place_id, time)
+    story_lines = f"""\
+進めたい筋書き(上位の場所のものから順につなげた作品の本文):
+{story_text or '(指定なし)'}
+筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): {story_recent_events or '(無し)'}
+""" if use_story else ""
 
     situation = f"""\
 場所id: {place_id}
 場所の情報: {(place.name, place.kind, place.text) if place else None}
 居合わせる人物・対象(kind が「人物」以外なら国・組織・集団・物。recent_events はその者自身が場所を問わず関わった直近の出来事): {characters_payload}
 直近の出来事(名前): {[e.name for e in recent_events]}
-進めたい筋書き(上位の場所のものから順につなげた作品の本文):
-{story_text or '(指定なし)'}
-筋書きに関わる直近の出来事(この場所とその上位の場所で直近使われた出来事の名前): {story_recent_events or '(無し)'}
-{note}現在の時刻: {time}
+{story_lines}{note}現在の時刻: {time}
 """
     judgements = _think_participants(situation, characters_payload, ai)
     candidate = _roll_candidate(rng, situation, judgements, ai, seeds)
@@ -382,7 +386,8 @@ def _progress_place(
     candidate_summary = {"name": candidate["name"], "summary": candidate["summary"]}
     hints = "\n".join(hint for hint in (
         "進めたい筋書きがあるなら、そこへ向かう一歩になる出来事を優先する。" if stories else "",
-        "居合わせる人物・対象の text に筋書きが書かれていれば、その者個人について進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。",
+        "居合わせる人物・対象の text に筋書きが書かれていれば、その者個人について進めたい筋書きとして扱い、そこへ向かう一歩になる出来事を優先する。"
+        if use_story else "",
     ) if hint)
     prompt = f"""\
 {situation}移動先の候補(character_moves の location_id はここからだけ選ぶ): {destinations or '(無し)'}
