@@ -7,23 +7,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
     from DEM.ai.claude_code.interface.world.list_places import ListPlaces
     ListPlaces(kind="村").run()
 
-## 鉄則
-
-- **db に触れるのはここ越しだけ。** `DEM/db/` `DEM/randomizer/`
-  `DEM/data_access_logic/` は下地の実装であって、claude が直接呼ぶ入口ではない。
-  ただし読み取り(`select`)だけは、`sqlite3` などで直接覗いてよい。`ImportDb` / `ExportDb` も要らない(CLAUDE.md)
-- **下の表に無い操作は「まだ無い」。** 推測で呼び出さず、「作り方」に沿って
-  入口を足すか、作者に相談する(CLAUDE.md)
-- **入口を足したら、同じ作業のうちに下の表へ行を足す。** 表に無い入口は
-  次のセッションから見えない
-- db に書き込む作業は `ImportDb` で始め、片付いてから `ExportDb` で閉じる。
-  **その間に `worlds/` を触らず、`ImportDb` を二度回さない。** 変更したあとの
-  `ImportDb` は、md 側の古い内容でその変更を消す。順序と向きは CLAUDE.md の
-  「md と db の同期」を見る
-- `ExportDb` は、前回の同期より後に手で書かれた md があれば止まる
-  (印は `worlds/` の隣の `.markdown_sync`。`DEM/tool/markdown/sync_stamp.py`)。
-  止まったら `ImportDb` で取り込み、db 側の変更をやり直してから閉じる。
-  md を捨ててよいと分かっているときだけ `ExportDb(force=True)`
+db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の「db への接続」「md と db の同期」を見る。
 
 ## 依頼内容 → 呼ぶコード
 
@@ -31,7 +15,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 
 | 依頼内容(言い回しの例)           | 呼ぶコード                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------- |
-| 「同期して」「sync_db」             | `sync.import_db.ImportDb()` → (作業) → `sync.export_db.ExportDb()`。件数を辞書で返す。間に `ImportDb` を挟まない |
+| 「同期して」「sync_db」             | `sync.import_db.ImportDb()` → `sync.export_db.ExportDb()`(= `sync_db`)。件数を辞書で返す。`ExportDb` は前回の同期より後に手で書かれた md があれば止まる(`ExportDb(force=True)` で押し切る) |
 | 「どんな場所がある?」「村の一覧」   | `world.list_places.ListPlaces(kind=None)`                                    |
 | 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
@@ -63,7 +47,7 @@ claude が db を触るときに呼ぶ入口を置く場所。**操作前にこ�
 | 「未同期の話は残ってる?」           | `story.list_unsynced_episodes.ListUnsyncedEpisodes(story_id=None)`           |
 | 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(story_id, number, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
-| 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。`ImportDb` → 「常駐ループ」の表の `daily_event` → `ExportDb` |
+| 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `daily_event` |
 
 **まだ入口が無いもの**(頼まれたら作ってから行う): 出来事の修正・削除、人物の削除。
 
