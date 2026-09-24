@@ -78,3 +78,8 @@ EVENT_SEED_DRAW_COUNT = 3
 EVENT_SEED_CONSOLIDATE_EVERY = 50
 # 棚卸しで一度に見比べる、棚卸し済みの種の字数の上限(棚卸し前の種は毎回すべて添える)。
 EVENT_SEED_CONSOLIDATE_LETTERS = 15000
+
+# meme
+# ミームを抜き出すとき、一度の呼び出しで渡す元の本文の字数の上限。
+MEME_BATCH_LETTERS = 6000
+MEME_TIMEOUT = 300.0

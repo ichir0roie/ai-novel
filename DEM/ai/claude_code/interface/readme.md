@@ -33,6 +33,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
 | 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる |
+| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)から抜き出し、`meme` テーブルへ足す。足した件数を返す |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
 | 「話を書き始める」「次の話を書く」   | `story.start_story.StartStory(story_id)`。同期確認・見出し・直前の話・断面・顔ぶれを一度に出す |
 | 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)` |
@@ -53,6 +54,11 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 筋書き(`plot` / `character_plot`)のテーブルは無い。場所に掛かる筋書きは作品(`story`)の
 `text` に、人物に掛かる筋書きはその人物の `text` の `# plot` の節に書く。
+
+人物が持つミーム(行動原理の芯。`meme` テーブル)も専用の節は無く、その人物の `text` の
+`# meme` 節に、持つミームの文面を箇条書きでそのまま書く。人物は複数のミームを持ってよい。
+`meme` テーブル自体はアイデア(`idea`)・oracle・人物の筋書きから抜き出して貯めるだけで、
+人物との FK は持たない(ミームは人物の間を移り変わり・伝染していくため)。
 
 補足:
 
@@ -112,12 +118,13 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 
 ## 作り方
 
-置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の四つ。
+置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の五つ。
 
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
 - `story/` — 作品・話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
 - `sync/` — db と md の同期
 - `world/` — 場所・人物・アイデア・出来事の一覧(読む専用)
+- `meme/` — アイデア・oracle・人物の筋書きからのミームの抽出
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ
@@ -144,7 +151,8 @@ Entrypoint(interface/_base.py)
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
 ```
 
-(`sync/` の二つは db セッションを開かないので、`Entrypoint` を直接継ぐ)
+(`sync/` の二つと `meme.extract_memes.ExtractMemes` は、`execute(session)` の外で
+db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 
 ## 引き方は query 側にある
 
