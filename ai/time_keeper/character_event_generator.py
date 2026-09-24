@@ -6,7 +6,7 @@ import random
 
 from sqlalchemy import select
 
-from ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION
+from ai.instructions.event_writing import EVENT_AGE_INSTRUCTION, EVENT_NOVEL_INSTRUCTION
 from ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS
 from ai.time_keeper import constants
 from ai.time_keeper import event_progression_generator as progression
@@ -21,6 +21,7 @@ _NOVEL_SYSTEM_PROMPT = f"""\
 あなたは日本語のライトノベルを書く作家です。
 ある人物(主役)の身に起きた出来事の記録と、場所・当事者・主役の直前の出来事を渡すので、この出来事を小説の本文に書き起こしてください。
 「関係する設定」を渡したときは、それを踏まえて書いてください。
+{EVENT_AGE_INSTRUCTION}
 {EVENT_NOVEL_INSTRUCTION}
 JSON で答えてください。キーは text(本文)だけ。"""
 

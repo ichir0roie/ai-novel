@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from ai.instructions.event_writing import (
     CHARACTER_NOTE_LIMIT, CHARACTER_NOTE_SEPARATOR,
-    CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
+    CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_AGE_INSTRUCTION, EVENT_DURATION_INSTRUCTION,
     EVENT_PROGRESSION_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
     RECENT_EVENT_LIMIT,
 )
@@ -53,10 +53,11 @@ location_founded の固有名詞は次の基準で名づける。
 
 _JUDGEMENT_KEYS = ("thought", "emotion", "wish", "fear", "action")
 
-_JUDGEMENT_SYSTEM_PROMPT = """\
+_JUDGEMENT_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観の中で、ある一人の人物、または人物以外の一つの対象(国・組織・集団・物)の立場に立って考える設定作家です。
 渡す場所・直近の出来事・筋書き・居合わせる相手を踏まえ、「この当事者」のいまを、その kind・text・口調・方言・性格(traits。各軸は 無/低/並/高/必 の五段階)・立場・世界線への影響度から推測してください。
 人物なら性格と人間関係から、人物以外なら方針と力の及ぶ範囲から。
+{EVENT_AGE_INSTRUCTION}
 他の当事者のことは決めない。この当事者自身のことだけを書く。
 JSON で答えてください。キーは次の五つ。各1〜2文。
 - thought: 思考。いまの状況をどう受け止め、何を考えているか。
@@ -79,6 +80,7 @@ _CANDIDATE_SYSTEM_PROMPT = f"""\
 日常の小さな、感情がぶつかる、偶発的な(事故・天候・病・思いがけない出会い)、居場所が変わる(旅立ち・帰還・避難)、
 笑いや祝い、取り決めや対立が動くなど、種類の違うものを混ぜてください。
 各候補は当事者の action と矛盾しない範囲で立てる。
+{EVENT_AGE_INSTRUCTION}
 {EVENT_PROGRESSION_INSTRUCTION}
 JSON で答えてください。キーは candidates(候補のリスト。各要素は name(出来事の名前)と summary(何が起きて誰が関わるか。2〜3文)の二つ)だけ。"""
 
@@ -106,6 +108,7 @@ _PLACE_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観の中で、ある場所に起きたことを記録する設定作家です。
 その場所自身の情報、そこに居合わせる人物・対象の一覧、その場所の直近の出来事、当事者ごとの思考・感情・望み・恐れ・行動、そしてサイコロで選ばれた出来事の候補を渡すので、その候補をこの場所にこの時点で起きた出来事として1件、記録に起こしてください。
 候補の name は event_name にそのまま使うか、整えてもよい。
+{EVENT_AGE_INSTRUCTION}
 {_INVOLVEMENT_INSTRUCTION}
 {_CHARACTER_MOVE_INSTRUCTION}
 {_LOCATION_CHANGE_INSTRUCTION}
