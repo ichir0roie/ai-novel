@@ -14,7 +14,7 @@ from DEM.db.schema import (
 )
 from DEM.db.stamp import Stamp, StampError
 
-EVENT_RELATIONS = {"place": "place_name"}
+EVENT_RELATIONS = {"location": "place_name"}
 
 EVENT_LOAD_OPTIONS = (
     selectinload(Event.location),
