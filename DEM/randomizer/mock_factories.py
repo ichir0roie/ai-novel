@@ -19,7 +19,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from DEM.db.schema import (
     CHARACTER_KIND_PERSON,
     Character, CharacterPlace, Episode, Event, EventCharacter,
-    Location, Story, Term,
+    Idea, Location, Story,
 )
 from DEM.db.stamp import Stamp
 from DEM.randomizer.random_character_generator import (
@@ -38,7 +38,7 @@ _SAMPLE_REGIONS = ("北欧", "地中海沿岸", "東アジア", "中東", "南�
 _SAMPLE_CULTURES = ("遊牧", "稲作", "狩猟採集", "交易", "漁労", "牧畜", "都市商業")
 _SAMPLE_ERAS = ("古代", "中世", "近世", "産業革命期", "近代", "現代", "近未来")
 _CHARACTER_KINDS = (CHARACTER_KIND_PERSON,) * 7 + ("国", "組織", "商会", "氏族", "集団", "物")
-_TERM_KINDS = ("地名", "人名", "組織", "技術", "魔法", "制度", "道具", "生物", "慣習")
+_IDEA_KINDS = ("地名", "人名", "組織", "技術", "魔法", "制度", "道具", "生物", "慣習")
 _NARRATIONS = ("一人称", "三人称", "神視点")
 _STATES = ("構想中", "執筆中", "完結", "中断")
 
@@ -197,17 +197,17 @@ class CharacterPlaceFactory(_ModelFactory):
     end = _end_after_start()
 
 
-class TermFactory(_ModelFactory):
+class IdeaFactory(_ModelFactory):
     class Meta:
-        model = Term
+        model = Idea
 
-    name = factory.Sequence(lambda n: f"語{n}")
-    kind = factory.Faker("random_element", elements=_TERM_KINDS)
+    name = factory.Sequence(lambda n: f"アイデア{n}")
+    kind = factory.Faker("random_element", elements=_IDEA_KINDS)
     text = _text()
     restrict_world_id = _pool(Location, "LocationFactory", p_none=0.5)
     restrict_planet_id = _pool(Location, "LocationFactory", p_none=0.5)
     restrict_place_id = _pool(Location, "LocationFactory", p_none=0.5)
-    parent_term_id = _pool(Term, p_none=0.3)
+    parent_idea_id = _pool(Idea, p_none=0.3)
 
 
 class StoryFactory(_ModelFactory):
@@ -248,7 +248,7 @@ ALL_FACTORIES = (
     EventFactory,
     EventCharacterFactory,
     CharacterPlaceFactory,
-    TermFactory,
+    IdeaFactory,
     StoryFactory,
     EpisodeFactory,
 )

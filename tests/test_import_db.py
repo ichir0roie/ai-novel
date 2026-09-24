@@ -85,11 +85,11 @@ def test_import_location_id_only_file_gets_named_on_export(session, tmp_path):
     assert sorted(os.listdir(os.path.join(root, "location"))) == ["71_パンデム.md"]
 
 
-def test_term_markdown_name_uses_name():
-    from DEM.db.schema import Term
+def test_idea_markdown_name_uses_name():
+    from DEM.db.schema import Idea
 
-    assert Term(id=29, name="霊纏", kind="技術", text="").markdown_name == "29_霊纏.md"
-    assert Term(id=30, name="語", kind="概念", text="", filename="別名").markdown_name == "30_別名.md"
+    assert Idea(id=29, name="霊纏", kind="技術", text="").markdown_name == "29_霊纏.md"
+    assert Idea(id=30, name="アイデア", kind="概念", text="", filename="別名").markdown_name == "30_別名.md"
 
 
 def test_sync_paths_follow_env(tmp_path):

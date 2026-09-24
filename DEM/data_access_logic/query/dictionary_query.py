@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""語(辞書)のための問い合わせ。`DEM/ai/claude_code/interface/world/` から使う。"""
+"""アイデア(辞書)のための問い合わせ。`DEM/ai/claude_code/interface/world/` から使う。"""
 from __future__ import annotations
 
 from sqlalchemy import Select, select
 
-from DEM.db.schema import Term
+from DEM.db.schema import Idea
 
 
-def terms_by_keyword_select(keyword: str) -> Select:
-    return (select(Term)
-            .where(Term.text.contains(keyword))
-            .order_by(Term.id))
+def ideas_by_keyword_select(keyword: str) -> Select:
+    return (select(Idea)
+            .where(Idea.text.contains(keyword))
+            .order_by(Idea.id))

@@ -13,7 +13,7 @@ from sqlalchemy import and_, func, select, union, union_all
 from sqlalchemy.orm import aliased
 
 from DEM.ai.instructions.naming import (
-    CHARACTER_NAMING_INSTRUCTION, NAME_PLACEHOLDER, TERM_NAMING_INSTRUCTION,
+    CHARACTER_NAMING_INSTRUCTION, NAME_PLACEHOLDER, IDEA_NAMING_INSTRUCTION,
     fill_name_placeholder,
 )
 from DEM.data_access_logic.query import common_query, story_createion_query, world_createion_query
@@ -87,7 +87,7 @@ _NAME_SYSTEM_PROMPT = f"""\
 _NON_PERSON_NAME_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観を構築する設定作家です。
 内容が決まっている人物以外の対象(国・組織・集団・物など)1件に、名前だけを付けます。
-{TERM_NAMING_INSTRUCTION}
+{IDEA_NAMING_INSTRUCTION}
 組織の名は場所名か役割名で呼べる形にする。
 居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、同じ場所のものとして馴染む名にしてください(固有名詞をそのまま持ち込まない)。
 「既にいる人物・対象の名」が渡されているときは、それらと紛らわしい名にしない。

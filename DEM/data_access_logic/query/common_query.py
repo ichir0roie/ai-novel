@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from DEM.db.schema import (
     Character, CharacterPlace, CharacterRelation, Episode,
-    Event, EventCharacter, Location,
-    Story, Term,
+    Event, EventCharacter, Idea, Location,
+    Story,
 )
 from DEM.db.stamp import Stamp, StampError
 
@@ -100,11 +100,11 @@ def descendant_place_ids(session: Session, place_id: int) -> list[int]:
     return found
 
 
-def term_scope_ids(session: Session, place_id: int) -> list[int]:
-    """その場所で効く語を引く範囲。配下に加えて、属する星・世界線まで親方向へのぼる。
+def idea_scope_ids(session: Session, place_id: int) -> list[int]:
+    """その場所で効くアイデアを引く範囲。配下に加えて、属する星・世界線まで親方向へのぼる。
 
     `restrict_world_id` / `restrict_planet_id` が指すのは自分より上の場所なので、
-    配下だけで引くと世界線に掛かる語が一件も当たらない。
+    配下だけで引くと世界線に掛かるアイデアが一件も当たらない。
     """
     found = descendant_place_ids(session, place_id)
     seen = set(found)
@@ -360,14 +360,14 @@ def unsynced_episodes_select(story_id: int | None = None) -> Select:
 
 # ---------------------------------------------------------------- 断面
 
-def terms_select(place_ids) -> Select:
-    """その場所(群)で使われる語。"""
+def ideas_select(place_ids) -> Select:
+    """その場所(群)で使われるアイデア。"""
     place_ids = list(place_ids)
-    return (select(Term)
-            .where(or_(Term.restrict_place_id.in_(place_ids),
-                       Term.restrict_planet_id.in_(place_ids),
-                       Term.restrict_world_id.in_(place_ids)))
-            .order_by(Term.id))
+    return (select(Idea)
+            .where(or_(Idea.restrict_place_id.in_(place_ids),
+                       Idea.restrict_planet_id.in_(place_ids),
+                       Idea.restrict_world_id.in_(place_ids)))
+            .order_by(Idea.id))
 
 
 def character_relations_at_select(character_id: int, time: Stamp) -> Select:

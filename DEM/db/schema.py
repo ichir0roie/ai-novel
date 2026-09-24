@@ -414,8 +414,8 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-class Term(MarkdownBase):
-    __tablename__ = "term"
+class Idea(MarkdownBase):
+    __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
     kind: Mapped[str] = mapped_column(String, sort_order=210)
@@ -424,8 +424,8 @@ class Term(MarkdownBase):
     restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=230)
     restrict_place_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=240)
 
-    parent_term_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("term.id"), comment="上位の語。置いたディレクトリで決まる", sort_order=250)
+    parent_idea_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("idea.id"), comment="上位のアイデア。置いたディレクトリで決まる", sort_order=250)
 
     def default_filename(self) -> str | None:
         return self.name

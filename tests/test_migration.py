@@ -15,6 +15,7 @@
 - 76fbe5ec1c2e: event_seed_source を元テーブルごとの id 列にする
 - f8eefc75dad5: event_seed_source を落とし、元の表の event_seeded で管理する
 - 56c6bd7ffe26: event_seed に consolidated を足す
+- 167e2faa3717: term を idea へ改名
 """
 import sqlite3
 
@@ -26,7 +27,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "56c6bd7ffe26"
+HEAD_REVISION = "167e2faa3717"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -79,6 +80,7 @@ def old_style_db():
     conn.execute("DROP TABLE event_seed")
     # schema.py から消えたので drop_all では落ちない。前のテストの downgrade が残したものを消す
     conn.execute("DROP TABLE IF EXISTS event_seed_source")
+    conn.execute("DROP TABLE IF EXISTS term")
     for table in ("story", "event"):
         conn.execute(f'ALTER TABLE "{table}" DROP COLUMN event_seeded')
     location_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'location'").fetchone()[0]
@@ -95,6 +97,9 @@ def old_style_db():
     # plot / character_plot は schema.py から消えたので、旧 db の形を手で張り直す
     for sql in _PLOT_TABLE_SQL:
         conn.execute(sql)
+    # idea は 167e2faa3717 で term から改名したので、それより前の名前に戻す
+    conn.execute("ALTER TABLE idea RENAME COLUMN parent_idea_id TO parent_term_id")
+    conn.execute("ALTER TABLE idea RENAME TO term")
     values = [-5, -4, -3, -1, 0, 1, 3, 4, 5]
     for value in values:
         conn.execute(
