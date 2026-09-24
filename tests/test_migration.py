@@ -12,6 +12,7 @@
 - 24327ee59e1c: event_summary / story_summary を足す
 - 82c20d8db0c5: sub_character を反転して main_character へ移す
 - cd51e8d34592: event_seed_source / event_seed を足す
+- 76fbe5ec1c2e: event_seed_source を元テーブルごとの id 列にする
 """
 import sqlite3
 
@@ -23,7 +24,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "cd51e8d34592"
+HEAD_REVISION = "76fbe5ec1c2e"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -363,7 +364,8 @@ def test_upgrade_adds_event_seed_tables_and_downgrade_drops_them(old_style_db):
     command.upgrade(cfg, "head")
 
     conn = sqlite3.connect(TEST_DB_PATH)
-    assert set(_columns(conn, "event_seed_source")) == {"id", "source", "source_id", "source_hash"}
+    assert set(_columns(conn, "event_seed_source")) == {
+        "id", "story_id", "episode_id", "character_id", "event_id", "source_hash"}
     assert set(_columns(conn, "event_seed")) == {"id", "event_seed_source_id", "text"}
     conn.close()
 
@@ -372,4 +374,36 @@ def test_upgrade_adds_event_seed_tables_and_downgrade_drops_them(old_style_db):
     conn = sqlite3.connect(TEST_DB_PATH)
     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert "event_seed" not in tables and "event_seed_source" not in tables
+    conn.close()
+
+
+def test_upgrade_splits_seed_sources_into_id_columns_and_downgrade_joins_them(old_style_db):
+    cfg = _config()
+    command.upgrade(cfg, "cd51e8d34592")
+    conn = sqlite3.connect(TEST_DB_PATH)
+    conn.executemany("INSERT INTO event_seed_source (id, source, source_id, source_hash) VALUES (?, ?, ?, 'h')",
+                     [(1, "story", 5), (2, "episode", 6), (3, "character", 7)])
+    conn.executemany("INSERT INTO event_seed (event_seed_source_id, text) VALUES (?, ?)",
+                     [(1, "作品の種"), (2, "話の種"), (3, "人物の種")])
+    conn.commit()
+    conn.close()
+
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    rows = conn.execute("SELECT id, story_id, episode_id, character_id, event_id, source_hash "
+                        "FROM event_seed_source ORDER BY id").fetchall()
+    assert rows == [(1, 5, None, None, None, "h"), (2, None, 6, None, None, "h"), (3, None, None, 7, None, "h")]
+    conn.execute("INSERT INTO event_seed_source (id, event_id, source_hash) VALUES (4, 8, 'h')")
+    conn.execute("INSERT INTO event_seed (event_seed_source_id, text) VALUES (4, '出来事の種')")
+    conn.commit()
+    conn.close()
+
+    command.downgrade(cfg, "cd51e8d34592")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    rows = conn.execute("SELECT id, source, source_id FROM event_seed_source ORDER BY id").fetchall()
+    assert rows == [(1, "story", 5), (2, "episode", 6), (3, "character", 7)]
+    assert [row[0] for row in conn.execute("SELECT text FROM event_seed ORDER BY id")] == [
+        "作品の種", "話の種", "人物の種"]
     conn.close()
