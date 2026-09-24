@@ -231,8 +231,6 @@ def _generate_one(
 ) -> Character:
     """**人物(`person=False` なら人物以外の対象)を一件、db へ確定して返す。** ロール判定(当たり外れ)は呼び出し側の責任。"""
     draft = build_character()
-    # この場で自動生成される人物・対象は、常にメインキャラクター以外のサブキャラクター扱いにする。
-    draft["sub_character"] = True
     if not person:
         for column in _PERSON_ONLY_COLUMNS:
             draft[column] = None

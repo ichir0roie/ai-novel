@@ -10,7 +10,7 @@ from __future__ import annotations
 import random
 import traceback
 
-from DEM.ai.time_keeper import character_event_generator, event_progression_generator
+from DEM.ai.time_keeper import character_event_generator, event_progression_generator, event_seed
 from DEM.data_access_logic.query import common_query, world_createion_query
 from DEM.db.schema import Session, Stamp, Story, get_env_session
 from DEM.ai.time_keeper import (
@@ -66,8 +66,11 @@ def time_process(
 
 
 def daily_event(ai: AIClient) -> int | None:
-    """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。"""
+    """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。
+    先に、まだ抜き出していない元から出来事の種を抜き出し、たまっていれば似た種をまとめる。"""
     with get_env_session() as s:
+        event_seed.refresh(s, ai)
+        event_seed.consolidate(s, ai)
         record = character_event_generator.generate_next(s, ai)
         return record.id if record is not None else None
 

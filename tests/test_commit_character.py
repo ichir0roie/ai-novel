@@ -52,6 +52,12 @@ def test_commit_from_json_string(session, world):
     assert place.start == Stamp(2100)
 
 
+def test_committed_character_is_a_sub_character_by_default(session, world):
+    result = CommitCharacter(_draft(place_id=world["root"], start="2100")).run()
+
+    assert session.get(Character, result["id"]).main_character is False
+
+
 def test_commit_rejects_non_level_personality(session, world):
     with pytest.raises(ValueError, match="無/低/並/高/必"):
         CommitCharacter(_draft(place_id=world["root"], start="2100", sincerity=0)).run()

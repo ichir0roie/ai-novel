@@ -1,5 +1,5 @@
-"""サブキャラクターフラグ(`Character.sub_character`)。出来事のランダム生成は
-サブキャラクター(true)だけを対象にし、メインキャラクター(false)は外す。"""
+"""メインキャラクターフラグ(`Character.main_character`)。出来事のランダム生成は
+サブキャラクター(false)だけを対象にし、メインキャラクター(true)は外す。"""
 from DEM.ai.time_keeper import event_progression_generator, main
 from DEM.ai.time_keeper._export import export_step
 from DEM.ai.time_keeper.random_character_generator import _generate_one
@@ -19,8 +19,8 @@ def _place(session) -> Location:
     return place
 
 
-def _character(session, place, *, sub_character: bool) -> Character:
-    record = Character(name="仮名", text="", sub_character=sub_character, start=Stamp(2000))
+def _character(session, place, *, main_character: bool) -> Character:
+    record = Character(name="仮名", text="", main_character=main_character, start=Stamp(2000))
     session.add(record)
     session.flush()
     session.add(CharacterPlace(character_id=record.id, location_id=place.id, start=Stamp(2000)))
@@ -28,10 +28,10 @@ def _character(session, place, *, sub_character: bool) -> Character:
     return record
 
 
-def test_character_active_condition_matches_sub_character_flag(session):
+def test_character_active_condition_matches_main_character_flag(session):
     place = _place(session)
-    main_character = _character(session, place, sub_character=False)
-    sub_character = _character(session, place, sub_character=True)
+    main_character = _character(session, place, main_character=True)
+    sub_character = _character(session, place, main_character=False)
 
     ids = {row for row, in session.query(Character.id).filter(character_active_condition()).all()}
     assert ids == {sub_character.id}
@@ -40,8 +40,8 @@ def test_character_active_condition_matches_sub_character_flag(session):
 
 def test_group_by_place_keeps_only_sub_characters(session):
     place = _place(session)
-    main_character = _character(session, place, sub_character=False)
-    sub_character = _character(session, place, sub_character=True)
+    main_character = _character(session, place, main_character=True)
+    sub_character = _character(session, place, main_character=False)
 
     grouped = event_progression_generator._group_by_place(session, Stamp(2100))
 
@@ -56,7 +56,15 @@ def test_generated_character_is_marked_sub_character(session):
 
     record = _generate_one(session, place, Stamp(2100, 1, 1), __import__("random").Random(1), ai, person=True)
 
-    assert record.sub_character is True
+    assert record.main_character is False
+
+
+def test_character_without_the_flag_is_a_sub_character(session):
+    record = Character(name="仮名", text="", start=Stamp(2000))
+    session.add(record)
+    session.commit()
+
+    assert record.main_character is False
 
 
 def test_export_step_writes_worlds_root(session, tmp_path):
@@ -73,7 +81,7 @@ def test_export_step_writes_worlds_root(session, tmp_path):
 
 def test_loop_time_does_not_export_per_step(session, monkeypatch):
     place = _place(session)
-    _character(session, place, sub_character=True)
+    _character(session, place, main_character=False)
 
     calls: list[str] = []
     monkeypatch.setattr(main, "export_step", lambda when: calls.append(when))

@@ -21,8 +21,8 @@ def location_active_condition(time: Stamp):
 
 
 def character_active_condition():
-    """人物・対象が出来事・筋書きのランダム生成の対象になるか。メインキャラクター(`sub_character` が false)は対象外。"""
-    return Character.sub_character.is_(True)
+    """人物・対象が出来事・筋書きのランダム生成の対象になるか。メインキャラクター(`main_character` が true)は対象外。"""
+    return Character.main_character.is_(False)
 
 
 def character_time_condition(time: Stamp):

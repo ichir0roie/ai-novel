@@ -193,7 +193,16 @@ class Location(MarkdownBase):
         return self.name
 
 
-class Event(MarkdownBase):
+class EventSeededMixin:
+    """出来事の種(`EventSeed`)を抜き出す元に付ける、抜き出し済みの印。"""
+
+    event_seeded: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="出来事の種を抜き出し済みか。false に戻すと、次の毎日のルーチンで抜き出し直す",
+        sort_order=9000)
+
+
+class Event(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "event"
 
@@ -254,6 +263,20 @@ class EventSummary(Base):
     text: Mapped[str] = mapped_column(String, comment="要約", sort_order=120)
 
 
+class EventSeed(Base):
+    """出来事の種。時代・場所・固有名詞を抜いた、抽象的な出来事のアイデア。md には出さない(import/export の外)。
+
+    どの元から抜き出したかは持たない。元の側の `event_seeded` で、抜き出し済みかを管理する。
+    """
+
+    __tablename__ = "event_seed"
+
+    text: Mapped[str] = mapped_column(String, comment="種", sort_order=100)
+    consolidated: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="棚卸し(似た種をまとめる)を済ませたか。新しい種は false", sort_order=110)
+
+
 CHARACTER_KIND_PERSON = "人物"
 
 
@@ -286,7 +309,7 @@ def check_personality(data) -> None:
             f"性格は {'/'.join(PERSONALITY_LEVELS)} のいずれか: {bad}")
 
 
-class Character(MarkdownBase):
+class Character(EventSeededMixin, MarkdownBase):
     """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。"""
 
     __tablename__ = "character"
@@ -298,10 +321,10 @@ class Character(MarkdownBase):
         String, default=CHARACTER_KIND_PERSON, nullable=False,
         comment="種別。「人物」か、人物以外の対象(国・組織・商会・氏族・集団・物など)", sort_order=230)
 
-    sub_character: Mapped[bool] = mapped_column(
+    main_character: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
-        comment="メインキャラクター以外のサブキャラクターか。"
-        "出来事・筋書きのランダム生成は、この列が true の人物・対象だけを対象にする",
+        comment="メインキャラクターか。"
+        "出来事・筋書きのランダム生成は、この列が false(サブキャラクター)の人物・対象だけを対象にする",
         sort_order=240)
 
     start: Mapped[Stamp | None] = mapped_column(StampType, sort_order=250)
@@ -408,7 +431,7 @@ class Term(MarkdownBase):
         return self.name
 
 
-class Story(MarkdownBase):
+class Story(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "story"
 
@@ -432,7 +455,7 @@ class Story(MarkdownBase):
         back_populates="story", lazy="noload", order_by="Episode.number.asc()")
 
 
-class Episode(MarkdownBase):
+class Episode(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "episode"
 

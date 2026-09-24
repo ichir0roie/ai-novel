@@ -1,7 +1,9 @@
 """出来事の入口(`ListEvents` / `ReadEvents`)が返す辞書。"""
 from DEM.ai.claude_code.interface.story.read_events import ReadEvents
 from DEM.ai.claude_code.interface.world.list_events import ListEvents
-from DEM.db.schema import Event, Location
+import pytest
+
+from DEM.db.schema import Character, Event, EventCharacter, Location
 from DEM.db.stamp import Stamp
 
 
@@ -20,7 +22,7 @@ def test_event_row_has_the_name_of_its_place(session):
     event = _event_at(session, place)
 
     (row,) = ListEvents().run()
-    (by_place,) = ReadEvents(record_id=place.id).run()
+    (by_place,) = ReadEvents(place_id=place.id).run()
 
     assert row["id"] == event.id
     assert row["place_name"] == "村"
@@ -33,3 +35,35 @@ def test_event_row_without_place_has_no_place_name(session):
     (row,) = ListEvents().run()
 
     assert row["place_name"] is None
+
+
+def test_place_and_character_sharing_an_id_are_not_mixed(session):
+    place = Location(name="村", kind="村", text="", start=Stamp(2000))
+    other_place = Location(name="町", kind="町", text="", start=Stamp(2000))
+    character = Character(name="甲", text="")
+    session.add_all([place, other_place, character])
+    session.commit()
+    assert place.id == character.id
+    at_place = _event_at(session, place)
+    of_character = _event_at(session, other_place)
+    of_character.event_characters = [EventCharacter(character_id=character.id)]
+    session.commit()
+
+    assert [row["id"] for row in ReadEvents(place_id=place.id).run()] == [at_place.id]
+    assert [row["id"] for row in ReadEvents(character_id=character.id).run()] == [of_character.id]
+
+
+def test_events_under_an_event(session):
+    parent = _event_at(session, None)
+    child = Event(name="行動", text="", time=Stamp(2100), parent_event_id=parent.id)
+    session.add(child)
+    session.commit()
+
+    assert [row["id"] for row in ReadEvents(event_id=parent.id).run()] == [child.id]
+
+
+def test_read_events_takes_exactly_one_key():
+    with pytest.raises(ValueError):
+        ReadEvents()
+    with pytest.raises(ValueError):
+        ReadEvents(place_id=1, character_id=1)

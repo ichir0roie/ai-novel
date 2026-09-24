@@ -20,7 +20,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
-| 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か `ReadEvents(record_id=…)` |
+| 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
 | 「この語は何?」「用語を調べて」     | `world.search_terms.SearchTerms(keyword)`                                    |
 | 「場所を足して」                     | `randomizer.create_random_place.CreateRandomPlace()` で下書き → 内容を決めて `randomizer.commit_place.CommitPlace(place)` |
 | 「人物を足して」                     | `randomizer.create_random_character.CreateRandomCharacter()` → `randomizer.commit_character.CommitCharacter(character)` |
@@ -96,6 +96,17 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 (`DEM.ai.local_ai.` / `DEM.ai.claude_code.` を頭に付ける)
 
+毎日のルーチンは、人物ごとに生まれてから 5〜20 年後を起点に自分の時を刻む。作品の時期には合わせず、
+作品の本文(筋書き)も渡さない。出来事の候補は、出来事の種(`event_seed` テーブル。md には出さない)から
+ランダムに引いた種か、直前の出来事からの連想で立てる。種は作品の本文・話の種(`key`、無ければ本文)・
+人物の `# plot` の節・出来事の本文から、時代・場所・固有名詞を抜いて抜き出したもの。ルーチンの頭で、
+`event_seeded` が false の元だけから抜き出して true にする(`DEM/ai/time_keeper/event_seed.py`)。
+抜き出しは元ごとに一度だけ。本文を書き直して抜き出し直したいときは、その md の `event_seeded` を false に戻す。
+抜き出すときは似た種があるかを見ない。棚卸し前(`consolidated` が false)の種が 50 件たまったら、ルーチンの頭で
+AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換えだけをまとめる(`event_seed.consolidate`)。
+人物ごとに時を刻むので、出来事を起こす時点より後に、別の人物の出来事が既にあることがある。その場所か当事者に掛かる
+そうした出来事は、要約を添えて「この時点より後に既に決まっている出来事」として渡し、矛盾させない。
+
 上の表の「作る」「確定する」入口を使えば、Claude も対話の中で人物・場所・出来事の
 内容を決めて確定してよい。
 
@@ -146,6 +157,7 @@ Entrypoint(interface/_base.py)
 | `dictionary_query.py`          | 語(辞書)のキーワード検索                                     |
 | `story_createion_query.py`     | 場所に掛かる作品(`story`)の読み出し                          |
 | `world_createion_query.py`     | 生きている人物、広さの整合、進行中の判定               |
+| `event_seed_query.py`          | 出来事の種をまだ抜き出していない元(`event_seeded` が false) |
 
 ここのファイルはその薄い呼び出し面で、**SQL は組み立てない。**
 引く条件は時刻とレコードの id だけで表す。足りない引き方が出てきたら

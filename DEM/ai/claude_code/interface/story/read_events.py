@@ -2,30 +2,42 @@
 """出来事を引く、claude が呼ぶ入口。
 
     ReadEvents(time="4354").run()       その年の出来事と行動を全部
-    ReadEvents(record_id=8).run()       その id に掛かるもの(場所なら
-                                        そこで起きたこと、人物なら行動、
-                                        出来事ならぶら下がる行動)
+    ReadEvents(place_id=8).run()        その場所で起きたこと
+    ReadEvents(character_id=8).run()    その人物・対象が当事者の出来事(場所を問わず)
+    ReadEvents(event_id=8).run()        その出来事にぶら下がる行動
 """
 from __future__ import annotations
 
 from DEM.ai.claude_code.interface.story import _rows
 from DEM.ai.claude_code.interface.story._base import StoryQuery
+from DEM.data_access_logic.query import common_query
+
+_SELECTS = {
+    "place_id": common_query.events_of_place_select,
+    "character_id": common_query.events_of_character_select,
+    "event_id": common_query.events_under_select,
+}
 
 
 class ReadEvents(StoryQuery):
-    """時刻か id で出来事を引く。どちらか一方を渡す。"""
+    """時刻か、場所・人物・出来事の id のどれか一つで出来事を引く。
 
-    def __init__(self, time=None, record_id: int | None = None,
-                 limit: int | None = None, until=None):
-        if (time is None) == (record_id is None):
-            raise ValueError("time か record_id のどちらか一方だけを渡す")
-        self.time = time
-        self.record_id = record_id
+    場所・人物・出来事の id は別々の表の連番で重なるので、どの表の id かを引数の名前で渡す。
+    """
+
+    def __init__(self, time=None, place_id: int | None = None, character_id: int | None = None,
+                 event_id: int | None = None, limit: int | None = None, until=None):
+        keys = {"time": time, "place_id": place_id, "character_id": character_id, "event_id": event_id}
+        given = [key for key, value in keys.items() if value is not None]
+        if len(given) != 1:
+            raise ValueError("time・place_id・character_id・event_id のどれか一つだけを渡す")
+        self.key = given[0]
+        self.value = keys[self.key]
         self.limit = limit
         self.until = until
 
     def execute(self, session) -> list[dict]:
-        if self.time is not None:
-            return _rows.events_at(session, self.time, limit=self.limit)
-        return _rows.events_of(session, int(self.record_id), until=self.until,
-                               limit=self.limit)
+        if self.key == "time":
+            return _rows.events_at(session, self.value, limit=self.limit)
+        return _rows.events_of(session, _SELECTS[self.key], int(self.value),
+                               until=self.until, limit=self.limit)

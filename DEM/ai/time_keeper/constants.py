@@ -39,6 +39,10 @@ PLACE_PROBABILITY_COOLDOWN_FACTOR = 0.4
 # (levels=1、「隣の集落にいる者も枠に入れる」)と同じ考え方をそろえる。
 REACH_LEVELS = 1
 MOVE_DESTINATION_LIMIT = 20
+# 当事者一人ぶんに渡す相関の上限。
+RELATION_LIMIT = 10
+# 出来事を起こす時点より後に既にある出来事を、いくつまで渡すか。
+LATER_EVENT_LIMIT = 5
 # event_duration_days の取りうる範囲。範囲外の値は丸める。
 EVENT_DURATION_RANGE_DAYS = (1, 90)
 DEFAULT_EVENT_DURATION_DAYS = 1
@@ -57,7 +61,20 @@ MAX_CHARACTER_PER_LOCATION = 5
 # character_event_generator
 # 前の出来事の終わりから、次の出来事の始まりまでに空ける日数(両端を含む)。
 NEXT_EVENT_GAP_DAYS = (1, 7)
+# 出来事がまだ無い人物の最初の出来事を、生まれてから何年後に置くか(両端を含む)。
+FIRST_EVENT_AGE_YEARS = (5, 20)
 # 本文を小説の形で書かせるので、記録の JSON より長く待つ秒数。
 EVENT_NOVEL_TIMEOUT = 300.0
 # 直前の出来事の本文を要約させるのを待つ秒数。
 EVENT_SUMMARY_TIMEOUT = 120.0
+
+# event_seed
+# 出来事の種を抜き出すとき、一度の呼び出しで渡す元の本文の字数の上限。
+EVENT_SEED_BATCH_LETTERS = 6000
+EVENT_SEED_TIMEOUT = 300.0
+# 毎日のルーチンで、一件の出来事に引く種の件数。候補はこの種か、直前の出来事からの連想で立てる。
+EVENT_SEED_DRAW_COUNT = 3
+# 棚卸し前の種がこの件数たまったら、似た種をまとめる。
+EVENT_SEED_CONSOLIDATE_EVERY = 50
+# 棚卸しで一度に見比べる、棚卸し済みの種の字数の上限(棚卸し前の種は毎回すべて添える)。
+EVENT_SEED_CONSOLIDATE_LETTERS = 15000

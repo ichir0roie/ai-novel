@@ -199,8 +199,8 @@ def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
     """**複数の場所にまたがる出来事を新しい順に。** `place_ids` が空/None なら場所を問わず全件。
 
     一つの作品(`Story`)が指す範囲(場所の配下全体、無指定なら世界全体)で
-    「直近どんな出来事が使われたか」を見るのに使う。単一の id で引く
-    `events_of_select` と違い、場所の集合をそのまま渡す。
+    「直近どんな出来事が使われたか」を見るのに使う。一つの場所で引く
+    `events_of_place_select` と違い、場所の集合をそのまま渡す。
     """
     query = select(Event).options(*EVENT_LOAD_OPTIONS)
     if place_ids:
@@ -213,25 +213,44 @@ def events_in_locations_select(place_ids, *, until=None, limit=None) -> Select:
     return query
 
 
-def events_of_select(record_id: int, *, until=None, limit=5) -> Select:
-    """**その id に掛かる出来事と行動を、新しい順に。**
-
-    場所の id ならそこで起きたこと、人物の id ならその者の行動、
-    出来事の id ならそれにぶら下がる行動。
-    """
-    query = (select(Event)
-             .options(*EVENT_LOAD_OPTIONS)
-             .where(or_(
-                 Event.location_id == record_id,
-                 Event.parent_event_id == record_id,
-                 Event.event_characters.any(EventCharacter.character_id == record_id),
-             )))
+def _events_where(condition, until, limit) -> Select:
+    query = select(Event).options(*EVENT_LOAD_OPTIONS).where(condition)
     if until is not None:
         query = query.where(Event.time <= span(until)[1])
     query = query.order_by(Event.time.desc(), Event.id.desc())
     if limit:
         query = query.limit(limit)
     return query
+
+
+def events_of_place_select(place_id: int, *, until=None, limit=5) -> Select:
+    """**その場所で起きた出来事を、新しい順に。**"""
+    return _events_where(Event.location_id == place_id, until, limit)
+
+
+def events_of_character_select(character_id: int, *, until=None, limit=5) -> Select:
+    """**その人物・対象が当事者の出来事を、場所を問わず新しい順に。**"""
+    return _events_where(
+        Event.event_characters.any(EventCharacter.character_id == character_id), until, limit)
+
+
+def events_under_select(event_id: int, *, until=None, limit=5) -> Select:
+    """**その出来事にぶら下がる出来事・行動を、新しい順に。**"""
+    return _events_where(Event.parent_event_id == event_id, until, limit)
+
+
+def events_after_select(place_id: int, character_ids, after: Stamp, *, limit=5) -> Select:
+    """**`after` より後に始まる、その場所で起きるか、その人物・対象のだれかが当事者の出来事。** 近い順。
+
+    人物ごとに時を刻むので、ある人物の出来事を起こす時点より後に、別の人物の出来事が既にあることがある。
+    """
+    return (select(Event)
+            .options(*EVENT_LOAD_OPTIONS)
+            .where(Event.time > after,
+                   or_(Event.location_id == place_id,
+                       Event.event_characters.any(EventCharacter.character_id.in_(list(character_ids)))))
+            .order_by(Event.time.asc(), Event.id.asc())
+            .limit(limit))
 
 
 def events_select() -> Select:
@@ -272,14 +291,6 @@ def latest_character_event_select(character_id: int) -> Select:
             .options(*EVENT_LOAD_OPTIONS)
             .where(Event.event_characters.any(EventCharacter.character_id == character_id))
             .order_by(finished.desc(), Event.id.desc())
-            .limit(1))
-
-
-def latest_character_place_select(character_id: int) -> Select:
-    """その人物の居場所のうち、一番新しく始まった行(時刻は問わない)。"""
-    return (select(CharacterPlace)
-            .where(CharacterPlace.character_id == character_id)
-            .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc())
             .limit(1))
 
 
@@ -357,6 +368,16 @@ def terms_select(place_ids) -> Select:
                        Term.restrict_planet_id.in_(place_ids),
                        Term.restrict_world_id.in_(place_ids)))
             .order_by(Term.id))
+
+
+def character_relations_at_select(character_id: int, time: Stamp) -> Select:
+    """**その時点で続いている、その人物が主体か相手の相関。**"""
+    return (select(CharacterRelation)
+            .where(or_(CharacterRelation.character_id_1 == character_id,
+                       CharacterRelation.character_id_2 == character_id),
+                   or_(CharacterRelation.start.is_(None), CharacterRelation.start <= time),
+                   or_(CharacterRelation.end.is_(None), CharacterRelation.end > time))
+            .order_by(CharacterRelation.id))
 
 
 def character_relations_select(character_id: int | None = None) -> Select:

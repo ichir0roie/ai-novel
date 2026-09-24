@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """ランダムに選んだサブキャラクター一人について、その者の最新の出来事の次の出来事を一件起こす。毎日のルーチンから呼ぶ。
 
+人物ごとに、生まれてから数年後を起点に自分の時を刻む。作品・筋書きの時期には合わせず、作品の本文も渡さない。
+
 出来事は `event_progression_generator` の場所ごとの進め方でそのまま記録として起こし、本文だけを話と同じ小説の形に書き直す。
 """
 from __future__ import annotations
@@ -14,9 +16,9 @@ from DEM.ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION
 from DEM.ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS
 from DEM.ai.time_keeper import constants
 from DEM.ai.time_keeper import event_progression_generator as progression
-from DEM.ai.time_keeper import event_summary
+from DEM.ai.time_keeper import event_seed, event_summary
 from DEM.ai.time_keeper._ai import AIClient
-from DEM.ai.time_keeper._format import add_days, format_time
+from DEM.ai.time_keeper._format import add_days, add_years, format_time
 from DEM.data_access_logic.query import common_query
 from DEM.data_access_logic.query.base import character_active_condition
 from DEM.db.schema import Character, Event, EventCharacter, Location, Session, Stamp
@@ -47,18 +49,11 @@ def _latest_event(session: Session, character_id: int) -> Event | None:
     return session.scalars(common_query.latest_character_event_select(character_id)).first()
 
 
-def _first_base(session: Session, character: Character) -> Stamp | None:
-    """出来事がまだ無い人物の起点。最後に移った居場所に一番近く掛かる作品の start(生まれより前なら生まれ)。"""
-    residence = session.scalars(
-        common_query.latest_character_place_select(character.id)).first()
-    if residence is not None:
-        stories = [story for story in session.scalars(common_query.stories_select()).all()
-                   if story.start is not None]
-        for step in reversed(common_query.place_path(session, residence.location_id)):
-            starts = [story.start for story in stories if story.place_id == step["id"]]
-            if starts:
-                return max(min(starts), character.start) if character.start else min(starts)
-    return character.start
+def _first_base(character: Character, rng: random.Random) -> Stamp | None:
+    """出来事がまだ無い人物の起点。生まれてから `constants.FIRST_EVENT_AGE_YEARS` 年後。作品・筋書きとは関わらせない。"""
+    if character.start is None:
+        return None
+    return add_years(character.start, rng.randint(*constants.FIRST_EVENT_AGE_YEARS))
 
 
 def _place_of(
@@ -97,8 +92,9 @@ def _note(character: Character, previous_row: dict | str) -> str:
             f"主役の直前の出来事(これが終わった後に起きる出来事として考える): {previous_row}\n")
 
 
-def _sheet(character: Character) -> dict:
-    return {"name": character.name, "kind": character.kind, "sex": character.sex,
+def _sheet(character: Character, time: Stamp) -> dict:
+    return {"name": character.name, "kind": character.kind, "age": progression.age_at(character, time),
+            "sex": character.sex,
             "first_person": character.first_person, "second_person": character.second_person,
             "third_person": character.third_person, "tone": character.tone,
             "text": character.text}
@@ -112,11 +108,11 @@ def _novelize(
     involved_ids = set(session.scalars(
         select(EventCharacter.character_id).where(EventCharacter.event_id == record.id)).all())
     place = session.get(Location, record.location_id) if record.location_id else None
-    others = [_sheet(c) for c in participants if c.id in involved_ids and c.id != focus.id]
+    others = [_sheet(c, record.start) for c in participants if c.id in involved_ids and c.id != focus.id]
     prompt = "\n".join([
         f"場所: {_dump({'name': place.name, 'kind': place.kind, 'text': place.text} if place else None)}",
         f"時刻: {record.start}〜{record.end}",
-        f"主役: {_dump(_sheet(focus))}",
+        f"主役: {_dump(_sheet(focus, record.start))}",
         f"ほかの当事者: {_dump(others) if others else '(無し)'}",
         f"主役の直前の出来事: {_dump(previous_row)}",
         f"この出来事の記録: {_dump({'name': record.name, 'text': record.text})}",
@@ -139,7 +135,8 @@ def generate_next(
 ) -> Event | None:
     """生きているサブキャラクターをランダムに一人選び、その者の次の出来事を起こす。起こせなければ None。
 
-    始まりは直前の出来事の終わりから `constants.NEXT_EVENT_GAP_DAYS` 日後。その時刻に
+    始まりは直前の出来事の終わり(出来事が無ければ `_first_base`)から
+    `constants.NEXT_EVENT_GAP_DAYS` 日後。候補は、貯めた出来事の種から引いたものか直前の出来事からの連想で立てる。その時刻に
     `_group_by_place` が拾わない者(居場所が無い・ランダム生成の対象でない場所に居る等)は選び直す。
     """
     if rng is None:
@@ -150,7 +147,7 @@ def generate_next(
 
     for character in candidates:
         previous = _latest_event(session, character.id)
-        base = _finished(previous) if previous is not None else _first_base(session, character)
+        base = _finished(previous) if previous is not None else _first_base(character, rng)
         if base is None:
             continue
         time = add_days(base, rng.randint(*constants.NEXT_EVENT_GAP_DAYS))
@@ -167,9 +164,11 @@ def generate_next(
               f"{format_time(time)} 場所id={place_id} / "
               + (f"直前: {previous.name}" if previous is not None else "最初の出来事"))
         previous_row = _previous_row(session, previous, ai)
+        seeds = event_seed.draw(session, rng)
+        print(f"[time_keepr/daily] 引いた種: {seeds}")
         record = progression._progress_place(
             session, place_id, participants, time, rng, ai,
-            focus=character, note=_note(character, previous_row))
+            focus=character, note=_note(character, previous_row), seeds=seeds, use_story=False)
         if record is not None:
             _novelize(session, record, character, participants, previous_row, ai)
         return record
