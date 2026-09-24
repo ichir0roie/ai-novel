@@ -33,6 +33,9 @@ DEM/ai/claude_code/
 
 ## 使い方
 
+コマンド例は Linux の `.venv/bin/python` で書いてある。Windows では `PYTHONUTF8=1 .venv/Scripts/python.exe`
+(PowerShell なら `$env:PYTHONUTF8=1` のあと `.venv\Scripts\python.exe`)に読み替える(`CLAUDE.md` の「実行環境」)。
+
 常駐ループ(local_ai と同じ引数):
 
 ```

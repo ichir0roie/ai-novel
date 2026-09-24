@@ -33,6 +33,8 @@
   ファイルを開くときは必ず `encoding="utf-8"` を付ける
 - `novel.db` の文字列も UTF-8(`create_db` が `PRAGMA encoding='UTF-8'` を打つ)。
   `.gitattributes` で `*.db` はバイナリ扱い
+- Windows の python は標準出力が cp932 になるため、日本語を出すコマンドは
+  `PYTHONUTF8=1` を付けて実行する(付けないと文字化け・`UnicodeEncodeError` になる)
 
 # 環境構築
 
@@ -75,21 +77,23 @@ git push
 
 # 実行環境
 
-Linux(bash)前提。python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想環境 **`.venv/bin/python`** を使う。
+python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想環境 `.venv` のものを使う
+(`which python` など PATH 上の python は別の環境を指すことがある)。OS ごとに次のとおり。
 
-```
-# 仮想環境を作って依存を入れる(何度回してもよい。requirements.txt が変わったときだけ入れ直す)
-./setup_env.sh
+|                      | Linux(bash)                 | Windows(PowerShell)                    | Windows(Git Bash)                                 |
+| -------------------- | ---------------------------- | --------------------------------------- | -------------------------------------------------- |
+| 仮想環境の用意       | `./setup_env.sh`             | `.\setup_env.ps1`                       | `./setup_env.sh`                                   |
+| python               | `.venv/bin/python`           | `.venv\Scripts\python.exe`               | `PYTHONUTF8=1 .venv/Scripts/python.exe`            |
+| 手で作るなら         | `python3 -m venv .venv` → `.venv/bin/python -m pip install -r requirements.txt` | `python -m venv .venv` → `.venv\Scripts\python.exe -m pip install -r requirements.txt` | `python -m venv .venv` → `.venv/Scripts/python.exe -m pip install -r requirements.txt` |
 
-# 実行はこのリポジトリのルートから(`DEM.` から始まる import はルート基準)
-.venv/bin/python -c "from DEM.ai.claude_code.interface.world.list_places import ListPlaces; print(ListPlaces().run())"
-```
-
-- 手で作るなら `python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt`
+- `setup_env.*` は何度回してもよい。`requirements.txt` が変わったときだけ入れ直す
+- Windows では日本語の出力に `PYTHONUTF8=1` が要る(「文字コード」)。PowerShell なら先に `$env:PYTHONUTF8=1` を打っておく
+- **この文書と readme のコマンド例は Linux の `.venv/bin/python` で書いてある。** Windows では上の表の python に読み替える
+- このリポジトリのルートから実行する(`DEM.` から始まる import はルート基準)
 - Claude Code では世界リポジトリの SessionStart フック(`../.claude/hooks/session-start.sh`)が、
-  `core/` の取り込みと `./setup_env.sh` をセッション開始時に済ませる。手で回す必要は無い
+  `core/` の取り込みと `./setup_env.sh` をセッション開始時に済ませる(Windows でも Git Bash で動く)。手で回す必要は無い
 - `sqlite3` CLI は入っていない。db を覗くときは python の `sqlite3` モジュールか SQLAlchemy を使う
-- `ModuleNotFoundError` など依存不足で実行が失敗したら、まず `./setup_env.sh` を回してから調査する
+- `ModuleNotFoundError` など依存不足で実行が失敗したら、まず `setup_env.*` を回してから調査する
 
 # テスト
 
