@@ -49,7 +49,7 @@ def test_place_roll_probability_recovers_after_cooldown(session):
 
 
 def test_event_progression_instruction_warns_against_reusing_wording():
-    assert "使い回さない" in EVENT_PROGRESSION_INSTRUCTION
+    assert "同じ形容表現を繰り返し出来事の軸に据えない" in EVENT_PROGRESSION_INSTRUCTION
 
 
 def test_character_text_update_instruction_warns_against_reusing_wording():

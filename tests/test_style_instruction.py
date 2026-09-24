@@ -103,8 +103,7 @@ def test_shared_extracted_reaches_every_target():
         assert style.SHARED_STYLE_EXTRACTED in style.style_instruction(target)
 
 
-def test_shared_extracted_separates_the_fairy_from_the_lamp():
-    """妖精は「光」で書き、「灯り」は魔力灯りと明かりに取っておく。"""
+def test_shared_extracted_prefers_everyday_words():
     extracted = style.SHARED_STYLE_EXTRACTED
-    assert "体を持たない妖精が現れる場面は「光」" in extracted
-    assert "「灯り」は手のひらの魔力灯り" in extracted
+    assert "「体を持たない」より「実体を持たない」" in extracted
+    assert "「生きものの釣り合い」より「遺伝情報の均衡」" in extracted

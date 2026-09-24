@@ -6,6 +6,16 @@ import pytest
 from DEM.tool.test import TEST_DB_PATH  # noqa: F401  schema より先に読む(db を novel.test.db に固定)
 from DEM.db.schema import Base, create_db, engine, get_env_session, get_test_session  # noqa: E402
 from DEM.tool.markdown import export_db, import_db  # noqa: E402
+from sqlalchemy import event  # noqa: E402
+from sqlalchemy.engine import Engine  # noqa: E402
+
+
+@event.listens_for(Engine, "connect")
+def _fast_sqlite(dbapi_connection, _):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA synchronous=OFF")
+    cursor.execute("PRAGMA journal_mode=MEMORY")
+    cursor.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -18,14 +28,23 @@ def fresh_test_db():
     yield
 
 
-@pytest.fixture(autouse=True)
-def clean_tables():
-    """テストごとにテーブルを張り直して、前のテストの行を残さない。"""
+def _rebuild_tables():
     Base.metadata.drop_all(engine)
     with engine.begin() as conn:
         conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
     Base.metadata.create_all(engine)
+
+
+@pytest.fixture(autouse=True)
+def clean_tables(request):
+    with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
     yield
+    # old_style_db は表の形を旧版へ書き換えるので、あとのテストのために張り直す
+    if "old_style_db" in request.fixturenames:
+        engine.dispose()
+        _rebuild_tables()
 
 
 @pytest.fixture(autouse=True)
