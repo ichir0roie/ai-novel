@@ -211,7 +211,7 @@ class MemeSeededMixin:
         sort_order=9010)
 
 
-class Event(EventSeededMixin, MarkdownBase):
+class Event(EventSeededMixin, MemeSeededMixin, MarkdownBase):
 
     __tablename__ = "event"
 
@@ -286,16 +286,34 @@ class EventSeed(Base):
         comment="棚卸し(似た種をまとめる)を済ませたか。新しい種は false", sort_order=110)
 
 
+class MemeCategory(enum.StrEnum):
+    """ミームの分類。列には値(「信条」など)をそのまま文字列で持つ。"""
+
+    BELIEF = "信条"
+    DESIRE = "欲求"
+    SITUATION = "境遇"
+    GROUP = "集団"
+    LAW = "理"
+
+
+MEME_CATEGORIES = tuple(category.value for category in MemeCategory)
+
+
 class Meme(MarkdownBase):
-    """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書きから抜き出した、キャラクターの芯になる考え方。
+    """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書き・出来事から抜き出した、キャラクターの芯になる考え方。
     `worlds/meme/` に md として出し入れするので、著者が直接書き足すこともできる。
 
     ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
     (元の側の `meme_seeded` で、抜き出し済みかだけを管理する)。
-    人物が持つミームは、その人物の `text` の `# meme` 節に文面をそのまま書く。
+    人物が持つミームは、その人物の `text` の `# meme` 節に `- <古今表裏>: <文面>` の形で文面をそのまま書く。
     """
 
     __tablename__ = "meme"
+
+    category: Mapped[str | None] = mapped_column(
+        String, nullable=True,
+        comment=f"分類。{'/'.join(MEME_CATEGORIES)} のいずれか。空なら次の抽出で AI が振る",
+        sort_order=200)
 
 
 class Oracle(MemeSeededMixin, MarkdownBase):
@@ -339,7 +357,7 @@ def check_personality(data) -> None:
 class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
     """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。
 
-    行動原理は、持つミーム(`Meme`。`text` の `# meme` 節に書く)に基づく。ミームは
+    行動原理は、持つミーム(`Meme`。`text` の `# meme` 節に書き、その整理を `# 行動原理` 節に書く)に基づく。ミームは
     人物どうしで移り変わり・伝染していくものなので、`Meme` 側との FK は持たない。
     """
 

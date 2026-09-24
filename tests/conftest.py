@@ -28,27 +28,12 @@ def fresh_test_db():
     yield
 
 
-def _rebuild_tables():
-    # drop_all は schema.py の現在のテーブルしか知らない。old_style_db は表を改名前の
-    # 名前へ書き換えることがあるので、実際に db にある表を見て消す
-    with engine.begin() as conn:
-        tables = [row[0] for row in conn.exec_driver_sql(
-            "SELECT name FROM sqlite_master WHERE type = 'table'")]
-        for table in tables:
-            conn.exec_driver_sql(f'DROP TABLE IF EXISTS "{table}"')
-    Base.metadata.create_all(engine)
-
-
 @pytest.fixture(autouse=True)
-def clean_tables(request):
+def clean_tables():
     with engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
     yield
-    # old_style_db は表の形を旧版へ書き換えるので、あとのテストのために張り直す
-    if "old_style_db" in request.fixturenames:
-        engine.dispose()
-        _rebuild_tables()
 
 
 @pytest.fixture(autouse=True)

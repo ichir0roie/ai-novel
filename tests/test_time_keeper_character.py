@@ -1,11 +1,12 @@
 """time_keeper の人物生成。サイコロで決めた性格を AI へ渡し、その段階のまま db に確定する。"""
 import random
 
+from ai.time_keeper import constants
 from ai.time_keeper.random_character_generator import (
-    _CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
+    _CONTENT_SYSTEM_PROMPT, _NON_PERSON_CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
 )
 from db.schema import (
-    PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, Location, Story,
+    MEME_CATEGORIES, PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, Location, Meme, Story,
 )
 from db.stamp import Stamp
 from tool.test.mock_ai_client import MockAIClient
@@ -72,3 +73,48 @@ def test_generate_non_person_has_no_personality_line(session):
     assert record.kind != "人物"
     assert record.sex is None and record.tone is None
     assert all("性格(" not in c["prompt"] for c in ai.calls)
+
+
+def _one_meme_per_category(session, monkeypatch):
+    session.add_all([Meme(text=f"{category}のミーム", category=category) for category in MEME_CATEGORIES])
+    session.commit()
+    monkeypatch.setattr(constants, "MEME_DRAW_RANGE", (1, 1))
+
+
+def test_generate_person_passes_drawn_memes_and_writes_them_into_text(session, monkeypatch):
+    place = _place(session)
+    _one_meme_per_category(session, monkeypatch)
+    ai = MockAIClient(seed=1)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    prompt = next(c for c in ai.calls if c["system"] == _CONTENT_SYSTEM_PROMPT)["prompt"]
+    assert "この人物の行動原理(ミーム。古=" in prompt
+    section = record.text.split("# meme\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert sorted(line.split(": ", 1)[1] for line in section) == sorted(
+        f"{category}のミーム" for category in constants.MEME_PERSON_CATEGORIES)
+    assert all(line[2] in constants.MEME_POSITIONS and line in prompt for line in section)
+    assert "\n\n# 行動原理\nモックprinciple" in record.text
+
+
+def test_generate_non_person_draws_from_its_own_categories(session, monkeypatch):
+    place = _place(session)
+    _one_meme_per_category(session, monkeypatch)
+    ai = MockAIClient(seed=2)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), ai, person=False)
+
+    prompt = next(c for c in ai.calls if c["system"] == _NON_PERSON_CONTENT_SYSTEM_PROMPT)["prompt"]
+    assert "この対象の行動原理(ミーム。" in prompt
+    for category in MEME_CATEGORIES:
+        assert (f"{category}のミーム" in record.text) == (category in constants.MEME_NON_PERSON_CATEGORIES)
+
+
+def test_generate_without_memes_leaves_no_meme_sections(session):
+    place = _place(session)
+    ai = MockAIClient(seed=1)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    assert "# meme" not in record.text and "# 行動原理" not in record.text
+    assert all("行動原理(ミーム。" not in c["prompt"] for c in ai.calls)

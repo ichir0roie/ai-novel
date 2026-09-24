@@ -3,7 +3,7 @@ import random
 
 from ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION
 from ai.time_keeper import (
-    character_event_generator, event_progression_generator, event_seed, event_summary, main,
+    character_event_generator, event_progression_generator, event_seed, event_summary, main, meme,
 )
 from ai.time_keeper._format import days_between
 from data_access_logic.query import common_query
@@ -430,3 +430,20 @@ def test_nothing_is_told_when_no_event_lies_ahead(session):
     character_event_generator.generate_next(session, ai, random.Random(1))
 
     assert all("この時点より後に既に決まっている出来事" not in call["prompt"] for call in ai.calls)
+
+
+def test_daily_event_draws_memes_out_of_the_events_before_it(session):
+    place = _place(session)
+    _character(session, place)
+    earlier = Event(name="前の回の出来事", text="家を捨てて旅に出た", time=Stamp(2100))
+    session.add(earlier)
+    session.commit()
+    ai = MockAIClient(seed=1)
+
+    event_id = main.daily_event(ai)
+
+    assert earlier.meme_seeded
+    assert any("家を捨てて旅に出た" in call["prompt"] for call in ai.calls
+               if call["system"] == meme._SYSTEM_PROMPT)
+    # この回に起こした出来事は、次の回に抜き出す
+    assert not session.get(Event, event_id).meme_seeded

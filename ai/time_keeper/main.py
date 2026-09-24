@@ -10,7 +10,7 @@ from __future__ import annotations
 import random
 import traceback
 
-from ai.time_keeper import character_event_generator, event_progression_generator, event_seed
+from ai.time_keeper import character_event_generator, event_progression_generator, event_seed, meme
 from data_access_logic.query import common_query, world_createion_query
 from db.schema import Session, Stamp, Story, get_env_session
 from ai.time_keeper import (
@@ -67,8 +67,10 @@ def time_process(
 
 def daily_event(ai: AIClient) -> int | None:
     """サブキャラクター一人の次の出来事を一件起こす(毎日のルーチン)。起こした出来事の id を返す。
-    先に、まだ抜き出していない元から出来事の種を抜き出し、たまっていれば似た種をまとめる。"""
+    先に、まだ抜き出していない元から出来事の種を抜き出し、たまっていれば似た種をまとめる。
+    ルーチンで起こした出来事は `CommitEvent` を通らないので、ミームもここで抜き出す(前の回の出来事が元になる)。"""
     with get_env_session() as s:
+        meme.refresh(s, ai)
         event_seed.refresh(s, ai)
         event_seed.consolidate(s, ai)
         record = character_event_generator.generate_next(s, ai)

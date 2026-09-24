@@ -21,7 +21,7 @@ from data_access_logic.query.base import *
 from db.schema import *
 from db.schema import PERSONALITY_COLUMNS, PERSONALITY_LEVELS
 from ai.time_keeper._ai import AIClient
-from ai.time_keeper import constants
+from ai.time_keeper import constants, meme
 from ai.time_keeper._format import format_time
 from randomizer.random_character_generator import build_character
 
@@ -31,6 +31,16 @@ _PLACEHOLDER_INSTRUCTION = (
 
 _AGE_RANGE = f"{constants.GENERATION_CHARACTER_AGE_RANGE[0]}〜{constants.GENERATION_CHARACTER_AGE_RANGE[1]}"
 
+
+def _meme_instruction(subject: str) -> str:
+    return (
+        f"「この{subject}の行動原理(ミーム)」が渡されているときは、それぞれに振られた古今表裏({meme.position_legend()})を変えずに、"
+        f"ミームどうしの関係を整理して principle に書いてください。何を経て古いものを手放したか、表と裏がどう食い違い、"
+        f"この{subject}の中でどう折り合っているかを、出来事や人との関わりとして書く。食い違うミームも、どちらかを捨てずに両方を生かす。"
+        f"ミームの文面をそのまま書き写さない。text もこの整理と矛盾させない。"
+    )
+
+
 _CONTENT_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観を構築する設定作家です。
 新しく生まれる人物1件について、人物説明・年齢を、自然な日本語で JSON で答えてください。
@@ -38,18 +48,21 @@ _CONTENT_SYSTEM_PROMPT = f"""\
 「この人物が体現する要素」が渡されているときは、複数の立場のうちあなたが選びやすいものへ寄せず、渡された要素をこの人物の生き方の核として必ず反映してください。
 「既にいる人物・対象」が渡されているときは、その役割・関係・特徴とは重ならない人物にしてください(同じ立場・同じ能力・同じ関係性の作り直しをしない)。
 「性格」は各軸を {'/'.join(PERSONALITY_LEVELS)} の五段階で渡す(サイコロで決まっていて変えられない)。人物説明はこの段階と矛盾しないようにし、「無」「必」の軸はその極端さが生活・仕事・人との関わり方に具体的な癖として表れるように書く。段階の語をそのまま書き写さない。
+{_meme_instruction("人物")}
 {_PLACEHOLDER_INSTRUCTION}
-キーは次の二つだけ。
+キーは次の三つだけ。
 - text: 具体的な生活・仕事・関係が伝わる2〜3文の人物説明。目立った能力・特技があれば地の文として含め、別項目には分けない。「優しい」「謎めいた」のような、誰にでも当てはまる抽象的な形容だけで済ませず、この人物固有の具体的な癖・関わり・生い立ちを最低一つ含める。
-- age: 年齢(整数)。{_AGE_RANGE}の範囲で、text の人物説明と矛盾しない値をあなた自身で決める。例えば老成した説明なら年長めに、幼さの残る説明なら年少めに。"""
+- age: 年齢(整数)。{_AGE_RANGE}の範囲で、text の人物説明と矛盾しない値をあなた自身で決める。例えば老成した説明なら年長めに、幼さの残る説明なら年少めに。
+- principle: 行動原理(ミーム)どうしの関係を整理した2〜4文。ミームが渡されていなければ空文字。"""
 
 _CONTENT_SCHEMA = {
     "type": "object",
     "properties": {
         "text": {"type": "string"},
         "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
+        "principle": {"type": "string"},
     },
-    "required": ["text", "age"],
+    "required": ["text", "age", "principle"],
     "additionalProperties": False,
 }
 
@@ -59,11 +72,13 @@ _NON_PERSON_CONTENT_SYSTEM_PROMPT = f"""\
 渡す場所の産業・地形・人間関係のうち少なくとも一つを具体的に使う。
 「この対象が体現する要素」が渡されているときは、渡された要素をこの対象の成り立ちの核として必ず反映してください。
 既にある対象と役割が重なるものは作らない。
+{_meme_instruction("対象")}
 {_PLACEHOLDER_INSTRUCTION}
-キーは次の三つだけ。
+キーは次の四つだけ。
 - kind: 種別。{' / '.join(constants.NON_PERSON_KINDS)} のいずれか一つ。
 - text: この対象が何であって、何を決められて、誰に対して力を持つのかが伝わる2〜3文の説明。「由緒ある」「謎めいた」のような、どの対象にも当てはまる形容だけで済ませない。
-- age: 成り立ってからの年数(整数)。{_AGE_RANGE}の範囲。"""
+- age: 成り立ってからの年数(整数)。{_AGE_RANGE}の範囲。
+- principle: 行動原理(ミーム)どうしの関係を整理した2〜4文。ミームが渡されていなければ空文字。"""
 
 _NON_PERSON_CONTENT_SCHEMA = {
     "type": "object",
@@ -71,8 +86,9 @@ _NON_PERSON_CONTENT_SCHEMA = {
         "kind": {"type": "string", "enum": list(constants.NON_PERSON_KINDS)},
         "text": {"type": "string"},
         "age": {"type": "integer", "minimum": constants.GENERATION_CHARACTER_AGE_RANGE[0], "maximum": constants.GENERATION_CHARACTER_AGE_RANGE[1]},
+        "principle": {"type": "string"},
     },
-    "required": ["kind", "text", "age"],
+    "required": ["kind", "text", "age", "principle"],
     "additionalProperties": False,
 }
 
@@ -247,6 +263,13 @@ def _generate_one(
         if chosen_element else ""
     )
 
+    drawn_memes = meme.draw(
+        session, rng, constants.MEME_PERSON_CATEGORIES if person else constants.MEME_NON_PERSON_CATEGORIES)
+    meme_line = (
+        f"この{subject}の行動原理(ミーム。{meme.position_legend()}):\n{meme.meme_section(drawn_memes)}\n"
+        if drawn_memes else ""
+    )
+
     nearby_characters = _nearby_characters(session, born_place, time)
     person_line = (
         f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
@@ -262,6 +285,7 @@ def _generate_one(
         f"現在の時刻: {time}\n"
         f"この場所・時刻に関連する筋書き:\n{story_label}\n"
         f"{element_line}"
+        f"{meme_line}"
         f"既にいる人物・対象:\n{_record_context(nearby_characters)}\n"
         f"この場所に自然な{subject}を1件、決めてください。"
     )
@@ -275,6 +299,11 @@ def _generate_one(
         draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
 
     draft["text"] = decided.get("text") or draft["text"]
+    if drawn_memes:
+        draft["text"] += f"\n\n# meme\n{meme.meme_section(drawn_memes)}"
+        principle = (decided.get("principle") or "").strip()
+        if principle:
+            draft["text"] += f"\n\n# 行動原理\n{principle}"
     try:
         age = int(decided.get("age", 0))
     except (TypeError, ValueError):
@@ -322,7 +351,8 @@ def _generate_one(
              f"    性格: {_personality_label(record)}\n"
              if person else "")
           + f"    筋書きの要素: {chosen_element or '(無し)'}\n"
-          f"    説明: {record.text or '(説明なし)'}")
+          + "".join(f"    ミーム: {item['position']}: {item['text']}\n" for item in drawn_memes)
+          + f"    説明: {record.text or '(説明なし)'}")
     return record
 
 

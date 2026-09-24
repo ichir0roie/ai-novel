@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ミーム(`Meme`)の元を引く。元のテーブル(語・人物)の `meme_seeded` で見る。"""
+"""ミーム(`Meme`)の元を引く。元のテーブル(アイデア・oracle・人物・出来事)の `meme_seeded` で見る。"""
 from __future__ import annotations
 
 from sqlalchemy import Select, select
