@@ -300,11 +300,17 @@ def _think_participants(
 
 def _roll_candidate(
     rng: random.Random, situation: str, judgements: list[dict], ai: AIClient,
+    seeds: list[str] | None = None,
 ) -> dict | None:
     """起こりうる出来事の候補をローカル AI に列挙させ、その中から一件をサイコロで選ぶ。"""
+    seed_lines = (
+        f"出来事の種(時代・場所を抜いた、別の物語から取ったアイデア): {seeds}\n"
+        "候補は、この種のどれかをこの場所・この時点・この当事者に合わせて具体化したものか、"
+        "直前・直近の出来事から連想したものにする。\n"
+    ) if seeds else ""
     prompt = f"""\
 当事者ごとの思考・感情・望み・恐れ・行動: {judgements or '(無し)'}
-{situation}この場所にこの時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。"""
+{situation}{seed_lines}この場所にこの時点で起こりうる出来事の候補を{constants.CANDIDATE_COUNT}件挙げてください。"""
     decided = ai.try_generate_json(
         prompt, _CANDIDATE_SCHEMA, system=_CANDIDATE_SYSTEM_PROMPT)
     candidates = [
@@ -336,9 +342,10 @@ def _move_destinations(
 def _progress_place(
     session: Session, place_id: int,
     characters: list[Character], time: Stamp, rng: random.Random, ai: AIClient,
-    *, focus: Character | None = None, note: str = "",
+    *, focus: Character | None = None, note: str = "", seeds: list[str] | None = None,
 ) -> Event | None:
-    """`focus` は AI が選ばなくても当事者に入れる。`note` は状況の、時刻の直前に足す。"""
+    """`focus` は AI が選ばなくても当事者に入れる。`note` は状況の、時刻の直前に足す。
+    `seeds`(出来事の種)を渡すと、候補をその種か直近の出来事からの連想で立てさせる。"""
     recent_events = session.scalars(
         common_query.events_of_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
@@ -368,7 +375,7 @@ def _progress_place(
 {note}現在の時刻: {time}
 """
     judgements = _think_participants(situation, characters_payload, ai)
-    candidate = _roll_candidate(rng, situation, judgements, ai)
+    candidate = _roll_candidate(rng, situation, judgements, ai, seeds)
     if candidate is None:
         return None
 

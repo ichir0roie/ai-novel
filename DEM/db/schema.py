@@ -6,7 +6,7 @@ import hashlib
 import os
 
 from sqlalchemy import (
-    BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator,
+    BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator, UniqueConstraint,
     create_engine,
     ForeignKey,
     select,
@@ -252,6 +252,32 @@ class EventSummary(Base):
     source_hash: Mapped[str] = mapped_column(
         String, comment="要約した本文の sha256。本文と食い違ったら作り直す", sort_order=110)
     text: Mapped[str] = mapped_column(String, comment="要約", sort_order=120)
+
+
+class EventSeedSource(Base):
+    """出来事の種を抜き出した元(作品・話・人物の筋書き)。md には出さない(import/export の外)。
+
+    種が一件も取れなかった元も行を持つ。そうしないと、毎回抜き出し直すことになる。
+    """
+
+    __tablename__ = "event_seed_source"
+    __table_args__ = (UniqueConstraint("source", "source_id"),)
+
+    source: Mapped[str] = mapped_column(
+        String, comment="元の種類。story / episode / character", sort_order=100)
+    source_id: Mapped[int] = mapped_column(Integer, comment="元のレコードの id", sort_order=110)
+    source_hash: Mapped[str] = mapped_column(
+        String, comment="種を抜き出した本文の sha256。本文と食い違ったら抜き出し直す", sort_order=120)
+
+
+class EventSeed(Base):
+    """出来事の種。時代・場所・固有名詞を抜いた、抽象的な出来事のアイデア。md には出さない(import/export の外)。"""
+
+    __tablename__ = "event_seed"
+
+    event_seed_source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("event_seed_source.id"), index=True, sort_order=100)
+    text: Mapped[str] = mapped_column(String, comment="種", sort_order=110)
 
 
 CHARACTER_KIND_PERSON = "人物"

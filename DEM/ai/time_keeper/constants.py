@@ -61,3 +61,10 @@ NEXT_EVENT_GAP_DAYS = (1, 7)
 EVENT_NOVEL_TIMEOUT = 300.0
 # 直前の出来事の本文を要約させるのを待つ秒数。
 EVENT_SUMMARY_TIMEOUT = 120.0
+
+# event_seed
+# 出来事の種を抜き出すとき、一度の呼び出しで渡す元の本文の字数の上限。
+EVENT_SEED_BATCH_LETTERS = 6000
+EVENT_SEED_TIMEOUT = 300.0
+# 毎日のルーチンで、一件の出来事に引く種の件数。候補はこの種か、直前の出来事からの連想で立てる。
+EVENT_SEED_DRAW_COUNT = 3

@@ -275,11 +275,11 @@ def latest_character_event_select(character_id: int) -> Select:
             .limit(1))
 
 
-def latest_character_place_select(character_id: int) -> Select:
-    """その人物の居場所のうち、一番新しく始まった行(時刻は問わない)。"""
+def first_character_place_select(character_id: int) -> Select:
+    """その人物の居場所のうち、一番古く始まった行(出自)。"""
     return (select(CharacterPlace)
             .where(CharacterPlace.character_id == character_id)
-            .order_by(CharacterPlace.start.desc(), CharacterPlace.id.desc())
+            .order_by(CharacterPlace.start.asc(), CharacterPlace.id.asc())
             .limit(1))
 
 

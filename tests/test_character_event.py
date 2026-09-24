@@ -2,11 +2,14 @@
 import random
 
 from DEM.ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION
-from DEM.ai.time_keeper import character_event_generator, event_progression_generator, event_summary, main
+from DEM.ai.time_keeper import (
+    character_event_generator, event_progression_generator, event_seed, event_summary, main,
+)
 from DEM.ai.time_keeper._format import days_between
 from DEM.data_access_logic.query import common_query
 from DEM.db.schema import (
-    Character, CharacterPlace, Event, EventCharacter, EventSummary, Location, Story, summary_source_hash,
+    Character, CharacterPlace, Event, EventCharacter, EventSeed, EventSummary, Location, Story,
+    summary_source_hash,
 )
 from DEM.db.stamp import Stamp
 from DEM.tool.test.mock_ai_client import MockAIClient
@@ -96,29 +99,53 @@ def test_next_event_starts_one_to_seven_days_after_the_previous_end(session):
         assert character.id in _involved(session, record)
 
 
-def test_first_event_counts_from_the_story_start(session):
+def test_first_event_counts_from_the_first_place_not_the_story(session):
     place = _place(session)
-    _character(session, place, start=Stamp(2080))
+    moved = Location(name="町", kind="町", text="", start=Stamp(2000), active_random_generation=True)
+    session.add(moved)
+    session.flush()
+    character = _character(session, place, start=Stamp(2080))
+    session.add(CharacterPlace(character_id=character.id, location_id=moved.id, start=Stamp(2095)))
+    session.commit()
 
     record = character_event_generator.generate_next(session, MockAIClient(seed=1), random.Random(1))
 
-    assert 1 <= days_between(STORY_START, record.start) <= 7
+    assert 1 <= days_between(Stamp(2080), record.start) <= 7
+    assert record.location_id == place.id
 
 
-def test_first_event_counts_from_the_birth_when_born_after_the_story_start(session):
+def test_first_event_counts_from_the_birth_when_the_place_has_no_start(session):
     place = _place(session)
     born = Stamp(2105, 6, 1)
     _character(session, place, start=born)
+    session.query(CharacterPlace).update({"start": None})
+    session.commit()
 
     record = character_event_generator.generate_next(session, MockAIClient(seed=1), random.Random(1))
 
     assert 1 <= days_between(born, record.start) <= 7
 
 
+def test_candidates_are_told_the_drawn_seeds(session):
+    place = _place(session)
+    _character(session, place)
+    ai = MockAIClient(seed=1)
+    event_seed.refresh(session, ai)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    seeds = [row.text for row in session.query(EventSeed).all()]
+    assert seeds
+    roll = next(call for call in ai.calls
+                if call["schema"] is event_progression_generator._CANDIDATE_SCHEMA)
+    assert "出来事の種(時代・場所を抜いた、別の物語から取ったアイデア): [" in roll["prompt"]
+    assert any(f"'{seed}'" in roll["prompt"] for seed in seeds)
+
+
 def test_only_alive_sub_characters_become_the_focus(session):
     place = _place(session)
     _character(session, place, "主役格", main_character=True)
-    _character(session, place, "故人", end=Stamp(2090))
+    _character(session, place, "故人", end=Stamp(2080, 1, 1))
     alive = _character(session, place, "生者")
 
     for seed in range(5):
@@ -308,9 +335,11 @@ def test_daily_event_returns_the_id_of_the_new_event(session):
     record = session.get(Event, event_id)
     assert record is not None
     assert character.id in _involved(session, record)
+    # 先に、作品「村の話」の筋書きから種を抜き出している
+    assert session.query(EventSeed).count() > 0
 
 
-def test_latest_character_place_is_the_most_recently_started(session):
+def test_first_character_place_is_the_oldest(session):
     place = _place(session)
     moved = Location(name="町", kind="町", text="", start=Stamp(2000))
     session.add(moved)
@@ -319,6 +348,6 @@ def test_latest_character_place_is_the_most_recently_started(session):
     session.add(CharacterPlace(character_id=character.id, location_id=moved.id, start=Stamp(2095)))
     session.commit()
 
-    row = session.scalars(common_query.latest_character_place_select(character.id)).first()
+    row = session.scalars(common_query.first_character_place_select(character.id)).first()
 
-    assert row.location_id == moved.id
+    assert row.location_id == place.id

@@ -12,7 +12,7 @@ import re
 _CHARACTER_ID_IN_PROMPT = re.compile(r"'character_id': (\d+)")
 
 # 空だと後段が何もしない配列だけ、件数を持たせる。それ以外の配列は空で返す。
-_ARRAY_SIZES = {"candidates": 3}
+_ARRAY_SIZES = {"candidates": 3, "seeds": 2}
 
 
 class MockAIClient:

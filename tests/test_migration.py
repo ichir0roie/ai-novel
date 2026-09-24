@@ -11,6 +11,7 @@
 - 052069310f38: 話に start/end・視点・場所・キーテキストを足す
 - 24327ee59e1c: event_summary / story_summary を足す
 - 82c20d8db0c5: sub_character を反転して main_character へ移す
+- cd51e8d34592: event_seed_source / event_seed を足す
 """
 import sqlite3
 
@@ -22,7 +23,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "82c20d8db0c5"
+HEAD_REVISION = "cd51e8d34592"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -68,6 +69,8 @@ def old_style_db():
     conn.execute("DROP TABLE character_relation")
     conn.execute("DROP TABLE event_summary")
     conn.execute("DROP TABLE story_summary")
+    conn.execute("DROP TABLE event_seed")
+    conn.execute("DROP TABLE event_seed_source")
     location_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'location'").fetchone()[0]
     assert "\tpolygon JSON, " in location_sql
     conn.execute("DROP TABLE location")
@@ -352,4 +355,21 @@ def test_upgrade_inverts_sub_character_into_main_character(old_style_db):
     assert "main_character" not in _columns(conn)
     rows = dict(conn.execute("SELECT name, sub_character FROM character").fetchall())
     assert {name for name, sub in rows.items() if sub} == {"v0"}
+    conn.close()
+
+
+def test_upgrade_adds_event_seed_tables_and_downgrade_drops_them(old_style_db):
+    cfg = _config()
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert set(_columns(conn, "event_seed_source")) == {"id", "source", "source_id", "source_hash"}
+    assert set(_columns(conn, "event_seed")) == {"id", "event_seed_source_id", "text"}
+    conn.close()
+
+    command.downgrade(cfg, "82c20d8db0c5")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "event_seed" not in tables and "event_seed_source" not in tables
     conn.close()
