@@ -33,8 +33,6 @@
   ファイルを開くときは必ず `encoding="utf-8"` を付ける
 - `novel.db` の文字列も UTF-8(`create_db` が `PRAGMA encoding='UTF-8'` を打つ)。
   `.gitattributes` で `*.db` はバイナリ扱い
-- Windows の python は標準出力が cp932 になるため、日本語を出すコマンドは
-  `PYTHONUTF8=1` を付けて実行する(付けないと文字化け・`UnicodeEncodeError` になる)
 
 # 環境構築
 
@@ -77,12 +75,21 @@ git push
 
 # 実行環境
 
-- python は **`.venv/Scripts/python.exe`** を使う(`which python` は別の virtualenv を指す)。
-  bash なら `PYTHONUTF8=1 .venv/Scripts/python.exe -m ...`
-- このリポジトリ(世界リポジトリの `core/`)のルートから実行する(`DEM.` から始まる import はルート基準)
+Linux(bash)前提。python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想環境 **`.venv/bin/python`** を使う。
+
+```
+# 仮想環境を作って依存を入れる(何度回してもよい。requirements.txt が変わったときだけ入れ直す)
+./setup_env.sh
+
+# 実行はこのリポジトリのルートから(`DEM.` から始まる import はルート基準)
+.venv/bin/python -c "from DEM.ai.claude_code.interface.world.list_places import ListPlaces; print(ListPlaces().run())"
+```
+
+- 手で作るなら `python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt`
+- Claude Code では世界リポジトリの SessionStart フック(`../.claude/hooks/session-start.sh`)が、
+  `core/` の取り込みと `./setup_env.sh` をセッション開始時に済ませる。手で回す必要は無い
 - `sqlite3` CLI は入っていない。db を覗くときは python の `sqlite3` モジュールか SQLAlchemy を使う
-- `ModuleNotFoundError` など依存不足で実行が失敗したら、まず
-  `.venv/Scripts/python.exe -m pip install -r requirements.txt` を試してから調査する
+- `ModuleNotFoundError` など依存不足で実行が失敗したら、まず `./setup_env.sh` を回してから調査する
 
 # テスト
 
@@ -117,7 +124,7 @@ git push
 - 調査用の読み取り例:
 
 ```
-PYTHONUTF8=1 .venv/Scripts/python.exe -c "
+.venv/bin/python -c "
 import sqlite3
 c = sqlite3.connect('../novel.db')
 print(c.execute('select count(*) from character').fetchone())
@@ -148,7 +155,7 @@ print(c.execute('select count(*) from character').fetchone())
 - モデルから一覧を出す:
 
 ```
-PYTHONUTF8=1 .venv/Scripts/python.exe -c "
+.venv/bin/python -c "
 from DEM.db.schema import Base
 for t in Base.metadata.sorted_tables:
     print(t.name, [c.name for c in t.columns])
@@ -158,7 +165,7 @@ for t in Base.metadata.sorted_tables:
 - 実 db 側の形を見る(`schema.py` と食い違っていないかの確認):
 
 ```
-PYTHONUTF8=1 .venv/Scripts/python.exe -c "
+.venv/bin/python -c "
 import sqlite3
 c = sqlite3.connect('../novel.db')
 print([r[0] for r in c.execute(\"select name from sqlite_master where type='table'\")])
@@ -167,7 +174,7 @@ print(c.execute('PRAGMA table_info(character)').fetchall())
 ```
 
 - マイグレーションは `DEM/db/alembic/`。コマンド例は `DEM/db/alembic/README` にある。
-  今のリビジョン確認は `.venv/Scripts/python.exe -m alembic -c DEM/db/alembic/alembic.ini current`
+  今のリビジョン確認は `.venv/bin/python -m alembic -c DEM/db/alembic/alembic.ini current`
 - `schema.py` を変えたら alembic の `revision --autogenerate` → 内容確認 → `upgrade head` の順。
   `DEM/db/rebuild_db.py`(退避して作り直し)や `DEM/tool/danger/`(世界の消去・再走)は
   データを消す操作なので、頼まれたときだけ使う
