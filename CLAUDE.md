@@ -24,6 +24,8 @@
 - main ブランチへのコミットを頼まれたときは、深く調査しない
 - 変更内容を掘り下げて「なぜ」まで書いた丁寧なメッセージを作らず、diff・変更ファイルの表層だけを見て、端的なメッセージでそのままコミットする
 - プッシュ前に、最新の変更を取り込んで、コンフリクトがあれば解消してからpush
+- コミットは `world/`(ai-novel-world)と本体の **両方のリポジトリに同じメッセージで** 行う。
+  手順は「環境構築」のとおり `world/` → 本体の順
 
 # 文字コード
 
@@ -49,15 +51,17 @@ git submodule update --init
 git pull --recurse-submodules
 git submodule update --init
 
-# db・md を変えたら、world/ 側でコミットしてから本体で参照を更新する
+# コミットは両方のリポジトリに同じメッセージで。world/ 側を先にコミットしてから本体で参照を更新する
 git -C world switch main   # サブモジュールは detached HEAD になっているため
 git -C world add -A
-git -C world commit -m "..."
+git -C world commit -m "<メッセージ>"
 git -C world push
-git add world
-git commit -m "world を更新"
+git add -A
+git commit -m "<メッセージ>"
 git push
 ```
+
+VS Code のタスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
 
 # 実行環境
 

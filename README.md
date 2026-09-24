@@ -66,15 +66,17 @@ git submodule update --init
 git pull --recurse-submodules
 git submodule update --init
 
-# db・md を変えたら、world/ 側でコミットしてから本体で参照を更新する
+# コミットは両方のリポジトリに同じメッセージで。world/ 側を先にコミットしてから本体で参照を更新する
 git -C world switch main   # サブモジュールは detached HEAD になっているため
 git -C world add -A
-git -C world commit -m "..."
+git -C world commit -m "<メッセージ>"
 git -C world push
-git add world
-git commit -m "world を更新"
+git add -A
+git commit -m "<メッセージ>"
 git push
 ```
+
+VS Code のタスク `git push` は、この順で両方に同じメッセージ(日時)でコミットして push する。
 
 ## 触り方
 
