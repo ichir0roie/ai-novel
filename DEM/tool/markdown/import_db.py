@@ -14,7 +14,7 @@ from DEM.db.schema import NOVEL_DB_PATH, Base, MarkdownBase, StampType, get_nove
 from DEM.db.stamp import Stamp
 from DEM.tool.markdown import export_db, sync_stamp
 
-WORLDS_ROOT = "worlds"
+WORLDS_ROOT = "world/worlds"
 
 __all__ = ["WORLDS_ROOT", "ImportDbError", "import_db"]
 

@@ -14,7 +14,7 @@ from DEM.tool.map.render import render_maps
 from DEM.tool.markdown import sync_stamp
 from DEM.tool.relation.render import render_relations
 
-WORLDS_ROOT = "worlds"
+WORLDS_ROOT = "world/worlds"
 
 __all__ = ["WORLDS_ROOT", "ExportError", "export_db"]
 

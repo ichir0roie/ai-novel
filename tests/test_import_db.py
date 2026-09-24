@@ -55,6 +55,15 @@ def test_fixed_sessions_ignore_env_db_path():
     assert db_file(get_novel_session) == "novel.db"
 
 
+def test_novel_db_lives_in_world_submodule():
+    from DEM.db.schema import NOVEL_DB_PATH
+    from DEM.tool.markdown.export_db import WORLDS_ROOT as export_root
+    from DEM.tool.markdown.import_db import WORLDS_ROOT as import_root
+
+    assert NOVEL_DB_PATH == "world/novel.db"
+    assert export_root == import_root == "world/worlds"
+
+
 def test_location_markdown_name_uses_name():
     assert Location(id=71, name="パンデム", text="").markdown_name == "71_パンデム.md"
     assert Location(id=72, text="").markdown_name == "72.md"

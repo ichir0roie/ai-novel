@@ -1,0 +1,4 @@
+[submodule "world"]
+	path = world
+	url = ../ai-novel-world.git
+	branch = main

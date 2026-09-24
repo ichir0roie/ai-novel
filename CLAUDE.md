@@ -56,7 +56,9 @@
 
 # db への接続
 
-- 実体は **ルートの `novel.db`**(SQLite)。パスは `DEM/db/schema.py` の `DB_PATH`
+- 実体は **サブモジュール `world/` の `novel.db`**(SQLite。private リポジトリ `ai-novel-world`)。
+  clone 後は `git submodule update --init` で取ってくる。db・md の変更は `world/` 側でコミットし、
+  ai-novel 側ではサブモジュールの参照を更新してコミットする。パスは `DEM/db/schema.py` の `DB_PATH`
   で、環境変数 `DEM_DB_PATH` で差し替えられる
 - コードから触るときは `from DEM.db.schema import get_env_session` で `Session` を開く。
   `engine` も同じモジュールにある
@@ -77,7 +79,7 @@
 ```
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
 import sqlite3
-c = sqlite3.connect('novel.db')
+c = sqlite3.connect('world/novel.db')
 print(c.execute('select count(*) from character').fetchone())
 "
 ```
@@ -95,7 +97,7 @@ print(c.execute('select count(*) from character').fetchone())
   古い内容でその変更が消える(`export_db` の直前に `import_db` を回してはいけない)
 - 途中で md を直したくなったら、挟まずに区切る。いったん `export_db` で db を
   md へ落とし、そこから直して `import_db` する(＝次の作業の頭にする)
-- 手直しが残っているかは `git status --short worlds/` で見る
+- 手直しが残っているかは `git -C world status --short worlds/` で見る
 - `ExportDb` は、前回の同期(`.markdown_sync` の mtime)より後に書かれた md が
   あれば止まる。止まったら `ImportDb` で取り込んでから db 側の変更をやり直す。
   md を捨ててよいと分かっているときだけ `ExportDb(force=True)`
@@ -118,7 +120,7 @@ for t in Base.metadata.sorted_tables:
 ```
 PYTHONUTF8=1 .venv/Scripts/python.exe -c "
 import sqlite3
-c = sqlite3.connect('novel.db')
+c = sqlite3.connect('world/novel.db')
 print([r[0] for r in c.execute(\"select name from sqlite_master where type='table'\")])
 print(c.execute('PRAGMA table_info(character)').fetchall())
 "
