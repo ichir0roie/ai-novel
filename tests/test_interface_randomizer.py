@@ -5,8 +5,9 @@ from ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
 from ai.claude_code.interface.randomizer.commit_event import CommitEvent
 from ai.claude_code.interface.randomizer.create_random_event import CreateRandomEvent
 from ai.claude_code.interface.randomizer.create_random_place import CreateRandomPlace
+from ai.claude_code.interface.randomizer.delete_event import DeleteEvent
 from ai.claude_code.interface.randomizer.delete_place import DeletePlace
-from db.schema import Character, Event, EventCharacter, EventSummary, Location
+from db.schema import Character, Event, EventCharacter, EventIdea, EventSummary, Idea, Location
 
 
 @pytest.fixture
@@ -123,3 +124,48 @@ def test_delete_place_refuses_place_with_children(session, place):
 def test_delete_place_rejects_unknown_id():
     with pytest.raises(UnknownRecordError):
         DeletePlace(9999).run()
+
+
+def _stored_event(session, place, character) -> int:
+    idea = Idea(name="祭りの作法", kind="概念", text="")
+    record = Event(name="祭り", text="本文", time="2100", location_id=place)
+    session.add_all([idea, record])
+    session.flush()
+    session.add_all([
+        EventCharacter(event_id=record.id, character_id=character),
+        EventIdea(event_id=record.id, idea_id=idea.id),
+        EventSummary(event_id=record.id, source_hash="x", text="要約"),
+    ])
+    session.commit()
+    return record.id
+
+
+def test_delete_event_removes_its_links_and_summary(session, place, character):
+    event_id = _stored_event(session, place, character)
+
+    deleted = DeleteEvent(event_id).run()
+
+    assert deleted == {"id": event_id, "name": "祭り"}
+    session.expire_all()
+    assert session.get(Event, event_id) is None
+    assert session.query(EventCharacter).count() == 0
+    assert session.query(EventIdea).count() == 0
+    assert session.query(EventSummary).count() == 0
+    assert session.get(Character, character) is not None
+    assert session.query(Idea).count() == 1
+
+
+def test_delete_event_refuses_event_with_children(session, place, character):
+    event_id = _stored_event(session, place, character)
+    session.add(Event(name="後夜祭", text="", time="2100", parent_event_id=event_id))
+    session.commit()
+
+    with pytest.raises(ValueError):
+        DeleteEvent(event_id).run()
+    session.expire_all()
+    assert session.get(Event, event_id) is not None
+
+
+def test_delete_event_rejects_unknown_id():
+    with pytest.raises(UnknownRecordError):
+        DeleteEvent(9999).run()
