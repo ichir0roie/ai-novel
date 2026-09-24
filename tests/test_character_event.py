@@ -496,3 +496,51 @@ def test_every_step_of_the_daily_event_is_told_to_fit_the_age_of_that_time(sessi
     for schema in schemas:
         call = next(call for call in ai.calls if call["schema"] is schema)
         assert EVENT_AGE_INSTRUCTION in call["system"]
+
+
+def test_the_given_age_puts_the_event_between_the_earlier_and_the_later_ones(session):
+    place = _place(session)
+    character = _character(session, place, start=Stamp(2080, 3, 10))
+    _event(session, place, [character], Stamp(2092, 1, 1), Stamp(2092, 1, 2), "十一歳の出来事")
+    _event(session, place, [character], Stamp(2099, 1, 1), Stamp(2099, 1, 2), "十八歳の出来事")
+    ai = MockAIClient(seed=1)
+
+    record = character_event_generator.generate_next(
+        session, ai, random.Random(1), character_id=character.id, age=17)
+
+    assert event_progression_generator.age_at(character, record.start) == 17
+    decide = next(call for call in ai.calls
+                  if call["schema"] is event_progression_generator._PLACE_SCHEMA)
+    assert "'name': '十一歳の出来事'" in decide["prompt"]
+    later = next(line for line in decide["prompt"].splitlines()
+                 if line.startswith("この時点より後に既に決まっている出来事"))
+    assert "'name': '十八歳の出来事'" in later
+    novel = ai.calls[-1]
+    assert "この時点より後に既に決まっている出来事: " in novel["prompt"]
+    assert '"name": "十八歳の出来事"' in novel["prompt"]
+
+
+def test_the_given_age_keeps_companions_whose_time_is_ahead_but_free_then(session):
+    place = _place(session)
+    focus = _character(session, place, "甲", start=Stamp(2080, 3, 10))
+    ahead = _character(session, place, "乙")
+    _event(session, place, [ahead], Stamp(2120, 1, 1), Stamp(2120, 1, 2), "乙の先の出来事")
+
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1), character_id=focus.id, age=17)
+
+    thinks = [call for call in ai.calls if call["schema"] is event_progression_generator._JUDGEMENT_SCHEMA]
+    assert any(f"'character_id': {ahead.id}" in call["prompt"].splitlines()[0] for call in thinks)
+
+
+def test_the_given_age_is_passed_over_when_the_focus_is_in_another_event_then(session):
+    place = _place(session)
+    character = _character(session, place, start=Stamp(2080, 1, 1))
+    _event(session, place, [character], Stamp(2097, 1, 1), Stamp(2098, 1, 1), "一年がかりの出来事")
+
+    record = character_event_generator.generate_next(
+        session, MockAIClient(seed=1), random.Random(1), character_id=character.id, age=17)
+
+    assert record is None
+

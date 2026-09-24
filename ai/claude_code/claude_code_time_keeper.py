@@ -32,15 +32,15 @@ def claude_story_years_main(story_id: int, years: int = 5) -> Stamp:
     return loop_time_for_story(story_id, years)
 
 
-def daily_event(character_id: int | None = None) -> int | None:
+def daily_event(character_id: int | None = None, age: int | None = None) -> int | None:
     try:
-        return _main.daily_event(ai_client, character_id)
+        return _main.daily_event(ai_client, character_id, age)
     finally:
         print(f"[claude_ai] {ai_client.usage_summary()}")
 
 
-def claude_daily_event_main(character_id: int | None = None) -> int | None:
-    return daily_event(character_id)
+def claude_daily_event_main(character_id: int | None = None, age: int | None = None) -> int | None:
+    return daily_event(character_id, age)
 
 
 if __name__ == "__main__":

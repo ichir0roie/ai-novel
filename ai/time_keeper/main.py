@@ -55,13 +55,13 @@ def time_process(
     event_progression_generator.generate_random(s, time, ai)
 
 
-def daily_event(ai: AIClient, character_id: int | None = None) -> int | None:
+def daily_event(ai: AIClient, character_id: int | None = None, age: int | None = None) -> int | None:
     """ルーチンで起こした出来事は `CommitEvent` を通らないので、ミームもここで抜き出す(前の回の出来事が元になる)。"""
     with get_env_session() as s:
         meme.refresh(s, ai)
         event_seed.refresh(s, ai)
         event_seed.consolidate(s, ai)
-        record = character_event_generator.generate_next(s, ai, character_id=character_id)
+        record = character_event_generator.generate_next(s, ai, character_id=character_id, age=age)
         return record.id if record is not None else None
 
 

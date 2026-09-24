@@ -18,8 +18,8 @@ def loop_time_for_story(story_id: int, years: int = 5) -> Stamp:
     return main.loop_time_for_story(ai_client, story_id, years)
 
 
-def daily_event(character_id: int | None = None) -> int | None:
-    return main.daily_event(ai_client, character_id)
+def daily_event(character_id: int | None = None, age: int | None = None) -> int | None:
+    return main.daily_event(ai_client, character_id, age)
 
 
 if __name__ == "__main__":
