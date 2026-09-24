@@ -202,6 +202,15 @@ class EventSeededMixin:
         sort_order=9000)
 
 
+class MemeSeededMixin:
+    """ミーム(`Meme`)を抜き出す元に付ける、抜き出し済みの印。"""
+
+    meme_seeded: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="ミームを抜き出し済みか。false に戻すと、次の抽出で抜き出し直す",
+        sort_order=9010)
+
+
 class Event(EventSeededMixin, MarkdownBase):
 
     __tablename__ = "event"
@@ -277,6 +286,25 @@ class EventSeed(Base):
         comment="棚卸し(似た種をまとめる)を済ませたか。新しい種は false", sort_order=110)
 
 
+class Meme(Base):
+    """語(`Term`)・oracle(著者の覚え書き)・人物の筋書きから抜き出した、キャラクターの芯になる考え方。md には出さない(import/export の外)。
+
+    ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
+    (元の側の `meme_seeded` で、抜き出し済みかだけを管理する)。
+    人物が持つミームは、その人物の `text` の `# meme` 節に文面をそのまま書く。
+    """
+
+    __tablename__ = "meme"
+
+    text: Mapped[str] = mapped_column(String, comment="ミーム", sort_order=100)
+
+
+class Oracle(MemeSeededMixin, MarkdownBase):
+    """著者自身の創作・AI についての覚え書き。物語のデータではなく、db の他のテーブルとは FK を持たない。"""
+
+    __tablename__ = "oracle"
+
+
 CHARACTER_KIND_PERSON = "人物"
 
 
@@ -309,8 +337,12 @@ def check_personality(data) -> None:
             f"性格は {'/'.join(PERSONALITY_LEVELS)} のいずれか: {bad}")
 
 
-class Character(EventSeededMixin, MarkdownBase):
-    """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。"""
+class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
+    """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。
+
+    行動原理は、持つミーム(`Meme`。`text` の `# meme` 節に書く)に基づく。ミームは
+    人物どうしで移り変わり・伝染していくものなので、`Meme` 側との FK は持たない。
+    """
 
     __tablename__ = "character"
 
@@ -414,7 +446,7 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-class Term(MarkdownBase):
+class Term(MemeSeededMixin, MarkdownBase):
     __tablename__ = "term"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
