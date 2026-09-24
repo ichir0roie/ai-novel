@@ -1,0 +1,27 @@
+Generic single-database configuration.
+
+## コマンド例
+
+リポジトリのルート(世界リポジトリの `core/`)から実行する。
+
+```
+# 今 db がどのリビジョンにいるか見る
+python -m alembic -c DEM/db/alembic/alembic.ini current
+
+# 履歴を見る
+python -m alembic -c DEM/db/alembic/alembic.ini history
+
+# schema.py を直したあと、差分からマイグレーションを自動生成する
+python -m alembic -c DEM/db/alembic/alembic.ini revision --autogenerate
+
+# 生成された versions/{yyyy}/{mm}/{dd}/ 配下のファイルを確認・手直ししてから、db に反映する
+python -m alembic -c DEM/db/alembic/alembic.ini upgrade head
+
+# 一つ前のリビジョンへ戻す
+python -m alembic -c DEM/db/alembic/alembic.ini downgrade -1
+```
+
+`versions/` は `versions/{yyyy}/{mm}/{dd}/{hhmmss}_{rev}_{slug}.py` の形で
+日付ディレクトリに振り分けられる(`alembic.ini` の `file_template` /
+`recursive_version_locations`)。同じ日に複数のリビジョンを切ることがあるので、
+ファイル名の先頭には時分秒まで入れて衝突・順序の揺れを避ける。

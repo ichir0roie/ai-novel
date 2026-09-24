@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+scripts
+
+.env
+
+backup
+
+*.test.db
+tmp
+.pytest_cache
+.markdown_sync

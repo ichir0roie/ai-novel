@@ -1,0 +1,10 @@
+# 記録の形は DEM/db/schema.py、マイグレーションは DEM/db/alembic/
+# 下書き作りに factory-boy、ローカル AI 以外の生成に anthropic を使う
+sqlalchemy>=2.0
+pyyaml>=6.0
+pydantic>=2.0
+alembic>=1.20
+factory-boy>=3.3
+pytest>=8.0
+anthropic>=0.40
+python-dotenv>=1.0
