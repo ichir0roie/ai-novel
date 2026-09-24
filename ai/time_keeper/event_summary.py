@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""出来事の本文の要約(`EventSummary`)。次の出来事へ直前の出来事を渡すとき、本文の代わりに使う。"""
 from __future__ import annotations
 
 import json
@@ -27,7 +26,6 @@ _SCHEMA = {
 
 
 def summarize(session: Session, event: Event, ai: AIClient) -> str | None:
-    """`event` の本文の要約。本文が前に要約したときのままなら作り直さない。作れなければ None。"""
     text = (event.text or "").strip()
     if not text:
         return None

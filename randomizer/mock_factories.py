@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""schema.py の全テーブルぶんの factory_boy ファクトリ(モックデータ用)。
-
-    from randomizer import mock_factories as mf
-    mf.bind(engine)                # 書き込み先を差す
-    mf.LocationFactory.create_batch(100)
-    mf.commit()
-
-外部キーは、その時点で db に居る行から無作為に選ぶ。まだ一件も無ければ
-参照先のファクトリで作って埋める(nullable な列は一定の割合で None にする)。
-"""
 from __future__ import annotations
 
 import factory

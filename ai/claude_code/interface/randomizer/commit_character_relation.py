@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""人物同士の相関(`CharacterRelation`)を一件、db へ確定する、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft

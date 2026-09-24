@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""`randomizer/` 配下の入口に共通する基底。"""
 from __future__ import annotations
 
 from ai.claude_code import ai_client
@@ -9,8 +8,6 @@ from db.schema import get_env_session
 
 
 class RandomDraft(Entrypoint):
-    """サブクラスは `builder` に生成関数を指す。`overrides` はそのまま渡る。"""
-
     builder: staticmethod
 
     def __init__(self, **overrides):
@@ -21,7 +18,7 @@ class RandomDraft(Entrypoint):
 
 
 class CommitDraft(CommitEntrypoint):
-    """作った下書きを db へ確定する、共通の基底。"""
+    pass
 
 
 class CommitMemeSource(CommitDraft):

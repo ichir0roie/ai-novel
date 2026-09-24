@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""novel.test.db の全テーブルにモックデータを流し込む。
-
-使い方:
-    python -m tool.test.seed_mock_db                       各テーブル 100 件
-    python -m tool.test.seed_mock_db --n 300               件数を変える
-    python -m tool.test.seed_mock_db --seed 12345          シードを指定して再現
-    python -m tool.test.seed_mock_db --recreate            ファイルを消して作り直してから入れる
-"""
 from tool.test import TEST_DB_PATH  # noqa: F401  db を novel.test.db に固定する(schema より先に読む)
 
 import argparse
@@ -21,7 +13,6 @@ from randomizer import mock_factories
 
 
 def seed_mock_db(n=100, seed=None, recreate=False) -> dict[str, int]:
-    """`novel.test.db` に、各テーブル `n` 件ずつ足す。戻り値はテーブルごとの総件数。"""
     path = os.path.abspath(TEST_DB_PATH)
     if recreate:
         engine = create_db(path)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""出来事を全件、新しい順に見る、claude が呼ぶ入口。絞り込みは `ReadEvents` を使う。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story._rows import event_row

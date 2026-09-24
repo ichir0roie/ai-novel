@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""アイデア(`Idea`)を一件、db へ確定し、そこからミームを抜き出す、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitMemeSource

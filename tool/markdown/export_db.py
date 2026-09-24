@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""db の `MarkdownBase` を継ぐ全テーブルを `worlds/` の下へ md として書き出す。
-"""
 from __future__ import annotations
 
 import json
@@ -21,7 +19,7 @@ IGNORE_COLUMNS = {"directory_path", "filename"}
 
 
 class ExportError(ValueError):
-    """書き出せないレコードがあった。"""
+    pass
 
 
 def _markdown_models() -> list[type]:
@@ -65,7 +63,6 @@ def _write(path: str, data: dict, sections: dict[str, str]) -> None:
 
 
 def export_db(root: str = WORLDS_ROOT) -> dict[str, int]:
-    """db を md へ書き出して、テーブル名ごとの件数を辞書で返す。"""
     if os.path.exists(root):
         shutil.rmtree(root)
 

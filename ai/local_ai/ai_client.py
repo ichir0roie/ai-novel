@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""ローカル AI(Ollama)を叩く、環境非依存の薄いクライアント。db には触れない。
-
-環境変数: `DEM_LOCAL_AI_HOST`(Ollama のベース URL、既定 `http://localhost:11434`)、
-`DEM_LOCAL_AI_MODEL`(モデル名、必須)。
-"""
 from __future__ import annotations
 
 import json
@@ -20,7 +15,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 class LocalAIError(RuntimeError):
-    """ローカルAIサーバとの通信・応答が失敗したときに投げる。"""
+    pass
 
 
 _DEFAULT_OPTIONS = {
@@ -49,12 +44,6 @@ def generate(
     timeout: float = 120.0,
     options: dict | None = None,
 ) -> str:
-    """Ollamaの `/api/generate` を叩き、生成テキストを返す。
-
-    `options` は Ollama の `options`(temperature 等)に上書きでマージする。
-    省略時は `_DEFAULT_OPTIONS` を使う。`format` は Ollama にそのまま渡す
-    (JSON Schema の辞書、または `"json"`)。
-    """
     payload: dict = {
         "model": _model(),
         "prompt": prompt,
@@ -95,7 +84,6 @@ def generate_json(
     timeout: float = 120.0,
     options: dict | None = None,
 ) -> dict:
-    """`generate` を `schema`(JSON Schema)で構造化出力に制約して呼び、パースした辞書を返す。"""
     text = generate(
         prompt, system=system, format=schema, timeout=timeout, options=options)
     try:
@@ -113,7 +101,6 @@ def try_generate_json(
     timeout: float = 120.0,
     options: dict | None = None,
 ) -> dict:
-    """`generate_json` を試し、失敗(接続不可・応答がJSONとして壊れている)なら空の辞書を返す。"""
     try:
         return generate_json(prompt, schema, system=system, timeout=timeout, options=options)
     except LocalAIError as error:

@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""既にある作品(`Story`)を一件、渡した欄だけ db 上で直す、claude が呼ぶ入口。
-
-    UpdateStory({"id": 1, "text": "…", "state": "執筆中"}).run()
-"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story._base import StoryCommit

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""同期フラグの下りている話を並べる、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story import _rows
@@ -7,8 +6,6 @@ from ai.claude_code.interface.story._base import StoryQuery
 
 
 class ListUnsyncedEpisodes(StoryQuery):
-    """未同期の話を返す。空なら次の話へ進んでよい。"""
-
     def __init__(self, story_id: int | None = None):
         self.story_id = story_id
 

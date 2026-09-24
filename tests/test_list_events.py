@@ -1,4 +1,3 @@
-"""出来事の入口(`ListEvents` / `ReadEvents`)が返す辞書。"""
 from ai.claude_code.interface.story.read_events import ReadEvents
 from ai.claude_code.interface.world.list_events import ListEvents
 import pytest

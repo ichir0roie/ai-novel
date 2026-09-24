@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""`common_query` の Select を実行して、辞書に組む共通処理。claude が直接呼ぶ入口ではない。"""
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -12,7 +11,6 @@ from db.stamp import Stamp
 
 
 def event_row(event, *, text: bool = True) -> dict:
-    """出来事一件を辞書にする。掛かる人物は**何人でも**並ぶ。"""
     data = to_dict_with(event, relations=common_query.EVENT_RELATIONS, text=text)
     data["characters"] = [
         {"id": link.character_id, "name": None if link.character is None else link.character.name}
@@ -29,7 +27,6 @@ def events_at(session: Session, when, *, place_ids=None, limit=None,
 
 def events_of(session: Session, select_fn, record_id: int, *, until=None, limit=5,
               text: bool = True) -> list[dict]:
-    """`select_fn` は `common_query.events_of_place_select` などの、id で出来事を引く Select。"""
     rows = session.scalars(select_fn(record_id, until=until, limit=limit)).all()
     return [event_row(row, text=text) for row in rows]
 
@@ -40,7 +37,6 @@ def open_events(session: Session, place_ids, until: Stamp) -> list[dict]:
 
 
 def residents(session: Session, place_ids, until: Stamp) -> list[int]:
-    """その時点でその場所(群)に居る人物の id。"""
     character_ids = session.scalars(
         common_query.resident_character_ids_select(place_ids, until)).all()
     return [id_ for id_ in character_ids if id_ is not None]
@@ -57,7 +53,6 @@ def _place_at(session: Session, select_fn, owner_id: int, until: Stamp) -> dict 
 
 def character_sheet(session: Session, character_id: int, *, until=None,
                     count: int = 5, text: bool = True) -> dict:
-    """人物一件を、口調・性格・居場所・直近の行動でそろえて返す。"""
     character = session.scalars(common_query.character_select(character_id)).first()
     if character is None:
         raise common_query.NotFoundError(f"character_id={character_id} という id の character が見つからない")
@@ -72,7 +67,6 @@ def character_sheet(session: Session, character_id: int, *, until=None,
 
 
 def story_digest(session: Session, story: Story) -> dict:
-    """作品一件の見出し。話数・未同期の数まで含める。"""
     episodes = session.scalars(common_query.story_episodes_select(story.id)).all()
     digest = to_dict_with(
         story, relations={"world": "world_name", "place": "place_name"})
@@ -89,7 +83,6 @@ def stories(session: Session) -> list[dict]:
 
 def episodes(session: Session, story_id: int, *, count: int = 10, before=None,
              text: bool = True) -> list[dict]:
-    """直前の `count` 話を、古い順に並べて返す。`before` を渡すとその話数より前の `count` 話。"""
     common_query._get(session, Story, story_id, "story_id")
     rows = session.scalars(
         common_query.episodes_select(story_id, count=count, before=before)).all()
@@ -97,7 +90,6 @@ def episodes(session: Session, story_id: int, *, count: int = 10, before=None,
 
 
 def unsynced_episodes(session: Session, story_id: int | None = None) -> list[dict]:
-    """同期フラグの下りている話。"""
     rows = session.scalars(common_query.unsynced_episodes_select(story_id)).all()
     return [{"id": episode.id, "story_id": episode.story_id,
              "story_name": None if episode.story is None else episode.story.name,
@@ -107,10 +99,6 @@ def unsynced_episodes(session: Session, story_id: int | None = None) -> list[dic
 
 def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
           full: bool = False) -> dict:
-    """世界の断面(場所の道筋・張っている出来事・直近の出来事・アイデア・いま居る者)を一枚にまとめる。
-
-    `full=False`(既定)では `hidden` の立った出来事を伏せる。
-    """
     location = common_query._get(session, Location, place_id, "place_id")
     if when is None:
         raise ValueError("時刻が決まらない(when を渡す)")
@@ -154,7 +142,6 @@ _NAME_MODELS = {"Character": Character, "Location": Location}
 
 
 def _names_for(session: Session, ids: list[int], model_name: str) -> dict[int, str | None]:
-    """複数の id の名前を、追加の select 一発でまとめて引く。"""
     if not ids:
         return {}
     model = _NAME_MODELS[model_name]
@@ -164,7 +151,6 @@ def _names_for(session: Session, ids: list[int], model_name: str) -> dict[int, s
 
 def cast(session: Session, story_id: int, when=None, *, count: int = 5,
          levels: int = 1) -> dict:
-    """その話に出せる顔ぶれ。場所から `levels` 段のぼった配下に居る人物を集める。"""
     story = common_query._get(session, Story, story_id, "story_id")
     if story.place_id is None:
         raise ValueError(f"作品 {story.name} に立つ場所(place_id)が無い")

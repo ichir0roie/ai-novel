@@ -1,8 +1,3 @@
-"""ミーム(`meme`)。アイデア(idea)・oracle・人物の筋書きから抜き出して貯め、人物を生むときに分類ごとに引く。
-
-抜き出しは元のレコードごとに一度だけで、元の `meme_seeded` で管理する。
-抜き出すときに分類を振り、既にあるミームと重なるものは足さない。
-"""
 import random
 
 import pytest
@@ -34,8 +29,6 @@ class _NoMemes(MockAIClient):
 
 
 class _Scripted(MockAIClient):
-    """system プロンプトごとに決めた答えを返す。決めていないものは空の辞書(失敗扱い)。"""
-
     def __init__(self, answers: dict):
         super().__init__(seed=1)
         self.answers = answers

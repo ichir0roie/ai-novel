@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""出来事の種(`EventSeed`)。作品・話・人物の筋書き・出来事から、時代・場所・固有名詞を抜いた出来事のアイデアを抜き出して貯め、毎日のルーチンでランダムに引く。
-
-抜き出しは元のレコードごとに一度だけ(`event_seeded` を立てる)。抜き出し直すには、元の `event_seeded` を false に戻す。
-抜き出すときは似た種があるかを見ない。棚卸し前の種が `constants.EVENT_SEED_CONSOLIDATE_EVERY` 件たまったら、
-似た種をまとめる(`consolidate`)。
-"""
 from __future__ import annotations
 
 import random
@@ -83,7 +77,6 @@ _Pending = tuple[Story | Episode | Character | Event, str]
 
 
 def _batches(items: list[tuple[object, str]], limit: int) -> list[list]:
-    """一度に渡す本文(各要素の二つ目)の字数が `limit` を超えないように分ける。"""
     batches: list[list] = []
     letters = 0
     for item in items:
@@ -97,7 +90,6 @@ def _batches(items: list[tuple[object, str]], limit: int) -> list[list]:
 
 
 def _pending(session: Session) -> list[_Pending]:
-    """まだ抜き出していない元。本文が空の元は、書かれるまで待つ(印を立てない)。"""
     pending = []
     for model, text_of in _SOURCE_TEXTS:
         for record in session.scalars(event_seed_query.unseeded_select(model)).all():
@@ -108,7 +100,6 @@ def _pending(session: Session) -> list[_Pending]:
 
 
 def refresh(session: Session, ai: AIClient) -> int:
-    """まだ抜き出していない元から種を抜き出し、元に `event_seeded` を立てる。足した種の件数を返す。"""
     pending = _pending(session)
     added = 0
     for batch in _batches(pending, constants.EVENT_SEED_BATCH_LETTERS):
@@ -135,7 +126,6 @@ def refresh(session: Session, ai: AIClient) -> int:
 
 
 def _merge(session: Session, fresh: list[EventSeed], settled: list[EventSeed], ai: AIClient) -> list[EventSeed] | None:
-    """`fresh` を `settled` と見比べて似た組をまとめる。まとめずに残った `fresh` を返す。AI が答えなければ None。"""
     numbered = [*fresh, *settled]
     lines = ["## 新しい種", *(f"{i}. {seed.text}" for i, seed in enumerate(fresh, start=1)),
              "", "## 棚卸し済みの種",
@@ -169,11 +159,6 @@ def _merge(session: Session, fresh: list[EventSeed], settled: list[EventSeed], a
 
 
 def consolidate(session: Session, ai: AIClient) -> int:
-    """棚卸し前の種が `constants.EVENT_SEED_CONSOLIDATE_EVERY` 件以上あれば、似た種をまとめる。減った件数を返す。
-
-    棚卸し済みの種は `constants.EVENT_SEED_CONSOLIDATE_LETTERS` 字ずつに分け、そのたびに棚卸し前の種を全部添えて見比べる。
-    途中で AI が答えなければ、残りの棚卸し前の種はそのままにして次の回に回す。
-    """
     fresh = list(session.scalars(
         select(EventSeed).where(EventSeed.consolidated.is_(False)).order_by(EventSeed.id)).all())
     if len(fresh) < constants.EVENT_SEED_CONSOLIDATE_EVERY:
@@ -196,6 +181,5 @@ def consolidate(session: Session, ai: AIClient) -> int:
 
 
 def draw(session: Session, rng: random.Random, count: int = constants.EVENT_SEED_DRAW_COUNT) -> list[str]:
-    """貯めた種から `count` 件をランダムに引く。"""
     seeds = session.scalars(select(EventSeed.text).order_by(EventSeed.id)).all()
     return rng.sample(list(seeds), min(count, len(seeds)))

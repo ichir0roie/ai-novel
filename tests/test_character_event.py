@@ -1,4 +1,3 @@
-"""毎日のルーチン(`character_event_generator`)。ランダムに選んだサブキャラクターの、最新の出来事の次の出来事を起こす。"""
 import random
 
 from ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION

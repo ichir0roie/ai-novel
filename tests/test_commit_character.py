@@ -1,4 +1,3 @@
-"""人物・場所を確定する入口。JSON 文字列の下書きを受け、性格の段階と親の期間を検める。"""
 import json
 
 import pytest
@@ -18,7 +17,6 @@ from db.stamp import Stamp
 
 @pytest.fixture
 def world(session):
-    """期間の無い親(世界)と、その下に期間 2100〜2200 の村。どちらにも作品を置く。"""
     root = Location(name="世界", kind="世界", text="")
     session.add(root)
     session.flush()

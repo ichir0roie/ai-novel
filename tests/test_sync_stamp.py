@@ -1,4 +1,3 @@
-"""`ExportDb`: 前回の同期より後に手で直された md があれば止まる。"""
 import os
 
 import pytest

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""星の上の二点の距離・方角。経緯度は度、距離は km、高度は m。"""
+"""経緯度は度、距離は km、高度は m。"""
 from __future__ import annotations
 
 import math
@@ -19,7 +19,6 @@ def planet_radius_km(area) -> float | None:
 
 
 def angular_distance_deg(lon1, lat1, lon2, lat2) -> float:
-    """大円に沿った中心角(度)。"""
     p1, p2 = math.radians(float(lat1)), math.radians(float(lat2))
     dlon = math.radians(float(lon2) - float(lon1))
     dlat = p2 - p1
@@ -34,7 +33,6 @@ def distance_km(radius_km, lon1, lat1, lon2, lat2) -> float | None:
 
 
 def bearing_deg(lon1, lat1, lon2, lat2) -> float:
-    """出発点から見た到着点の方位。北が 0、東回りに 0〜360。"""
     p1, p2 = math.radians(float(lat1)), math.radians(float(lat2))
     dlon = math.radians(float(lon2) - float(lon1))
     x = math.sin(dlon) * math.cos(p2)

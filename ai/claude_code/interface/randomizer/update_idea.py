@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""既にあるアイデアを一件、渡した欄だけ db 上で直す、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft

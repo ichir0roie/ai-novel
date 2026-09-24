@@ -1,0 +1,380 @@
+"""アイデアのあいまい検索(`idea_search`)と、下書きと清書のあいだの中間段(`idea_context`)。"""
+import random
+
+import pytest
+
+from ai.claude_code import story_writer
+from ai.claude_code.interface.idea.link_ideas import LinkIdeas
+from ai.claude_code.interface.idea.resolve_terms import ResolveTerms
+from ai.claude_code.interface.randomizer.delete_idea import DeleteIdea
+from ai.claude_code.interface.randomizer.merge_idea import MergeIdea
+from ai.claude_code.interface.story import _rows
+from ai.claude_code.interface.world.search_ideas import SearchIdeas
+from ai.time_keeper import character_event_generator, episode_summary, idea_context, idea_search, meme
+from ai.time_keeper import random_character_generator
+from db.schema import (
+    IDEA_CANDIDATE_DIRECTORY, IDEA_KIND_CANDIDATE,
+    Character, CharacterIdea, CharacterPlace, Episode, EpisodeIdea, Event, EventIdea, Idea, Location, Story,
+)
+from db.stamp import Stamp
+from tool.test.mock_ai_client import MockAIClient
+
+
+class _Terms(MockAIClient):
+    """語の洗い出しには `terms` を、清書(人物)には `polished` を返す。ほかはモックのまま。"""
+
+    def __init__(self, terms, polished="清書した説明"):
+        super().__init__(seed=1)
+        self.terms = terms
+        self.polished = polished
+
+    def try_generate_json(self, prompt, schema, **kwargs):
+        decided = super().try_generate_json(prompt, schema, **kwargs)
+        if schema is idea_search._SCHEMA:
+            return {"terms": self.terms}
+        if schema is random_character_generator._POLISH_SCHEMA:
+            return {"text": self.polished}
+        return decided
+
+    def calls_for(self, schema):
+        return [call for call in self.calls if call["schema"] is schema]
+
+
+@pytest.fixture
+def places(session):
+    world = Location(name="世界線", kind="世界線", text="")
+    session.add(world)
+    session.flush()
+    planet = Location(name="星", kind="星", parent_id=world.id, text="")
+    session.add(planet)
+    session.flush()
+    village = Location(name="村", kind="村", parent_id=planet.id, text="山あいの村", start=Stamp(2000),
+                       active_random_generation=True)
+    other = Location(name="別の世界線", kind="世界線", text="")
+    session.add_all([village, other])
+    session.commit()
+    return {"world": world, "planet": planet, "village": village, "other": other}
+
+
+def _idea(session, name, text="", kind="技術", **columns):
+    record = Idea(name=name, kind=kind, text=text, **columns)
+    session.add(record)
+    session.commit()
+    return record
+
+
+# ---------------------------------------------------------------- 検索
+
+def test_search_ranks_name_over_variant_over_text(session):
+    body = _idea(session, "寄生治療", "宿主の細胞を置き換える")
+    variant = _idea(session, "遺伝病", "血の病")
+    name = _idea(session, "遺伝子異常", "世代を重ねると出る")
+
+    hits = idea_search.search(session, [{"keyword": "遺伝子異常", "variants": ["遺伝病", "細胞"]}])
+
+    assert [(hit.idea.id, hit.score) for hit in hits] == [(name.id, 3), (variant.id, 2), (body.id, 1)]
+    assert hits[0].keywords == ["遺伝子異常"]
+
+
+def test_search_sums_scores_over_keywords(session):
+    both = _idea(session, "虫憑き", "寄生の治療")
+    one = _idea(session, "寄生", "")
+
+    hits = idea_search.search(session, ["虫憑き", "寄生"])
+
+    assert [(hit.idea.id, hit.score) for hit in hits] == [(both.id, 4), (one.id, 3)]
+
+
+def test_search_matches_the_other_kana_and_full_width(session):
+    katakana = _idea(session, "ヒナタ", "")
+    ascii_name = _idea(session, "HINATA式", "")
+
+    assert [hit.idea.id for hit in idea_search.search(session, ["ひなた"])] == [katakana.id]
+    assert [hit.idea.id for hit in idea_search.search(session, ["ＨＩＮＡＴＡ"])] == [ascii_name.id]
+
+
+def test_search_does_not_treat_like_wildcards_as_wildcards(session):
+    _idea(session, "魔力", "")
+
+    assert idea_search.search(session, ["%"]) == []
+
+
+def test_search_is_limited_to_the_scope_of_the_place(session, places):
+    inside = _idea(session, "魔力", restrict_world_id=places["world"].id)
+    _idea(session, "魔力炉", restrict_world_id=places["other"].id)
+
+    hits = idea_search.search(session, ["魔力"], place_id=places["village"].id)
+
+    assert [hit.idea.id for hit in hits] == [inside.id]
+
+
+def test_search_leaves_candidates_out_unless_asked(session):
+    _idea(session, "虫憑き", kind=IDEA_KIND_CANDIDATE)
+
+    assert idea_search.search(session, ["虫憑き"]) == []
+    assert [hit.idea.name for hit in idea_search.search(session, ["虫憑き"], include_candidates=True)] == ["虫憑き"]
+
+
+def test_search_ideas_entry_takes_keywords_with_variants(session, places):
+    idea = _idea(session, "遺伝子異常", "", restrict_world_id=places["world"].id)
+
+    rows = SearchIdeas([{"keyword": "血の病", "variants": ["遺伝子"]}], place_id=places["village"].id).run()
+
+    assert [(row["id"], row["score"], row["keywords"]) for row in rows] == [(idea.id, 2, ["血の病"])]
+
+
+def test_terms_are_normalized_and_deduplicated():
+    terms = idea_search.terms_of(
+        ["語", {"keyword": " 語 "}, {"keyword": "虫", "variants": ["虫", "むし", "官", ""]}, 3])
+
+    assert terms == [{"keyword": "語", "variants": [], "description": "", "coined": True},
+                     {"keyword": "虫", "variants": ["むし"], "description": "", "coined": True}]
+
+
+def test_keywords_are_not_asked_for_an_empty_text():
+    ai = _Terms([{"keyword": "語", "variants": [], "description": ""}])
+
+    assert idea_search.keywords_of("  ", ai) == []
+    assert ai.calls == []
+
+
+# ---------------------------------------------------------------- 中間段
+
+def test_resolve_returns_hits_with_their_parents_and_children(session, places):
+    parent = _idea(session, "正常化アプローチ", "寄生系とウイルス系", restrict_world_id=places["world"].id)
+    hit = _idea(session, "寄生型", "悪魔のデータベースにあった", restrict_world_id=places["world"].id,
+                parent_idea_id=parent.id)
+    child = _idea(session, "虫憑き", "地上の呼び名", restrict_world_id=places["world"].id,
+                  parent_idea_id=hit.id)
+    _idea(session, "外の呼び名", restrict_world_id=places["other"].id, parent_idea_id=hit.id)
+
+    context = idea_context.resolve(session, [{"keyword": "寄生型"}], places["village"].id)
+
+    assert [idea.id for idea in context.hits] == [hit.id]
+    assert [idea.id for idea in context.related] == [hit.id, parent.id, child.id]
+    assert context.candidates == []
+
+
+def test_unmatched_term_becomes_a_candidate_of_the_world(session, places):
+    context = idea_context.resolve(
+        session, [{"keyword": "宿り", "variants": ["寄生"], "description": "体に虫を宿す治療"}],
+        places["village"].id)
+
+    assert context.hits == [] and context.related == []
+    [candidate] = context.candidates
+    assert (candidate.name, candidate.kind, candidate.text) == ("宿り", IDEA_KIND_CANDIDATE, "体に虫を宿す治療")
+    assert candidate.restrict_world_id == places["world"].id
+    assert candidate.directory_path == IDEA_CANDIDATE_DIRECTORY
+
+
+def test_general_words_do_not_become_candidates(session, places):
+    context = idea_context.resolve(
+        session, [{"keyword": "鍛冶師", "variants": ["鍛冶"], "description": "", "coined": False}],
+        places["village"].id)
+
+    assert context.candidates == []
+    assert session.query(Idea).count() == 0
+
+
+def test_existing_candidate_is_reused(session, places):
+    old = _idea(session, "ヤドリ", kind=IDEA_KIND_CANDIDATE)
+
+    context = idea_context.resolve(session, ["やどり"], places["village"].id)
+
+    assert [idea.id for idea in context.candidates] == [old.id]
+    assert session.query(Idea).count() == 1
+
+
+def test_names_of_characters_and_places_do_not_become_candidates(session, places):
+    session.add(Character(name="ノア", text=""))
+    session.commit()
+
+    context = idea_context.resolve(session, ["ノア", "村"], places["village"].id)
+
+    assert context.candidates == []
+    assert session.query(Idea).count() == 0
+
+
+def test_candidates_stay_out_of_the_brief_and_of_meme_extraction(session, places):
+    _idea(session, "宿り", kind=IDEA_KIND_CANDIDATE, restrict_world_id=places["world"].id)
+    confirmed = _idea(session, "魔力", "世界の力", restrict_world_id=places["world"].id)
+    ai = MockAIClient(seed=1)
+
+    names = [idea["name"] for idea in _rows.brief(session, places["village"].id, "2100/01/01")["ideas"]]
+    meme.refresh(session, ai)
+
+    assert names == ["魔力"]
+    assert all("宿り" not in call["prompt"] for call in ai.calls)
+    assert confirmed.meme_seeded is True
+
+
+def test_prompt_section_cuts_long_texts(session, monkeypatch):
+    monkeypatch.setattr(idea_context.constants, "IDEA_CONTEXT_LETTERS", 3)
+    idea = _idea(session, "魔力", "世界を巡る力")
+
+    section = idea_context.prompt_section([idea])
+
+    assert section.startswith("関係する設定:\n")
+    assert "- 魔力(技術): 世界を…" in section
+    assert idea_context.prompt_section([]) == ""
+
+
+def test_link_skips_ideas_already_linked(session):
+    event = Event(name="出来事", text="", time=Stamp(2100))
+    session.add(event)
+    session.commit()
+    first = _idea(session, "魔力")
+    second = _idea(session, "寄生")
+
+    assert idea_context.link(session, event, [first]) == 1
+    assert idea_context.link(session, event, [first, second]) == 1
+    assert sorted(row.idea_id for row in session.query(EventIdea)) == [first.id, second.id]
+    assert idea_context.linked_records(session, first.id)["event"] == [event]
+
+
+# ---------------------------------------------------------------- 入口
+
+def test_resolve_terms_entry_adds_candidates_and_link_ideas_links_them(session, places):
+    known = _idea(session, "魔力", restrict_world_id=places["world"].id)
+    event = Event(name="出来事", text="", time=Stamp(2100))
+    session.add(event)
+    session.commit()
+
+    resolved = ResolveTerms(["魔力", {"keyword": "宿り", "description": "治療"}], places["village"].id).run()
+    ids = resolved["hits"] + [row["id"] for row in resolved["candidates"]]
+    linked = LinkIdeas(ids, event_id=event.id).run()
+
+    assert [row["name"] for row in resolved["ideas"]] == ["魔力"]
+    assert resolved["hits"] == [known.id]
+    assert [row["name"] for row in resolved["candidates"]] == ["宿り"]
+    assert linked == {"event_id": event.id, "linked": 2}
+
+
+def test_link_ideas_takes_exactly_one_owner(session):
+    with pytest.raises(ValueError):
+        LinkIdeas([], event_id=1, episode_id=1).run()
+    with pytest.raises(ValueError):
+        LinkIdeas([]).run()
+
+
+def test_merge_idea_moves_links_and_removes_the_source(session):
+    character = Character(name="甲", text="")
+    session.add(character)
+    session.commit()
+    candidate = _idea(session, "むしつき", kind=IDEA_KIND_CANDIDATE)
+    target = _idea(session, "虫憑き")
+    idea_context.link(session, character, [candidate, target])
+    session.commit()
+    candidate_id, target_id = candidate.id, target.id
+
+    result = MergeIdea(candidate_id, target_id).run()
+
+    session.expire_all()
+    assert result["links_moved"] == 1
+    assert session.get(Idea, candidate_id) is None
+    assert [row.idea_id for row in session.query(CharacterIdea)] == [target_id]
+
+
+def test_delete_idea_removes_its_links(session):
+    event = Event(name="出来事", text="", time=Stamp(2100))
+    session.add(event)
+    session.commit()
+    idea = _idea(session, "宿り", kind=IDEA_KIND_CANDIDATE)
+    idea_context.link(session, event, [idea])
+    session.commit()
+
+    DeleteIdea(idea.id).run()
+
+    assert session.query(EventIdea).count() == 0
+
+
+# ---------------------------------------------------------------- 生成への組み込み
+
+def _sub_character(session, place):
+    record = Character(name="甲", text="甲の説明", start=Stamp(2080))
+    session.add(record)
+    session.flush()
+    session.add(CharacterPlace(character_id=record.id, location_id=place.id, start=Stamp(2080)))
+    session.commit()
+    return record
+
+
+def test_daily_event_novel_is_told_the_ideas_and_the_event_is_linked(session, places):
+    idea = _idea(session, "遺伝子異常", "世代を重ねると出る病", restrict_world_id=places["world"].id)
+    _sub_character(session, places["village"])
+    ai = _Terms([{"keyword": "遺伝子異常", "variants": [], "description": ""},
+                 {"keyword": "宿り", "variants": [], "description": "治療"}])
+
+    record = character_event_generator.generate_next(session, ai, random.Random(1))
+
+    [terms_call] = ai.calls_for(idea_search._SCHEMA)
+    assert record.name in terms_call["prompt"]
+    novel = ai.calls[-1]
+    assert novel["schema"] is character_event_generator._NOVEL_SCHEMA
+    assert "関係する設定:" in novel["prompt"] and "世代を重ねると出る病" in novel["prompt"]
+    linked = {row.idea_id for row in session.query(EventIdea).filter_by(event_id=record.id)}
+    candidate = session.query(Idea).filter_by(name="宿り").one()
+    assert linked == {idea.id, candidate.id}
+
+
+def test_daily_event_without_matching_ideas_tells_no_setting(session, places):
+    _sub_character(session, places["village"])
+    ai = _Terms([])
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    assert "関係する設定" not in ai.calls[-1]["prompt"]
+    assert session.query(EventIdea).count() == 0
+
+
+def test_generated_character_is_polished_with_the_ideas_and_linked(session, places):
+    idea = _idea(session, "遺伝子異常", "世代を重ねると出る病", restrict_world_id=places["world"].id)
+    session.add(Story(name="村の話", place_id=places["village"].id, text="村の筋書き", narration="",
+                      state="構想中", start=Stamp(2000), end=Stamp(2300)))
+    session.commit()
+    ai = _Terms([{"keyword": "遺伝子異常", "variants": [], "description": ""}])
+
+    record = random_character_generator._generate_one(
+        session, places["village"], Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    [polish] = ai.calls_for(random_character_generator._POLISH_SCHEMA)
+    assert "世代を重ねると出る病" in polish["prompt"]
+    assert record.text.startswith("清書した説明")
+    assert [row.idea_id for row in session.query(CharacterIdea).filter_by(character_id=record.id)] == [idea.id]
+
+
+def test_generated_character_is_not_polished_without_ideas(session, places):
+    ai = _Terms([])
+
+    random_character_generator._generate_one(
+        session, places["village"], Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    assert ai.calls_for(random_character_generator._POLISH_SCHEMA) == []
+
+
+def test_seeded_episode_is_written_with_the_ideas_of_its_seed(session, places, monkeypatch):
+    idea = _idea(session, "寄生型", "悪魔のデータベースにあった治療", restrict_world_id=places["world"].id)
+    story = Story(name="村の話", place_id=places["village"].id, text="筋書き", narration="三人称",
+                  state="執筆中", start=Stamp(2100, 4, 1), end=Stamp(2300))
+    session.add(story)
+    session.flush()
+    session.add(Episode(story_id=story.id, number=1, title="", key="1. 地下 / カシル / 寄生型を使う",
+                        text="", letters=0, synced=False))
+    session.commit()
+    calls = []
+
+    def fake(prompt, schema, *, system=None, timeout=None, options=None):
+        calls.append({"prompt": prompt, "schema": schema})
+        if schema is idea_search._SCHEMA:
+            return {"terms": [{"keyword": "寄生型", "variants": [], "description": ""}]}
+        if schema is episode_summary._SCHEMA:
+            return {"summary": "", "style": ""}
+        return {"title": "題", "text": "本文"}
+
+    monkeypatch.setattr(story_writer.ai_client, "try_generate_json", fake)
+
+    record = story_writer.write_next_episode(session, story.id)
+
+    assert "寄生型を使う" in calls[0]["prompt"]
+    assert "関係する設定:" in calls[-1]["prompt"] and "悪魔のデータベースにあった治療" in calls[-1]["prompt"]
+    assert [row.idea_id for row in session.query(EpisodeIdea).filter_by(episode_id=record.id)] == [idea.id]

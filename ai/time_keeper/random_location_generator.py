@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""世界の側の場所を、時の流れの中で自動的に増やす。年初に確率 `constants.LOCATION_PROBABILITY` で一件生まれ、db へ確定する。"""
 from __future__ import annotations
 
 import random
@@ -38,11 +37,6 @@ _SCHEMA = {
 
 
 def _remaining_area(session: Session, parent: Location) -> float | None:
-    """`parent` の配下に、あとどれだけ広さを割り当てられるか。
-
-    `parent.area` が無ければ制約なし(`None`)。あれば、
-    `親の広さ - 既にある兄弟の広さの合計` を返す(0 以下ならもう入らない)。
-    """
     if parent.area is None:
         return None
     siblings_area = session.scalar(
@@ -51,12 +45,10 @@ def _remaining_area(session: Session, parent: Location) -> float | None:
 
 
 def _should_roll(time: Stamp) -> bool:
-    """年に一度、年初(1月1日)にだけロールする。"""
     return time.month == 1 and time.day == 1
 
 
 def generate_random(session: Session, time: Stamp, ai: AIClient) -> Location | None:
-    """ロールに当たったら、場所を一件 db へ確定して返す。当たらなければ None。"""
     if not _should_roll(time):
         return None
 

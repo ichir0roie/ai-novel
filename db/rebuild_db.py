@@ -1,4 +1,3 @@
-"""db ファイルを退避し、現在の `schema.py` で作り直した空の db へ値を移す保守スクリプト。"""
 import decimal
 import os
 import shutil
@@ -10,10 +9,6 @@ from db.schema import Base, DB_PATH, create_db
 
 
 def rebuild_db(path=DB_PATH, backup_dir="backup"):
-    """`path` の db を退避してから、現行スキーマで作り直して値を戻す。
-
-    戻り値はバックアップ先のパス。
-    """
     path = os.path.abspath(path)
     if not os.path.exists(path):
         raise FileNotFoundError(f"db が見つからない: {path}")

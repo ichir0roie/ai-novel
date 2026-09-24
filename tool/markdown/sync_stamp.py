@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""md と db を最後に揃えた時刻を、`worlds/` の隣に置く印ファイルの mtime で覚える。
-"""
 from __future__ import annotations
 
 import os
@@ -16,7 +14,6 @@ def stamp_path(root: str) -> str:
 
 
 def mark_synced(root: str) -> None:
-    """md と db が揃った印を付ける。"""
     path = stamp_path(root)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -24,7 +21,7 @@ def mark_synced(root: str) -> None:
 
 
 def edited_since_sync(root: str) -> list[str]:
-    """印より後に書かれた md の一覧。印が無ければ比べようがないので空で返す。"""
+    """印が無ければ比べようがないので空で返す。"""
     path = stamp_path(root)
     if not os.path.exists(path):
         return []

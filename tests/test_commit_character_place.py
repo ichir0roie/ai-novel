@@ -1,4 +1,3 @@
-"""人物の居場所を確定する入口。人物と場所の実在と、場所の期間に収まるかを検める。"""
 import pytest
 
 from ai.claude_code.interface._base import UnknownRecordError

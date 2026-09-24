@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""場所の輪郭。GeoJSON の Polygon(`{"type": "Polygon", "coordinates": [[[lon, lat], ...], ...]}`)で持つ。
-
-```
-parse_polygon([[10, 20], [30, 20], [30, 40]])          → 環を閉じて Polygon にする
-parse_polygon({"type": "Polygon", "coordinates": ...})  → そのまま検査して返す
-parse_polygon('{"type": "Polygon", ...}')               → JSON 文字列も可
-```
-
-座標は **[経度, 緯度]** の順(GeoJSON と同じ)。`coordinates[0]` が外周、以降は穴。
-"""
+"""座標は [経度, 緯度] の順(GeoJSON と同じ)。"""
 from __future__ import annotations
 
 import json
@@ -45,7 +36,6 @@ def _is_position(value) -> bool:
 
 
 def parse_polygon(value) -> dict | None:
-    """検査して `{"type": "Polygon", "coordinates": [...]}` に揃える。空なら `None`。"""
     if value in (None, ""):
         return None
     if isinstance(value, str):
@@ -67,12 +57,10 @@ def parse_polygon(value) -> dict | None:
 
 
 def outer_ring(polygon: dict) -> list[list[float]]:
-    """外周の頂点。閉じるための末尾の重複は落とす。"""
     ring = polygon["coordinates"][0]
     return ring[:-1] if len(ring) > 1 and ring[0] == ring[-1] else list(ring)
 
 
 def polygon_center(polygon: dict) -> tuple[float, float]:
-    """外周の頂点の平均。ラベルを置く目安。"""
     ring = outer_ring(polygon)
     return sum(p[0] for p in ring) / len(ring), sum(p[1] for p in ring) / len(ring)
