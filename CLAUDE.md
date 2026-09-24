@@ -126,6 +126,8 @@ python はこのリポジトリ(世界リポジトリの `core/`)直下の仮想
 - 引き方(`DEM/data_access_logic/query/*.py`)では、外部キーが `NULL` の行を
   「全体に効く」とみなして `or_(X.fk_id.in_(ids), X.fk_id.is_(None))` のように
   無理に拾わない。関係が無い行は「関係が無い」として扱う
+- **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
+  好きに覗いてよい。書き込み(`insert` `update` `delete`)は必ず入口越しに行う
 - 調査用の読み取り例:
 
 ```
