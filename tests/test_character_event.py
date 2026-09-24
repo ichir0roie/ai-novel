@@ -1,6 +1,8 @@
 import random
 
-from ai.instructions.event_writing import EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION
+from ai.instructions.event_writing import (
+    EVENT_AGE_INSTRUCTION, EVENT_NOVEL_INSTRUCTION, EVENT_RECORD_INSTRUCTION,
+)
 from ai.time_keeper import (
     character_event_generator, event_progression_generator, event_seed, event_summary, main, meme,
 )
@@ -475,3 +477,22 @@ def test_daily_event_draws_memes_out_of_the_events_before_it(session):
                if call["system"] == meme._SYSTEM_PROMPT)
     # この回に起こした出来事は、次の回に抜き出す
     assert not session.get(Event, event_id).meme_seeded
+
+
+def test_every_step_of_the_daily_event_is_told_to_fit_the_age_of_that_time(session):
+    """人物の text は後年の立場まで含むので、その時点の歳に合わせるよう毎段で指示する。"""
+    place = _place(session)
+    _character(session, place)
+    ai = MockAIClient(seed=1)
+
+    character_event_generator.generate_next(session, ai, random.Random(1))
+
+    schemas = (
+        event_progression_generator._JUDGEMENT_SCHEMA,
+        event_progression_generator._CANDIDATE_SCHEMA,
+        event_progression_generator._PLACE_SCHEMA,
+        character_event_generator._NOVEL_SCHEMA,
+    )
+    for schema in schemas:
+        call = next(call for call in ai.calls if call["schema"] is schema)
+        assert EVENT_AGE_INSTRUCTION in call["system"]
