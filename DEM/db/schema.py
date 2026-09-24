@@ -286,8 +286,9 @@ class EventSeed(Base):
         comment="棚卸し(似た種をまとめる)を済ませたか。新しい種は false", sort_order=110)
 
 
-class Meme(Base):
-    """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書きから抜き出した、キャラクターの芯になる考え方。md には出さない(import/export の外)。
+class Meme(MarkdownBase):
+    """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書きから抜き出した、キャラクターの芯になる考え方。
+    `worlds/meme/` に md として出し入れするので、著者が直接書き足すこともできる。
 
     ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
     (元の側の `meme_seeded` で、抜き出し済みかだけを管理する)。
@@ -295,8 +296,6 @@ class Meme(Base):
     """
 
     __tablename__ = "meme"
-
-    text: Mapped[str] = mapped_column(String, comment="ミーム", sort_order=100)
 
 
 class Oracle(MemeSeededMixin, MarkdownBase):
