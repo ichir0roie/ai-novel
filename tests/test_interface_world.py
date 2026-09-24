@@ -1,4 +1,3 @@
-"""`world/` の一覧・検索の入口(人物・場所・語)。"""
 from DEM.ai.claude_code.interface.world.list_characters import ListCharacters
 from DEM.ai.claude_code.interface.world.list_places import ListPlaces
 from DEM.ai.claude_code.interface.world.search_terms import SearchTerms
@@ -49,5 +48,4 @@ def test_search_terms_matches_text(session):
     rows = SearchTerms("霊").run()
     assert [row["name"] for row in rows] == ["霊纏"]
     assert rows[0]["text"] == "霊を纏う技"
-    # 名前ではなく本文で引く
     assert SearchTerms("魔力灯り").run() == []

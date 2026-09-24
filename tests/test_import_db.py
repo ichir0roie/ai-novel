@@ -82,7 +82,6 @@ def test_import_location_id_only_file_gets_named_on_export(session, tmp_path):
 
     from DEM.tool.markdown.export_db import export_db
     export_db(root)
-    # export は worlds/ を消してから書き直すので、id だけの古い md は残らない
     assert sorted(os.listdir(os.path.join(root, "location"))) == ["71_パンデム.md"]
 
 

@@ -1,4 +1,3 @@
-"""`randomizer/` の入口のうち、出来事の確定・下書きと、場所の下書き・削除。"""
 import pytest
 
 from DEM.ai.claude_code.interface._base import UnknownFieldError, UnknownRecordError
@@ -49,7 +48,7 @@ def test_create_random_place_is_a_draft_with_overrides():
 def test_commit_event_writes_characters(session, place, character):
     event = CommitEvent({"id": 99, "name": "祭り", "text": "", "time": "2100/01/01 00:00:00",
                          "location_id": place, "character_ids": [character]}).run()
-    assert event["id"] != 99  # id は採番に任せる
+    assert event["id"] != 99
     assert event["name"] == "祭り"
     assert event["character_ids"] == [character]
     assert str(event["time"]) == "2100/01/01 00:00:00"

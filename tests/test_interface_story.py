@@ -1,4 +1,3 @@
-"""`story/` の入口のうち、作品の一覧・削除、話の読み出し・同期フラグ、断面・顔ぶれ・周辺の読み出し。"""
 import pytest
 
 from DEM.ai.claude_code.interface._base import UnknownRecordError
@@ -18,7 +17,6 @@ from DEM.db.stamp import Stamp
 
 @pytest.fixture
 def world(session):
-    """星 > 村 > 家 の場所と、村に立つ作品、村と家に一人ずつ居る人物。"""
     planet = Location(name="ノウル", kind="星", text="")
     session.add(planet)
     session.flush()

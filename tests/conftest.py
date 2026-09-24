@@ -37,7 +37,6 @@ def _rebuild_tables():
 
 @pytest.fixture(autouse=True)
 def clean_tables(request):
-    """テストごとに行を消して、前のテストの行を残さない。表の張り直しより速い。"""
     with engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
