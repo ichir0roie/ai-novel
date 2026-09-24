@@ -476,7 +476,7 @@ def test_upgrade_adds_meme_and_oracle_and_downgrade_drops_them(old_style_db):
     command.upgrade(cfg, "head")
 
     conn = sqlite3.connect(TEST_DB_PATH)
-    assert set(_columns(conn, "meme")) == {"id", "text"}
+    assert set(_columns(conn, "meme")) == {"id", "text", "directory_path", "filename"}
     assert set(_columns(conn, "oracle")) == {"id", "meme_seeded", "text", "directory_path", "filename"}
     for table in ("idea", "character"):
         assert _columns(conn, table)["meme_seeded"][:2] == ("BOOLEAN", 1), table

@@ -29,10 +29,13 @@ def upgrade() -> None:
     """アイデア(idea)・oracle(著者の覚え書き)・人物の筋書きから抜き出す、ミーム(meme)テーブルを足す。
 
     oracle は元から worlds/oracle/ に手書きの md として存在するので、md 化した表(MarkdownBase)として足す。
+    meme も著者が直接書き足せるよう、md 化した表(MarkdownBase)として足す。
     """
     op.create_table('meme',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('text', sa.String(), nullable=False, comment='ミーム'),
+    sa.Column('text', sa.String(), nullable=False),
+    sa.Column('directory_path', sa.String(), nullable=True, comment=_DIRECTORY_PATH_COMMENT),
+    sa.Column('filename', sa.String(), nullable=True, comment=_FILENAME_COMMENT),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('oracle',
