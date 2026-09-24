@@ -5,8 +5,8 @@
     ExportDb(force=True).run()    手で直した md を捨ててよいと分かっているときだけ
 
 前回の同期より後に手で直された md があれば、書き出す前に止まる。
-db 側を直したあとは、`ImportDb` を挟まずにこれだけを呼ぶ(挟むと、その変更が
-md 側の古い内容で消える)。
+`ImportDb` → db 側の変更 → これ、の順で呼ぶ(変更のあとに `ImportDb` を挟むと、
+その変更が md 側の古い内容で消える)。
 """
 from __future__ import annotations
 
