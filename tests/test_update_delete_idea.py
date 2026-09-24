@@ -11,7 +11,7 @@ def ideas(session):
     world = Location(name="世界線", kind="世界線", text="")
     session.add(world)
     session.flush()
-    parent = Idea(name="崩壊時代", kind="時代", restrict_world_id=world.id, text="時代")
+    parent = Idea(name="崩壊時代", kind="時代", location_id=world.id, text="時代")
     session.add(parent)
     session.flush()
     child = Idea(name="崩壊年", kind="呼称", parent_idea_id=parent.id, text="呼称")

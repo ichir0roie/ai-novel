@@ -120,7 +120,7 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
 
     character_ids = residents(session, place_ids, until)
     ideas = session.scalars(
-        common_query.ideas_select(common_query.idea_scope_ids(session, place_id))).all()
+        common_query.ideas_select(common_query.idea_scope_ids(session, place_id), until)).all()
 
     character_names = _names_for(session, character_ids, "Character")
 

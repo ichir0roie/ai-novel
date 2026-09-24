@@ -21,8 +21,8 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
 | 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
-| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返し、候補は返さない |
-| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None)`。下書きから洗い出した語(`{"keyword", "variants", "description"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」) |
+| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None, time=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返す。自動生成の候補も返す。`place_id` は現在地から最上位までの場所に、`time` はその時刻に効く(`start` <= time < `end`)アイデアに絞る |
+| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None, time=None)`。下書きから洗い出した語(`{"keyword", "variants", "description", "kind"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」)。`time` は出来事の時刻 |
 | 「この本文が踏まえたアイデアを結んで」 | `idea.link_ideas.LinkIdeas(idea_ids, event_id=None, episode_id=None, character_id=None)`。三つのうち一つだけ渡す |
 | 「この候補をあのアイデアにまとめて」 | `randomizer.merge_idea.MergeIdea(source_id, target_id)`。結んだ本文を付け替えてから source を消す |
 | 「判断待ちの一覧」「週次レビュー」   | `review.list_pending_reviews.ListPendingReviews()`。候補・未同期の話・本文に残った TODO。Todoist へ載せる手順はスキル `weekly-review` |
@@ -31,7 +31,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
-| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, fact_check=True)`。確定したあと、AI が Dラボのナレッジとネット検索でアイデアの妥当性・補足を検め、`fact_check` 欄(md の `# fact_check` 節)へ書く。続けて本文と検証結果のそれぞれからミームを抜き出し(`memes_added`)、足したミームも検める。`fact_check=False` で検めずに本文からだけ抜き出す |
+| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, fact_check=True)`。効く場所は `location_id`(その場所と配下で効く)、効く期間は `start` / `end`(出来事の時刻と比べる。空なら限らない)。確定したあと、AI が Dラボのナレッジとネット検索でアイデアの妥当性・補足を検め、`fact_check` 欄(md の `# fact_check` 節)へ書く。続けて本文と検証結果のそれぞれからミームを抜き出し(`memes_added`)、足したミームも検める。`fact_check=False` で検めずに本文からだけ抜き出す |
 | 「アイデア・oracle・ミームを検めて」「妥当性を調べて」 | `fact_check.check_facts.CheckFacts(table, ids=None, limit=None)`。`table` は `"idea"` / `"oracle"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`fact_check` 欄へ入れる。`ids` を省くと `fact_check` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。アイデア・oracle は検めたあと本文と検証結果からミームを抜き出し直し、足したミームも検める。`{"checked", "memes_added"}` を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
@@ -90,10 +90,13 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 (`ai/time_keeper/idea_context.py`)。
 
 1. 下書きから、設定資料と照らす語とその言い換えを AI に挙げさせる(`idea_search.keywords_of`)
-2. 語と言い換えで、アイデアの名前・本文を部分一致で引く(`idea_search.search`)。その場所で効くアイデアだけ。
+2. 語と言い換えで、アイデアの名前・本文を部分一致で引く(`idea_search.search`)。その場所・時刻で効くアイデアだけ。
+   場所は、アイデアの `location_id` が現在地から最上位までの場所のどれかに当たるもの。
+   時刻は、出来事の時刻が `start` 以上 `end` 未満のもの(空なら限らない)。
    当たったアイデアに上位・下位のアイデアを足して、清書に「関係する設定」として渡す
-3. どのアイデアにも当たらなかった語は、種別「候補」のアイデアとして `worlds/idea/候補/` に足す。
-   候補は検索・断面・清書・ミームの抜き出しには出さない。kind を直して置き場所へ移すと、次から使われる
+3. どのアイデアにも当たらなかった語は、AI が決めた種別(`kind`)と `auto_generated=true` で `worlds/idea/候補/` に足す。
+   場所は世界線、`start` は出来事の時刻。候補も他のアイデアと同じく検索・断面・清書・ミームの抜き出しに出る。
+   確かめたら `auto_generated` を false にして置き場所へ移す
 4. 下書きが当たったアイデアと候補を、清書したレコードに中間テーブル(`event_idea` / `episode_idea` /
    `character_idea`。md には出さない)で結ぶ
 
@@ -228,7 +231,7 @@ db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 | ------------------------------ | ------------------------------------------------------------ |
 | `common_query.py`              | 時刻の扱い・断面・顔ぶれ・場所の道筋                         |
 | `character_simulation_query.py` | 人物を軸に周辺を読む(`read_surroundings`)                   |
-| `dictionary_query.py`          | アイデア(辞書)の検索。名前・本文の部分一致、場所の範囲、候補の除外 |
+| `dictionary_query.py`          | アイデア(辞書)の検索。名前・本文の部分一致、場所・時刻の範囲、自動生成の候補 |
 | `story_createion_query.py`     | 場所に掛かる作品(`story`)の読み出し                          |
 | `world_createion_query.py`     | 生きている人物、広さの整合、進行中の判定               |
 | `event_seed_query.py`          | 出来事の種をまだ抜き出していない元(`event_seeded` が false) |

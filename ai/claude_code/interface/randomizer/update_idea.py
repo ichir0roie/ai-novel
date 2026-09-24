@@ -23,8 +23,7 @@ class UpdateIdea(CommitDraft):
         if record is None:
             raise ValueError(f"id={idea_id} というアイデアが見つからない")
 
-        for column in ("restrict_world_id", "restrict_planet_id", "restrict_place_id"):
-            self.check_exists(session, Location, data.get(column), column)
+        self.check_exists(session, Location, data.get("location_id"), "location_id")
         if data.get("parent_idea_id") == idea_id:
             raise ValueError(f"parent_idea_id={idea_id} が自分自身を指している")
         self.check_exists(session, Idea, data.get("parent_idea_id"), "parent_idea_id")

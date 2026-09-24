@@ -23,8 +23,7 @@ class CommitIdea(CommitMemeSource):
             raise ValueError("kind は必須")
         data.setdefault("text", "")
 
-        for column in ("restrict_world_id", "restrict_planet_id", "restrict_place_id"):
-            self.check_exists(session, Location, data.get(column), column)
+        self.check_exists(session, Location, data.get("location_id"), "location_id")
         self.check_exists(session, Idea, data.get("parent_idea_id"), "parent_idea_id")
 
         record = Idea(**data)

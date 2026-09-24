@@ -12,6 +12,7 @@ from ai.time_keeper import constants
 from ai.time_keeper._ai import AIClient
 from data_access_logic.query import common_query, dictionary_query
 from db.schema import Idea, Session
+from db.stamp import Stamp
 
 _SYSTEM_PROMPT = """\
 あなたは物語の設定資料の編集者です。
@@ -22,8 +23,9 @@ _SYSTEM_PROMPT = """\
 - variants は keyword の表記揺れ・同義語・上位語・作中の人が使いそうな呼び方を 2〜6 個。部分一致で検索するので、keyword を組み立てている 2〜3 字の核の語を必ず含める(「虫を宿す治療」なら「寄生」「治療」、「石の病」なら「遺伝」「疾患」のように、設定資料の側で使われていそうな語)。1 字の語は使わない。
 - description は、この文の中でその語が何を指しているかの一文。
 - coined は、その語がこの世界・作品に固有の語(作中の呼び名・造語・固有の技術や制度の名)なら true、一般の語なら false。
+- kind は、その語の種別を「技術」「制度」「概念」「呼称」「現象」「施設」「時代」などの短い語で一つ。
 - 0〜8 件。
-JSON で答えてください。キーは terms だけ。各要素は keyword・variants・description・coined の四つ。"""
+JSON で答えてください。キーは terms だけ。各要素は keyword・variants・description・coined・kind の五つ。"""
 
 _SCHEMA = {
     "type": "object",
@@ -37,8 +39,9 @@ _SCHEMA = {
                     "variants": {"type": "array", "items": {"type": "string"}},
                     "description": {"type": "string"},
                     "coined": {"type": "boolean"},
+                    "kind": {"type": "string"},
                 },
-                "required": ["keyword", "variants", "description", "coined"],
+                "required": ["keyword", "variants", "description", "coined", "kind"],
                 "additionalProperties": False,
             },
         },
@@ -47,6 +50,8 @@ _SCHEMA = {
     "additionalProperties": False,
 }
 
+# kind を付けずに渡された語を、自動で足すときの種別
+DEFAULT_KIND = "概念"
 # 一字の言い換えは、ほかの語の一部(「官」と「器官」など)に当たりすぎる。
 _MIN_VARIANT_LETTERS = 2
 _NAME_SCORE = 3
@@ -88,9 +93,9 @@ def spellings(word: str) -> list[str]:
 
 
 def terms_of(keywords) -> list[dict]:
-    """`"語"` / `{"keyword", "variants", "description", "coined"}` / それらのリストを、そろえた辞書のリストにする。
+    """`"語"` / `{"keyword", "variants", "description", "coined", "kind"}` / それらのリストを、そろえた辞書のリストにする。
 
-    `coined` が無ければ true(claude が自分で選んで渡した語は、固有の語として扱う)。
+    `coined` が無ければ true(claude が自分で選んで渡した語は、固有の語として扱う)。`kind` が無ければ `DEFAULT_KIND`。
     """
     if isinstance(keywords, (str, dict)):
         keywords = [keywords]
@@ -107,11 +112,13 @@ def terms_of(keywords) -> list[dict]:
         seen.add(keyword)
         variants = [_normalized(v) for v in item.get("variants") or [] if isinstance(v, str)]
         description = item.get("description") if isinstance(item.get("description"), str) else ""
+        kind = _normalized(item.get("kind") if isinstance(item.get("kind"), str) else "")
         terms.append({"keyword": keyword,
                       "variants": [v for v in dict.fromkeys(variants)
                                    if len(v) >= _MIN_VARIANT_LETTERS and v != keyword],
                       "description": description.strip(),
-                      "coined": item.get("coined", True) is not False})
+                      "coined": item.get("coined", True) is not False,
+                      "kind": kind or DEFAULT_KIND})
     return terms
 
 
@@ -146,29 +153,30 @@ def _score(idea: Idea, keyword: list[str], variants: list[str]) -> int:
 
 
 def search_by_term(
-    session: Session, keywords, place_id: int | None = None, include_candidates: bool = False,
+    session: Session, keywords, place_id: int | None = None, time=None,
 ) -> list[tuple[dict, list[Idea]]]:
-    """キーワードごとに当たったアイデア。`place_id` を渡すと、その場所で効くアイデアに絞る。"""
+    """キーワードごとに当たったアイデア。`place_id` / `time` を渡すと、その場所・時刻で効くアイデアに絞る。"""
     place_ids = common_query.idea_scope_ids(session, place_id) if place_id is not None else None
+    time = Stamp.parse(time)
     found = []
     for term in terms_of(keywords):
         keyword, variants = _spelled(term)
         rows = session.scalars(dictionary_query.ideas_by_terms_select(
-            keyword + variants, place_ids, include_candidates)).all()
+            keyword + variants, place_ids, time)).all()
         found.append((term, [idea for idea in rows if _score(idea, keyword, variants)]))
     return found
 
 
 def search(
     session: Session, keywords, place_id: int | None = None,
-    include_candidates: bool = False, limit: int | None = None,
+    time=None, limit: int | None = None,
 ) -> list[Hit]:
     """キーワードと言い換えで引いたアイデアを、当たり方の強い順に返す。
 
     名前にキーワードが入っていれば 3、言い換えが入っていれば 2、本文にだけ入っていれば 1 を、キーワードごとに足す。
     """
     hits: dict[int, Hit] = {}
-    for term, ideas in search_by_term(session, keywords, place_id, include_candidates):
+    for term, ideas in search_by_term(session, keywords, place_id, time):
         keyword, variants = _spelled(term)
         for idea in ideas:
             hit = hits.setdefault(idea.id, Hit(idea))

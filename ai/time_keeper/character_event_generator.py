@@ -188,7 +188,7 @@ def generate_next(
             session, place_id, participants, time, rng, ai,
             focus=character, note=_note(character, previous_row), seeds=seeds, use_story=False)
         if record is not None:
-            context = idea_context.gather(session, f"{record.name}\n{record.text}", ai, record.location_id)
+            context = idea_context.gather(session, f"{record.name}\n{record.text}", ai, record.location_id, record.time)
             later_events = progression._later_events(session, record.location_id, participants, record.start, ai)
             _novelize(session, record, character, participants, previous_row, ai, context.related, later_events)
             idea_context.link(session, record, context.linked)
