@@ -15,6 +15,7 @@
 - 76fbe5ec1c2e: event_seed_source を元テーブルごとの id 列にする
 - f8eefc75dad5: event_seed_source を落とし、元の表の event_seeded で管理する
 - 56c6bd7ffe26: event_seed に consolidated を足す
+- fbab84187d1d: meme / oracle を足す
 """
 import sqlite3
 
@@ -26,7 +27,7 @@ from DEM.db.schema import PERSONALITY_COLUMNS, Base, engine
 from DEM.db.stamp import Stamp
 from DEM.tool.test import TEST_DB_PATH
 
-HEAD_REVISION = "56c6bd7ffe26"
+HEAD_REVISION = "fbab84187d1d"
 
 # 5c15aeb8dd47 で落とすまで db にあった、筋書きの二つのテーブル。
 _PLOT_TABLE_SQL = (
@@ -46,6 +47,7 @@ _PLOT_TABLE_SQL = (
 
 
 _EVENT_SEEDED = "\n\tevent_seeded BOOLEAN NOT NULL, "
+_MEME_SEEDED = "\n\tmeme_seeded BOOLEAN NOT NULL, "
 
 
 @pytest.fixture
@@ -53,7 +55,8 @@ def old_style_db():
     """性格列を旧来の INTEGER、text を NOT NULL に戻し、read と world_influence を持つ人物を並べた db。
 
     あとのリビジョンで足す character_relation・location.polygon・話の
-    start/end/viewpoint/place/key・要約の二つのテーブル・出来事の種と event_seeded も無い形にする。
+    start/end/viewpoint/place/key・要約の二つのテーブル・出来事の種と event_seeded・
+    ミーム(meme/oracle)と meme_seeded も無い形にする。
     """
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -68,7 +71,8 @@ def old_style_db():
                   .replace("\ttext VARCHAR, ", "\ttext VARCHAR NOT NULL, ")
                   .replace("\tname VARCHAR, ", "\tname VARCHAR, \n\tread VARCHAR, \n\tworld_influence INTEGER NOT NULL, ")
                   .replace("\n\tmain_character BOOLEAN NOT NULL, ", "")
-                  .replace(_EVENT_SEEDED, ""))
+                  .replace(_EVENT_SEEDED, "")
+                  .replace(_MEME_SEEDED, ""))
     assert "world_influence" in create_sql and "text VARCHAR NOT NULL" in create_sql
     assert "main_character" not in create_sql
     conn.execute("DROP TABLE character")
@@ -79,8 +83,11 @@ def old_style_db():
     conn.execute("DROP TABLE event_seed")
     # schema.py から消えたので drop_all では落ちない。前のテストの downgrade が残したものを消す
     conn.execute("DROP TABLE IF EXISTS event_seed_source")
+    conn.execute("DROP TABLE meme")
+    conn.execute("DROP TABLE oracle")
     for table in ("story", "event"):
         conn.execute(f'ALTER TABLE "{table}" DROP COLUMN event_seeded')
+    conn.execute('ALTER TABLE "term" DROP COLUMN meme_seeded')
     location_sql = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'location'").fetchone()[0]
     assert "\tpolygon JSON, " in location_sql
     conn.execute("DROP TABLE location")
@@ -456,4 +463,27 @@ def test_upgrade_flags_seeded_records_and_keeps_the_seeds(old_style_db):
     assert conn.execute("SELECT count(*) FROM event_seed").fetchone() == (0,)
     assert "event_seeded" not in _columns(conn, "event")
     assert set(_columns(conn, "event_seed")) == {"id", "event_seed_source_id", "text"}
+    conn.close()
+
+
+def test_upgrade_adds_meme_and_oracle_and_downgrade_drops_them(old_style_db):
+    cfg = _config()
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    assert set(_columns(conn, "meme")) == {"id", "text"}
+    assert set(_columns(conn, "oracle")) == {"id", "meme_seeded", "text", "directory_path", "filename"}
+    for table in ("term", "character"):
+        assert _columns(conn, table)["meme_seeded"][:2] == ("BOOLEAN", 1), table
+    conn.execute("INSERT INTO oracle (meme_seeded, text) VALUES (0, '覚え書き')")
+    conn.commit()
+    conn.close()
+
+    command.downgrade(cfg, "56c6bd7ffe26")
+
+    conn = sqlite3.connect(TEST_DB_PATH)
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "meme" not in tables and "oracle" not in tables
+    assert "meme_seeded" not in _columns(conn, "term")
+    assert "meme_seeded" not in _columns(conn, "character")
     conn.close()
