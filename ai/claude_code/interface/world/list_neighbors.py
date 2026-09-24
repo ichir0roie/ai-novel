@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""ある場所から見た、同じ星の上の他の場所の方角・距離・高低差を近い順に出す、claude が呼ぶ入口。
-
-    ListNeighbors(place_id=60).run()
-    ListNeighbors(place_id=60, kind="国", limit=5).run()
-"""
 from __future__ import annotations
 
 from ai.claude_code.interface._base import SessionEntrypoint
@@ -16,8 +11,6 @@ from tool.map.geometry import (
 
 
 class ListNeighbors(SessionEntrypoint):
-    """`{"place": {...}, "planet": {...}, "neighbors": [近い順]}` を返す。各 neighbor に文の `summary` を付ける。"""
-
     def __init__(self, place_id: int, kind: str | None = None, limit: int | None = None):
         self.place_id = int(place_id)
         self.kind = kind

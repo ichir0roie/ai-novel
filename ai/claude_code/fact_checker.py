@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
-"""アイデア(`Idea`)・ミーム(`Meme`)の中身を、Claude Code にネット検索させて検め、妥当性と補足を `review` 欄へ書く。
+"""`local_ai`(Ollama)はネットを引けないので、ここだけは claude_ai 固有。
 
-`local_ai`(Ollama)はネットを引けないので、ここだけは claude_ai 固有。
-`review` が空のものを「まだ検めていない」とみなす。検め直すときは id を名指しする。
-
-ネット検索に加えて、Dラボ(メンタリストDaiGo らの動画・ブログのナレッジ)の MCP を優先して引かせる。
-Dラボの道具は環境変数 `DEM_CLAUDE_AI_DLAB_TOOLS`(カンマ区切りの許可ルール、既定 `mcp__d-lab`)で許す。
-`claude mcp list` での Dラボのサーバー名が `d-lab` でなければ、`mcp__<サーバー名>` に直す。
-Dラボが繋がっていなければ、AI はネット検索だけで検める。
+Dラボの MCP のサーバー名は環境ごとに違う(`claude mcp list` で見る)ので、許可ルールを
+`DEM_CLAUDE_AI_DLAB_TOOLS` で差し替えられるようにしている。繋がっていなければ AI はネット検索だけで検める。
 """
 from __future__ import annotations
 
 import os
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from ai.claude_code import ai_client
 from db.schema import Idea, Meme, Session
@@ -21,9 +16,9 @@ from db.schema import Idea, Meme, Session
 WEB_TOOLS = ("WebSearch", "WebFetch", "ToolSearch")
 DEFAULT_DLAB_TOOLS = "mcp__d-lab"
 # 検索を何度も挟むので、道具なしの呼び出しより長く待つ。
-REVIEW_TIMEOUT = 900.0
+TIMEOUT = 900.0
 # 一度の呼び出しで検めさせる本文の字数の上限。一件でこれを超えるものは一件だけで渡す。
-REVIEW_BATCH_LETTERS = 3000
+BATCH_LETTERS = 3000
 
 _SYSTEM_PROMPT = """\
 あなたは創作の設定を検める、科学・歴史・思想に詳しい校閲者です。
@@ -38,38 +33,38 @@ _SYSTEM_PROMPT = """\
   設定を厚くするのに使える事実を書く。
 - ミームは、現実にその考え方を持った人・集団・思想の系譜や、心理学・社会学での裏付けを挙げる。
 - 検索で確かめた事実だけを書き、分からないことは分からないと書く。
-- 各 review は次の三つの小見出しを持つ markdown にする。見出しは必ず `##` を使い、`#` 一つの見出しは使わない。
+- 各 fact_check は次の三つの小見出しを持つ markdown にする。見出しは必ず `##` を使い、`#` 一つの見出しは使わない。
   ## 妥当性
   ## 補足
   ## 出典
   出典は `- [題](URL)` の箇条書きにする。Dラボの動画・記事は題の頭に「Dラボ: 」を付ける。
 - 全体で 400〜800 字を目安にする。
-JSON で答えてください。キーは reviews だけ。各要素は number(番号)と review(検めた結果の markdown)の二つ。"""
+JSON で答えてください。キーは results だけ。各要素は number(番号)と fact_check(検めた結果の markdown)の二つ。"""
 
 _SCHEMA = {
     "type": "object",
     "properties": {
-        "reviews": {
+        "results": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "number": {"type": "integer"},
-                    "review": {"type": "string"},
+                    "fact_check": {"type": "string"},
                 },
-                "required": ["number", "review"],
+                "required": ["number", "fact_check"],
                 "additionalProperties": False,
             },
         },
     },
-    "required": ["reviews"],
+    "required": ["results"],
     "additionalProperties": False,
 }
 
 MODELS = {"idea": Idea, "meme": Meme}
 
 
-def review_tools() -> tuple[str, ...]:
+def tools() -> tuple[str, ...]:
     dlab = os.environ.get("DEM_CLAUDE_AI_DLAB_TOOLS", DEFAULT_DLAB_TOOLS)
     return WEB_TOOLS + tuple(tool.strip() for tool in dlab.split(",") if tool.strip())
 
@@ -85,7 +80,7 @@ def _batches(records: list[Idea | Meme]) -> list[list[Idea | Meme]]:
     letters = 0
     for record in records:
         size = len(_describe(record))
-        if batches and letters + size <= REVIEW_BATCH_LETTERS:
+        if batches and letters + size <= BATCH_LETTERS:
             batches[-1].append(record)
             letters += size
         else:
@@ -95,23 +90,18 @@ def _batches(records: list[Idea | Meme]) -> list[list[Idea | Meme]]:
 
 
 def targets(session: Session, table: str, ids: list[int] | None = None, limit: int | None = None) -> list:
-    """検める対象。`ids` を渡せばそれ(検め済みでも検め直す)、無ければ `review` が空で本文のあるもの。"""
     model = MODELS[table]
     query = select(model).order_by(model.id)
     if ids is not None:
         query = query.where(model.id.in_(ids))
     else:
-        query = query.where(or_(model.review.is_(None), model.review == ""), model.text != "")
+        query = query.where(or_(model.fact_check.is_(None), model.fact_check == ""), model.text != "")
     if limit is not None:
         query = query.limit(limit)
     return list(session.scalars(query).all())
 
 
-def review(session: Session, table: str, ids: list[int] | None = None, limit: int | None = None) -> int:
-    """`table`("idea" / "meme")の対象を検め、`review` を書いて commit する。書いた件数を返す。
-
-    AI が答えなかったものは空のまま残し、次の回に検め直す。
-    """
+def check(session: Session, table: str, ids: list[int] | None = None, limit: int | None = None) -> int:
     records = targets(session, table, ids, limit)
     written = 0
     for batch in _batches(records):
@@ -119,19 +109,29 @@ def review(session: Session, table: str, ids: list[int] | None = None, limit: in
             f"## {number}\n{_describe(record)}" for number, record in enumerate(batch, start=1))
         decided = ai_client.try_generate_json(
             f"{numbered}\n\nそれぞれをDラボのナレッジとネット検索で検め、妥当性と補足を書いてください。",
-            _SCHEMA, system=_SYSTEM_PROMPT, timeout=REVIEW_TIMEOUT, tools=review_tools())
-        for item in decided.get("reviews") or []:
-            if not isinstance(item, dict) or not isinstance(item.get("review"), str):
+            _SCHEMA, system=_SYSTEM_PROMPT, timeout=TIMEOUT, tools=tools())
+        for item in decided.get("results") or []:
+            if not isinstance(item, dict) or not isinstance(item.get("fact_check"), str):
                 continue
             try:
                 number = int(item.get("number"))
             except (TypeError, ValueError):
                 continue
-            text = item["review"].strip()
+            text = item["fact_check"].strip()
             if 1 <= number <= len(batch) and text:
-                batch[number - 1].review = text
+                batch[number - 1].fact_check = text
                 written += 1
         session.commit()
     if records:
-        print(f"[claude_code/reviewer] {table} {len(records)}件のうち、{written}件を検めた")
+        print(f"[claude_code/fact_checker] {table} {len(records)}件のうち、{written}件を検めた")
     return written
+
+
+def last_meme_id(session: Session) -> int:
+    return session.scalar(select(func.max(Meme.id))) or 0
+
+
+def check_new_memes(session: Session, last_id: int) -> int:
+    """`last_id` より後に足したミームだけを検める(既にあるミームの後埋めは `check` を名指しなしで呼ぶ)。"""
+    ids = list(session.scalars(select(Meme.id).where(Meme.id > last_id)).all())
+    return check(session, "meme", ids=ids) if ids else 0

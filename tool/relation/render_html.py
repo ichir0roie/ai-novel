@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""人物相関の一枚の HTML。人物を円に並べて関係を矢印で結び、人物か矢印を選ぶと関係の本文を出す。年を選ぶとその年に続いている関係だけを描く。"""
 from __future__ import annotations
 
 import json

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""`story/` 配下の入口に共通する基底。"""
 from __future__ import annotations
 
 from ai.claude_code.interface._base import CommitEntrypoint, SessionEntrypoint

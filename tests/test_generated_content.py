@@ -1,7 +1,3 @@
-"""ミームの棚卸しと要約(`event_summary` / `episode_summary`)をまとめて作る `generated_content.refresh`。
-
-出来事・話を確定したときに毎回呼ぶ、パックにした処理。
-"""
 from ai.time_keeper import event_summary, generated_content
 from db.schema import Episode, Event, EventSummary, EpisodeSummary, Idea, Location, Story
 from db.stamp import Stamp

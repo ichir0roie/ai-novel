@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""場所を一件、db から削除する、claude が呼ぶ入口。配下に子の場所を持つ場所は消せない。"""
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -10,8 +9,6 @@ from db.schema import Location
 
 
 class DeletePlace(CommitDraft):
-    """場所を一件削除して、消す直前の中身を辞書で返す。"""
-
     model = Location
 
     def __init__(self, place_id: int):

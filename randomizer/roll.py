@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""設定用の乱数ツール。
-
-使い方:
-    python3 randomizer/roll.py                      全テーブルを1回ずつ引く
-    python3 randomizer/roll.py --prefix SF          接頭辞で絞って引く
-    python3 randomizer/roll.py --table FT/魔法の源 --n 3
-    python3 randomizer/roll.py --num 0.6 1.6 --step 0.05 --label 重力
-    python3 randomizer/roll.py --seed 12345         シードを指定して再現
-"""
 import argparse
 import json
 import os

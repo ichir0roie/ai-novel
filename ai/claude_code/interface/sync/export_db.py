@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""db を `worlds/` の下へ md として書き出す、claude が呼ぶ入口。呼ぶたびに `worlds/` をまるごと消してから書き直す。
-
-    ExportDb().run()              書き出した件数を、テーブル名ごとの辞書で返す
-    ExportDb(force=True).run()    手で直した md を捨ててよいと分かっているときだけ
-
-前回の同期より後に手で直された md があれば、書き出す前に止まる。
-`ImportDb` → db 側の変更 → これ、の順で呼ぶ(変更のあとに `ImportDb` を挟むと、
+"""`ImportDb` → db 側の変更 → これ、の順で呼ぶ(変更のあとに `ImportDb` を挟むと、
 その変更が md 側の古い内容で消える)。
 """
 from __future__ import annotations
@@ -20,8 +14,6 @@ _SHOW_LIMIT = 5
 
 
 class ExportDb(Entrypoint):
-    """db を md へ書き出して、テーブル名ごとの件数を辞書で返す。"""
-
     def __init__(self, root: str = WORLDS_ROOT, force: bool = False):
         self.root = root
         self.force = force

@@ -1,4 +1,3 @@
-"""場所の広さ `area` を直すときの整合: 親未満か、兄弟の合計が親を超えないか。"""
 import pytest
 
 from ai.claude_code.interface.randomizer.update_place import UpdatePlace
@@ -7,7 +6,6 @@ from db.schema import Location
 
 @pytest.fixture
 def continents(session):
-    """広さ 100 の星と、その下の大陸二つ(30 と 40)。"""
     planet = Location(name="星", kind="星", text="", area=100, directory_path="星")
     session.add(planet)
     session.flush()

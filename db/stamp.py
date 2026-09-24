@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
-"""作中の時刻。**python の `datetime` は 9999 年までしか持てないので使わない。**
+"""python の `datetime` は 9999 年までしか持てないので使わない。
 
 作中の暦は西暦の続きで、万の位に乗る年も出る(`43600712`、`999990101000000`)。
 `datetime` はそこで `year is out of range` と言って止まるため、
 ここでは年・月・日・時・分・秒をそのまま持つ小さな値として扱う。
 
-```
-Stamp.parse("4360")            → 4360 年 1 月 1 日 0 時
-Stamp.parse("43600712")        → 4360 年 7 月 12 日
-Stamp.parse("99999")           → 99999 年 1 月 1 日(奇数桁なら年は 5 桁)
-Stamp.parse("99999-01-01")     → 同じ
-Stamp.parse("999990101000000") → 同じ(15 桁以上なら、後ろ 10 桁を落とした残りが年)
-```
-
-**台帳には整数として入れる**(`年*10^10 + 月*10^8 + … + 秒`)。
+台帳には整数として入れる(`年*10^10 + 月*10^8 + … + 秒`)。
 桁を並べただけなので、大小がそのまま時の前後になる。
 """
 from __future__ import annotations
@@ -44,13 +36,11 @@ def _is_leap_year(year: int) -> bool:
 
 
 class StampError(ValueError):
-    """時刻として読めなかった。"""
+    pass
 
 
 @total_ordering
 class Stamp:
-    """作中の一点。**年に上限はない。**"""
-
     __slots__ = ("year", "month", "day", "hour", "minute", "second")
 
     def __init__(self, year, month=1, day=1, hour=0, minute=0, second=0):
@@ -72,11 +62,6 @@ class Stamp:
 
     @classmethod
     def parse(cls, value) -> "Stamp | None":
-        """`4360/7/12 09:30:00` も `4360/7/12` も `4360` も受け取る。
-
-        **年は西暦の続き。** 粒度は混ぜてよい。書かれなかった桁は
-        1 月 1 日 0 時で埋める。数字だけなら年とみなす。
-        """
         if value is None or value == "":
             return None
         if isinstance(value, Stamp):
@@ -106,7 +91,6 @@ class Stamp:
 
     @classmethod
     def from_stem(cls, stem: str) -> "Stamp | None":
-        """ファイル名の頭(`4340_01_01` / `4340_01_01_093000`)を読む。"""
         m = _STEM.match(stem)
         if not m:
             return None
@@ -118,7 +102,6 @@ class Stamp:
 
     @classmethod
     def from_int(cls, value) -> "Stamp | None":
-        """台帳に入っている整数から戻す。"""
         if value is None:
             return None
         value = int(value)
@@ -132,12 +115,11 @@ class Stamp:
     # --- 出す -----------------------------------------------------------
 
     def to_int(self) -> int:
-        """桁を並べた整数。**そのまま並べ替えに使える。**"""
         return (((((self.year * 100 + self.month) * 100 + self.day) * 100
                   + self.hour) * 100 + self.minute) * 100 + self.second)
 
     def to_seconds(self) -> int:
-        """**プロレプティック・グレゴリオ暦での、相対的な秒数。**
+        """プロレプティック・グレゴリオ暦での、相対的な秒数。
 
         絶対的な暦の起点は決めていない(西暦0年をそのまま起点にしただけ)ので、
         単独の値には意味がなく、二点の差分(間に何秒あるか)を見るのにだけ使う
@@ -152,17 +134,12 @@ class Stamp:
         return ((days * 24 + self.hour) * 60 + self.minute) * 60 + self.second
 
     def stem(self) -> str:
-        """ファイル名の頭。**0 時ちょうどなら時刻を書かない。**
-
-        `4340_01_01` / `4340_01_01_093000`
-        """
         head = f"{self.year}_{self.month:02d}_{self.day:02d}"
         if (self.hour, self.minute, self.second) == (0, 0, 0):
             return head
         return f"{head}_{self.hour:02d}{self.minute:02d}{self.second:02d}"
 
     def __str__(self) -> str:
-        """**`y/mm/dd hh:mm:ss`。** 中でも外でもこの書き方で通す。"""
         return (f"{self.year}/{self.month:02d}/{self.day:02d} "
                 f"{self.hour:02d}:{self.minute:02d}:{self.second:02d}")
 

@@ -1,4 +1,3 @@
-"""event_progression_generator の、出来事の偏りを抑えるための仕組み。"""
 from ai.instructions.event_writing import (
     CHARACTER_TEXT_UPDATE_INSTRUCTION, EVENT_PROGRESSION_INSTRUCTION,
 )

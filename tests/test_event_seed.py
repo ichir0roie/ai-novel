@@ -1,7 +1,3 @@
-"""出来事の種(`event_seed`)。作品・話・人物の筋書き・出来事から抜き出して貯め、ランダムに引く。
-
-抜き出しは元のレコードごとに一度だけで、元の `event_seeded` で管理する。
-"""
 import random
 
 from ai.time_keeper import event_seed
@@ -130,8 +126,6 @@ def test_draw_from_an_empty_pool_is_empty(session):
 
 
 class _Merges(MockAIClient):
-    """棚卸しで、決めた組をまとめると答える。"""
-
     def __init__(self, merges, seed=1):
         super().__init__(seed=seed)
         self.merges = merges

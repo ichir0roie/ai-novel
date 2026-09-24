@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""人物を一件、db へ確定する、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft
@@ -9,8 +8,6 @@ from db.schema_pydantic import to_dict
 
 
 class CommitCharacter(CommitDraft):
-    """`place_id` は列ではなく、出自を表す `CharacterPlace` の一件として書き込む。"""
-
     model = Character
 
     def __init__(self, character: str | dict):

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""ランダムな場所(Location)一件分の下書きを辞書として組む。db には触れない。"""
 from __future__ import annotations
 
 import factory

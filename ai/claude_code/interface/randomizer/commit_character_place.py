@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""既にいる人物の居場所(`CharacterPlace`)を一件、db へ確定する、claude が呼ぶ入口。
-
-`commit_character` は出自の一件しか書けないので、出自を後から付ける・移った先を足すときに使う。
-"""
+"""`commit_character` は出自の一件しか書けないので、出自を後から付ける・移った先を足すときに使う。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft

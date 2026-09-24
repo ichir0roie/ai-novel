@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""人物に寿命を持たせ、老いと事故で `Character.end` を下ろす。年初に確率をロールし、死んだ人物には `Event` を一件起こす。"""
 from __future__ import annotations
 
 import random
@@ -29,12 +28,10 @@ _SCHEMA = {
 
 
 def _should_roll(time: Stamp) -> bool:
-    """年に一度、元日(1月1日)にだけロールする。"""
     return time.month == 1 and time.day == 1
 
 
 def _natural_death_probability(age: int) -> float:
-    """老衰の年間確率。`constants.NATURAL_DEATH_MIN_AGE` 未満は 0、`constants.NATURAL_DEATH_MAX_AGE` 以上は 1。"""
     if age < constants.NATURAL_DEATH_MIN_AGE:
         return 0.0
     if age >= constants.NATURAL_DEATH_MAX_AGE:
@@ -85,7 +82,6 @@ def _kill(
 
 
 def generate_random(session: Session, time: Stamp, ai: AIClient) -> list[Event]:
-    """年初に、生きている人物それぞれの老衰・事故をロールする。人物以外の対象は寿命を持たない。"""
     if not _should_roll(time):
         return []
 

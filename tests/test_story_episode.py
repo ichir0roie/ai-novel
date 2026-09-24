@@ -1,4 +1,3 @@
-"""作品(`Story`)の確定と、話(`Episode`)の md 名 `{story_id}_{number}_{title}.md`。"""
 import os
 
 import pytest

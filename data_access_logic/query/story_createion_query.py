@@ -2,7 +2,6 @@ from data_access_logic.query.base import *
 
 
 def load_location_story(s: Session, location_id: int, time: Stamp):
-    """`location_id` とその祖先に掛かる、`time` に有効な作品(`Story`)。上位の場所のものから順。"""
     location = s.get(Location, location_id)
     if location is None:
         raise ValueError()
@@ -25,7 +24,6 @@ def load_location_story(s: Session, location_id: int, time: Stamp):
 
 
 def join_story_text(stories: list[Story]) -> str:
-    """作品の本文を、渡された順のまま一つのテキストにつなげる。"""
     return "\n\n".join(story.text for story in stories if story.text)
 
 

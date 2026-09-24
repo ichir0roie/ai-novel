@@ -9,6 +9,7 @@ from sqlalchemy import (
     BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator,
     create_engine,
     ForeignKey,
+    UniqueConstraint,
     select,
     Select,
     text,
@@ -72,7 +73,6 @@ _LOCATION_TAGS = ("w", "p", "lon", "lat", "alt")
 
 
 def _digit(value) -> str:
-    """`4.0` を `4` に寄せて、座標を見た目の揺れなく並べる。"""
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -81,12 +81,7 @@ def _digit(value) -> str:
 
 
 def location_text(values) -> str | None:
-    """**場所の一意テキスト。** `w/p/lon/lat/alt` を並べて一本の文字列にする。
-
-    `values` は辞書でもレコードの行でもよい。欠けている桁は `-` で埋める。
-    どの桁も無ければ `None`(座標を持たない場所)。
-
-    `w4/p1/lon12/lat-/alt-` のように、上から順に並ぶ。前方一致がそのまま
+    """`w4/p1/lon12/lat-/alt-` のように、上から順に並ぶ。前方一致がそのまま
     「同じ世界線」「同じ星」の絞り込みになる。
     """
     get = values.get if hasattr(values, "get") else (
@@ -126,7 +121,6 @@ class MarkdownBase(Base):
                 "空なら {id}.md。テーブルが持つ name 等の列とは別物")
 
     def default_filename(self) -> str | None:
-        """`filename` が空のときに md 名へ使う部分。テーブルごとに上書きする。"""
         return None
 
     @property
@@ -136,7 +130,6 @@ class MarkdownBase(Base):
 
     @classmethod
     def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
-        """md 名(拡張子抜き)を id と列の値に分ける。id が無い(手で作った)名前は id を None で返す。"""
         id_part, _, filename_part = stem.partition("_")
         if id_part.isdigit():
             return int(id_part), {"filename": filename_part or None}
@@ -194,8 +187,6 @@ class Location(MarkdownBase):
 
 
 class EventSeededMixin:
-    """出来事の種(`EventSeed`)を抜き出す元に付ける、抜き出し済みの印。"""
-
     event_seeded: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
         comment="出来事の種を抜き出し済みか。false に戻すと、次の毎日のルーチンで抜き出し直す",
@@ -203,21 +194,17 @@ class EventSeededMixin:
 
 
 class MemeSeededMixin:
-    """ミーム(`Meme`)を抜き出す元に付ける、抜き出し済みの印。"""
-
     meme_seeded: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False,
         comment="ミームを抜き出し済みか。false に戻すと、次の抽出で抜き出し直す",
         sort_order=9010)
 
 
-class ReviewMixin:
-    """AI がネット検索で内容の妥当性を検め、補足を書く `# review` 節。空ならまだ検めていない。"""
+class FactCheckMixin:
+    TEXT_SECTIONS = ("text", "fact_check")
 
-    TEXT_SECTIONS = ("text", "review")
-
-    review: Mapped[str | None] = mapped_column(
-        String, nullable=True, comment="AI がネット検索で検めた妥当性と補足。空ならまだ検めていない",
+    fact_check: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="AI が Dラボ・ネット検索で検めた妥当性と補足。空ならまだ検めていない",
         sort_order=10010)
 
 
@@ -254,8 +241,6 @@ class Event(EventSeededMixin, MemeSeededMixin, MarkdownBase):
 
 
 class EventCharacter(Base):
-    """**出来事 ↔ 人物の中間テーブル。** 一つの出来事に何人でも掛かれる。"""
-
     __tablename__ = "event_character"
 
     event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True, sort_order=100)
@@ -266,13 +251,10 @@ class EventCharacter(Base):
 
 
 def summary_source_hash(text: str) -> str:
-    """要約テーブルの `source_hash`。要約した本文と今の本文が同じかを見るのに使う。"""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class EventSummary(Base):
-    """出来事の本文の要約。md には出さない(import/export の外)。"""
-
     __tablename__ = "event_summary"
 
     event_id: Mapped[int] = mapped_column(
@@ -283,11 +265,6 @@ class EventSummary(Base):
 
 
 class EventSeed(Base):
-    """出来事の種。時代・場所・固有名詞を抜いた、抽象的な出来事のアイデア。md には出さない(import/export の外)。
-
-    どの元から抜き出したかは持たない。元の側の `event_seeded` で、抜き出し済みかを管理する。
-    """
-
     __tablename__ = "event_seed"
 
     text: Mapped[str] = mapped_column(String, comment="種", sort_order=100)
@@ -297,8 +274,6 @@ class EventSeed(Base):
 
 
 class MemeCategory(enum.StrEnum):
-    """ミームの分類。列には値(「信条」など)をそのまま文字列で持つ。"""
-
     BELIEF = "信条"
     DESIRE = "欲求"
     SITUATION = "境遇"
@@ -309,13 +284,9 @@ class MemeCategory(enum.StrEnum):
 MEME_CATEGORIES = tuple(category.value for category in MemeCategory)
 
 
-class Meme(ReviewMixin, MarkdownBase):
-    """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書き・出来事から抜き出した、キャラクターの芯になる考え方。
-    `worlds/meme/` に md として出し入れするので、著者が直接書き足すこともできる。
-
-    ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
+class Meme(FactCheckMixin, MarkdownBase):
+    """ミームは移り変わり・伝染していくものなので、どの元から抜き出したか、どの人物が持つかは持たない
     (元の側の `meme_seeded` で、抜き出し済みかだけを管理する)。
-    人物が持つミームは、その人物の `text` の `# meme` 節に `- <古今表裏>: <文面>` の形で文面をそのまま書く。
     """
 
     __tablename__ = "meme"
@@ -327,7 +298,7 @@ class Meme(ReviewMixin, MarkdownBase):
 
 
 class Oracle(MemeSeededMixin, MarkdownBase):
-    """著者自身の創作・AI についての覚え書き。物語のデータではなく、db の他のテーブルとは FK を持たない。"""
+    """著者自身の創作・AI についての覚え書き。物語のデータではない。"""
 
     __tablename__ = "oracle"
 
@@ -336,8 +307,6 @@ CHARACTER_KIND_PERSON = "人物"
 
 
 class PersonalityLevel(enum.StrEnum):
-    """性格の各軸の段階。列には値(「無」など)をそのまま文字列で持つ。"""
-
     NONE = "無"
     LOW = "低"
     NORMAL = "並"
@@ -356,7 +325,6 @@ PERSONALITY_COLUMNS = (
 
 
 def check_personality(data) -> None:
-    """辞書に入っている性格の欄が `PERSONALITY_LEVELS` のどれかであることを確かめる。"""
     bad = {column: data[column] for column in PERSONALITY_COLUMNS
            if column in data and data[column] not in PERSONALITY_LEVELS}
     if bad:
@@ -365,10 +333,9 @@ def check_personality(data) -> None:
 
 
 class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
-    """出来事の当事者になるもの。人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。
+    """人物に限らず、国・組織・集団・物も一行として持つ(`kind` で区別)。
 
-    行動原理は、持つミーム(`Meme`。`text` の `# meme` 節に書き、その整理を `# 行動原理` 節に書く)に基づく。ミームは
-    人物どうしで移り変わり・伝染していくものなので、`Meme` 側との FK は持たない。
+    ミームは人物どうしで移り変わり・伝染していくものなので、`Meme` 側との FK は持たない。
     """
 
     __tablename__ = "character"
@@ -446,7 +413,7 @@ class CharacterPlace(Base):
 
 
 class CharacterRelation(MarkdownBase):
-    """人物同士の相関。`character_id_1` から見た `character_id_2` との関係を一行で持つ。"""
+    """`character_id_1` から見た `character_id_2` との関係を一行で持つ。"""
 
     __tablename__ = "character_relation"
 
@@ -473,11 +440,17 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-class Idea(ReviewMixin, MemeSeededMixin, MarkdownBase):
+IDEA_KIND_CANDIDATE = "候補"
+IDEA_CANDIDATE_DIRECTORY = "候補"
+
+
+class Idea(FactCheckMixin, MemeSeededMixin, MarkdownBase):
     __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)
-    kind: Mapped[str] = mapped_column(String, sort_order=210)
+    kind: Mapped[str] = mapped_column(
+        String, comment=f"種別。「{IDEA_KIND_CANDIDATE}」は本文から自動で足した未確認の語で、検索・生成には出さない",
+        sort_order=210)
 
     restrict_world_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=220)
     restrict_planet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("location.id"), sort_order=230)
@@ -571,8 +544,6 @@ class Episode(EventSeededMixin, MarkdownBase):
 
 
 class EpisodeSummary(Base):
-    """作品の話(`Episode`)一話ぶんの要約と文体の覚え書き。md には出さない(import/export の外)。"""
-
     __tablename__ = "episode_summary"
 
     story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"), index=True, sort_order=100)
@@ -584,6 +555,39 @@ class EpisodeSummary(Base):
     style: Mapped[str] = mapped_column(String, comment="文体の覚え書き", sort_order=140)
 
 
+class EventIdea(Base):
+    """出来事の本文が踏まえたアイデア。md には出さない。"""
+
+    __tablename__ = "event_idea"
+    __table_args__ = (UniqueConstraint("event_id", "idea_id"),)
+
+    event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), index=True, sort_order=100)
+    idea_id: Mapped[int] = mapped_column(Integer, ForeignKey("idea.id"), index=True, sort_order=110)
+
+
+class EpisodeIdea(Base):
+    """話の本文が踏まえたアイデア。md には出さない。"""
+
+    __tablename__ = "episode_idea"
+    __table_args__ = (UniqueConstraint("episode_id", "idea_id"),)
+
+    episode_id: Mapped[int] = mapped_column(Integer, ForeignKey("episode.id"), index=True, sort_order=100)
+    idea_id: Mapped[int] = mapped_column(Integer, ForeignKey("idea.id"), index=True, sort_order=110)
+
+
+class CharacterIdea(Base):
+    """人物・対象の説明が踏まえたアイデア。md には出さない。"""
+
+    __tablename__ = "character_idea"
+    __table_args__ = (UniqueConstraint("character_id", "idea_id"),)
+
+    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("character.id"), index=True, sort_order=100)
+    idea_id: Mapped[int] = mapped_column(Integer, ForeignKey("idea.id"), index=True, sort_order=110)
+
+
+IDEA_LINK_MODELS = {Event: EventIdea, Episode: EpisodeIdea, Character: CharacterIdea}
+
+
 # 既定値は持たない。場所を取り違えると sqlite が空の db を黙って作るので、未設定なら import で止める。
 WORLD_DIR = os.environ["DEM_WORLD_DIR"]
 NOVEL_DB_PATH = os.environ.get("DEM_NOVEL_DB_PATH", os.path.join(WORLD_DIR, "novel.db"))
@@ -592,10 +596,7 @@ DB_PATH = os.environ.get("DEM_DB_PATH", NOVEL_DB_PATH)
 
 
 def create_db(path=DB_PATH):
-    """**db ファイルを作り直して、空のテーブルを張る。**
-
-    台帳から何度でも組み直せるので、既にあれば消して作り直す。
-    """
+    """台帳から何度でも組み直せるので、既にあれば消して作り直す。"""
     path = os.path.abspath(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path):
@@ -627,16 +628,13 @@ def _fixed_engine(path):
 
 
 def get_env_session():
-    """`DEM_DB_PATH`(既定は novel.db)の db。普段の読み書きはこれ。"""
     return Session(engine)
 
 
 def get_novel_session():
-    """`DEM_DB_PATH` に関わらず本番の novel.db(`DEM_NOVEL_DB_PATH`)。`worlds/` との同期(import_db / export_db)用。"""
     return Session(_fixed_engine(NOVEL_DB_PATH))
 
 
 def get_test_session():
-    """環境変数に関わらず novel.test.db。"""
     return Session(_fixed_engine(TEST_DB_PATH))
 

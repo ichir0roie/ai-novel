@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""作品(`Story`)を一件、db へ確定する、claude が呼ぶ入口。
-
-    CommitStory({"name": "…", "place_id": 2, "narration": "三人称", "state": "構想中"}).run()
-"""
 from __future__ import annotations
 
 from ai.claude_code import ai_client

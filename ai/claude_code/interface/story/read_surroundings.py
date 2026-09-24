@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""人物一人を軸に、その時刻・その居場所の周辺(居合わせる人物、直近の出来事)を読む、claude が呼ぶ入口。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story import _rows
@@ -9,8 +8,6 @@ from db.schema_pydantic import to_dict_with
 
 
 class ReadSurroundings(StoryQuery):
-    """その人物の周辺の人物・出来事を辞書で返す。"""
-
     def __init__(self, character_id: int, time, reach: int = 60):
         if time is None:
             raise ValueError("時刻が決まらない(time を渡す)")

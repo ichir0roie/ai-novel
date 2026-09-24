@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""既にある人物の居場所(`CharacterPlace`)を一件、渡した欄だけ db 上で直す、claude が呼ぶ入口。移った日に前の居場所の `end` を下ろすのに使う。"""
+"""移った日に前の居場所の `end` を下ろすのに使う。"""
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft

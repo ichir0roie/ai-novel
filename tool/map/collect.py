@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""db から、星ごとに「経緯度を持つ場所」と「輪郭を持つ場所」を素の辞書に集める。SVG・HTML の描画と `list_neighbors` の共通の材料。"""
 from __future__ import annotations
 
 from data_access_logic.query import common_query
@@ -39,10 +38,6 @@ def point_dict(session, place) -> dict:
 
 
 def collect_planets(session) -> list[dict]:
-    """`[{"planet": {...}, "points": [...], "shapes": [...]}, ...]`。点も輪郭も無い星は含めない。
-
-    経緯度と輪郭の両方を持つ場所は両方に入る。
-    """
     result = []
     for planet in session.scalars(common_query.planets_select()).all():
         places = session.scalars(common_query.places_on_planet_select(planet.id)).all()

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""名づけの基準を、AI へのプロンプトに埋め込める形にした定数。
-
-乱数で言語を一つ引いてから固有名詞を組み立てる、といった対話越しの手順は
+"""乱数で言語を一つ引いてから固有名詞を組み立てる、といった対話越しの手順は
 JSON 生成 1 回で名づけを終える場面(`ai/local_ai/` の常駐ループ)には
 埋め込めないので、要旨だけを定数として持ち、プロンプト経由で一括で守らせる。
 """
@@ -22,7 +20,6 @@ _NAME_PLACEHOLDER_PATTERN = re.compile(r"[【\[(]\s*名前\s*[】\])]")
 
 
 def fill_name_placeholder(text: str, name: str) -> str:
-    """`text` 中の `NAME_PLACEHOLDER`(括弧の表記ゆれを含む)を、確定した `name` へ機械的に置き換える。"""
     return _NAME_PLACEHOLDER_PATTERN.sub(name, text)
 
 

@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""話を一件、db へ確定する、claude が呼ぶ入口。同じ作品の同じ話数があれば上書きする。
-
-    CommitEpisode({"story_id": 1, "number": 6, "title": "…", "key": "…"}).run()   種だけ
-    CommitEpisode({"story_id": 1, "number": 6, "title": "…", "text": "…"}).run()  本文
-"""
 from __future__ import annotations
 
 from sqlalchemy import select

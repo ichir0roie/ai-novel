@@ -1,4 +1,3 @@
-"""アイデアを引く範囲。配下だけでなく、属する星・世界線まで親方向へのぼって当てる。"""
 import pytest
 
 from ai.claude_code.interface.story import _rows

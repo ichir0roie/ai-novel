@@ -1,13 +1,10 @@
-"""ミーム(`meme`)。アイデア(idea)・oracle・人物の筋書きから抜き出して貯め、人物を生むときに分類ごとに引く。
-
-抜き出しは元のレコードごとに一度だけで、元の `meme_seeded` で管理する。
-抜き出すときに分類を振り、既にあるミームと重なるものは足さない。
-"""
 import random
 
 import pytest
 
+from ai.claude_code import ai_client
 from ai.claude_code.interface.meme.draw_memes import DrawMemes
+from ai.claude_code.interface.randomizer.commit_idea import CommitIdea
 from ai.claude_code.interface.randomizer.commit_oracle import CommitOracle
 from ai.claude_code.interface.randomizer.delete_meme import DeleteMeme
 from ai.claude_code.interface.randomizer.update_meme import UpdateMeme
@@ -32,8 +29,6 @@ class _NoMemes(MockAIClient):
 
 
 class _Scripted(MockAIClient):
-    """system プロンプトごとに決めた答えを返す。決めていないものは空の辞書(失敗扱い)。"""
-
     def __init__(self, answers: dict):
         super().__init__(seed=1)
         self.answers = answers
@@ -311,6 +306,32 @@ def test_commit_oracle_adds_a_note(session):
     assert not record.meme_seeded
     with pytest.raises(ValueError, match="text は必須"):
         CommitOracle({"filename": "空"}).run()
+
+
+@pytest.mark.parametrize("entrypoint, payload, model", [
+    (CommitOracle, {"text": "約束は破らない"}, Oracle),
+    (CommitIdea, {"name": "誓約", "kind": "概念", "text": "約束は破らない"}, Idea),
+])
+def test_commit_extracts_memes_right_away(session, monkeypatch, entrypoint, payload, model):
+    monkeypatch.setattr(ai_client, "try_generate_json", _Scripted({
+        meme._SYSTEM_PROMPT: {"memes": [{"text": "約束を守る", "category": "信条"}]},
+        meme._DEDUPE_SYSTEM_PROMPT: {"duplicates": []},
+    }).try_generate_json)
+
+    result = entrypoint(payload).run()
+
+    assert result["memes_added"] == 1
+    assert [(m.text, m.category) for m in session.query(Meme).all()] == [("約束を守る", "信条")]
+    session.expire_all()
+    assert session.get(model, result["id"]).meme_seeded
+
+
+def test_commit_is_kept_when_meme_extraction_fails(session):
+    result = CommitIdea({"name": "誓約", "kind": "概念", "text": "約束は破らない"}).run()
+
+    assert result["memes_added"] == 0
+    record = session.get(Idea, result["id"])
+    assert record is not None and not record.meme_seeded
 
 
 def test_update_oracle_changes_given_columns(session):

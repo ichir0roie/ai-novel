@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""全ての星をまとめた一枚の HTML。星の切り替え・親ごとの表示切り替え・点を選ぶと他の点までの距離と方角を出す。輪郭を持つ場所は面として敷く。"""
 from __future__ import annotations
 
 import json

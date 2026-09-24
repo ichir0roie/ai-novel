@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""ミーム(`Meme`)。アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書き・出来事(`Event`)から、
-人物の行動原理の芯になりうる考え方を抜き出して貯め、人物・対象を生むときに分類ごとに引く。
-
-抜き出しは元のレコードごとに一度だけで、`meme_seeded` で管理する。false に戻すと、次の抽出で抜き出し直す。
-抜き出すときに分類(`category`)を振り、既にあるミームと同じ考え方の言い換えは足さない。
-ミームどうし・元との関係は持たない(移り変わり・伝染していくため)。
-"""
+"""ミームどうし・元との関係は持たない(移り変わり・伝染していくため)。"""
 from __future__ import annotations
 
 import random
@@ -124,7 +118,6 @@ _Candidate = tuple[str, str | None]
 
 
 def _batches(items: list[tuple[object, str]], limit: int) -> list[list]:
-    """一度に渡す本文(各要素の二つ目)の字数が `limit` を超えないように分ける。"""
     batches: list[list] = []
     letters = 0
     for item in items:
@@ -138,7 +131,6 @@ def _batches(items: list[tuple[object, str]], limit: int) -> list[list]:
 
 
 def _pending(session: Session) -> list[_Pending]:
-    """まだ抜き出していない元。本文が空の元は、書かれるまで待つ(印を立てない)。"""
     pending = []
     for model, text_of in _SOURCE_TEXTS:
         for record in session.scalars(meme_query.unseeded_select(model)).all():
@@ -165,11 +157,6 @@ def _normalized(text: str) -> str:
 
 
 def _without_duplicates(session: Session, candidates: list[_Candidate], ai: AIClient) -> list[_Candidate] | None:
-    """`candidates` から、既にあるミームか前の候補と同じ考え方のものを除いて返す。AI が答えなければ None。
-
-    文面が同じものは AI に渡す前に落とす。既にあるミームは `constants.MEME_DEDUPE_LETTERS` 字ずつに分け、
-    そのたびに残っている候補を全部添えて見比べる。
-    """
     existing = list(session.scalars(select(Meme).order_by(Meme.id)).all())
     seen = {_normalized(meme.text) for meme in existing}
     fresh = []
@@ -204,10 +191,6 @@ def _without_duplicates(session: Session, candidates: list[_Candidate], ai: AICl
 
 
 def _classify(session: Session, ai: AIClient) -> int:
-    """分類の空いたミーム(著者が md に直接書いたものなど)に分類を振る。振った件数を返す。
-
-    AI が答えなかった・分類の外を答えたミームは空のまま残し、次の回に振り直す。
-    """
     unclassified = list(session.scalars(
         select(Meme).where(Meme.category.is_(None)).order_by(Meme.id)).all())
     for batch in _batches([(meme, meme.text) for meme in unclassified], constants.MEME_BATCH_LETTERS):
@@ -232,10 +215,6 @@ def _classify(session: Session, ai: AIClient) -> int:
 
 
 def refresh(session: Session, ai: AIClient) -> int:
-    """まだ抜き出していない元からミームを抜き出し、元に `meme_seeded` を立てる。足したミームの件数を返す。
-
-    抜き出したミームのうち、既にあるミームと重なるものは足さない。最後に、分類の空いたミームに分類を振る。
-    """
     pending = _pending(session)
     added = 0
     for batch in _batches(pending, constants.MEME_BATCH_LETTERS):
@@ -265,11 +244,6 @@ def refresh(session: Session, ai: AIClient) -> int:
 
 
 def draw(session: Session, rng: random.Random, categories: tuple[str, ...]) -> list[dict]:
-    """`categories` の分類ごとに `constants.MEME_DRAW_RANGE` の幅で件数を決めてミームを引き、
-    それぞれに古今表裏(`constants.MEME_POSITIONS`)を一つずつランダムに割り振る。
-
-    `{"position", "id", "category", "text"}` の辞書のリストを返す。
-    """
     drawn = []
     for category in categories:
         memes = list(session.scalars(
@@ -282,10 +256,8 @@ def draw(session: Session, rng: random.Random, categories: tuple[str, ...]) -> l
 
 
 def position_legend() -> str:
-    """古今表裏それぞれの意味を「古=… / 今=…」の一行にする。"""
     return " / ".join(f"{position}={meaning}" for position, meaning in constants.MEME_POSITIONS.items())
 
 
 def meme_section(drawn: list[dict]) -> str:
-    """引いたミームを、人物の `text` の `# meme` 節の中身(`- <古今表裏>: <文面>` の箇条書き)にする。"""
     return "\n".join(f"- {item['position']}: {item['text']}" for item in drawn)

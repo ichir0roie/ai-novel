@@ -1,4 +1,3 @@
-"""性格の五段階(PersonalityLevel)と、それを引くランダム生成。"""
 import pytest
 
 from db.schema import (

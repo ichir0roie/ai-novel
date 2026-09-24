@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""地図を書き出す。`export_db` から呼ばれる。
-
-- 星ごとの SVG: その星の md と同じディレクトリに `{id}_map.svg`
-- 全ての星をまとめた HTML: `worlds/maps/map.html`
-"""
 from __future__ import annotations
 
 import os
@@ -22,7 +17,6 @@ def _write(path: str, content: str) -> None:
 
 
 def render_maps(session, root: str) -> list[str]:
-    """書き出したファイルのパスを返す。"""
     table_dir = os.path.join(root, "location")
     planets = collect_planets(session)
     written = []

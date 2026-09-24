@@ -21,24 +21,28 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
 | 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
-| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keyword)`                              |
+| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返し、候補は返さない |
+| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None)`。下書きから洗い出した語(`{"keyword", "variants", "description"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」) |
+| 「この本文が踏まえたアイデアを結んで」 | `idea.link_ideas.LinkIdeas(idea_ids, event_id=None, episode_id=None, character_id=None)`。三つのうち一つだけ渡す |
+| 「この候補をあのアイデアにまとめて」 | `randomizer.merge_idea.MergeIdea(source_id, target_id)`。結んだ本文を付け替えてから source を消す |
+| 「判断待ちの一覧」「週次レビュー」   | `review.list_pending_reviews.ListPendingReviews()`。候補・未同期の話・本文に残った TODO。Todoist へ載せる手順はスキル `weekly-review` |
 | 「場所を足して」                     | `randomizer.create_random_place.CreateRandomPlace()` で下書き → 内容を決めて `randomizer.commit_place.CommitPlace(place)` |
 | 「人物を足して」                     | `randomizer.create_random_character.CreateRandomCharacter()` → `randomizer.commit_character.CommitCharacter(character)`。持たせるミームは `meme.draw_memes.DrawMemes(person=True)` で引き、`text` の `# meme` 節と `# 行動原理` 節に書く(下の「人物が持つミーム」) |
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
-| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, review=True)`。確定したあと AI が Dラボのナレッジとネット検索で中身を検め、妥当性と補足を `review` 欄(md の `# review` 節)へ書く。`review=False` で飛ばす |
-| 「アイデア・ミームを検めて」「妥当性を調べて」 | `review.review_records.ReviewRecords(table, ids=None, limit=None)`。`table` は `"idea"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`review` 欄へ入れる。`ids` を省くと `review` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。書いた件数を返す |
+| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, fact_check=True)`。確定したあと、その場でミームも抜き出す(`ExtractMemes` と同じ。足した件数を `memes_added` で返す)。続けて AI が Dラボのナレッジとネット検索で、アイデアと足したミームの妥当性・補足を検め、`fact_check` 欄(md の `# fact_check` 節)へ書く。`fact_check=False` で飛ばす |
+| 「アイデア・ミームを検めて」「妥当性を調べて」 | `fact_check.check_facts.CheckFacts(table, ids=None, limit=None)`。`table` は `"idea"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`fact_check` 欄へ入れる。`ids` を省くと `fact_check` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。書いた件数を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
-| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる |
-| 「覚え書きを足して」「oracle に書いて」 | `randomizer.commit_oracle.CommitOracle(oracle)`。`text` 必須。置き場所は `directory_path`(`worlds/oracle/` からの相対)と `filename` で決める |
+| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる。結んだ本文との中間テーブルの行も消す |
+| 「覚え書きを足して」「oracle に書いて」 | `randomizer.commit_oracle.CommitOracle(oracle)`。`text` 必須。置き場所は `directory_path`(`worlds/oracle/` からの相対)と `filename` で決める。確定したあと、その場でミームも抜き出し(`memes_added`)、足したミームを AI に検めさせる(`CommitIdea` と同じ) |
 | 「覚え書きを直して」                 | `randomizer.update_oracle.UpdateOracle(oracle)`。`id` 必須、渡した欄だけ直す |
 | 「ミームを直して」「ミームの分類を直して」 | `randomizer.update_meme.UpdateMeme(meme)`。`id` 必須、渡した欄だけ直す。`category` は 信条/欲求/境遇/集団/理 のいずれか |
 | 「ミームを消して」                   | `randomizer.delete_meme.DeleteMeme(meme_id)`                                 |
-| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)・出来事の本文から抜き出し、分類を振って `meme` テーブルへ足す。既にあるミームと同じ考え方の言い換えは足さない。最後に、分類の空いたミーム(md に直接書いたものなど)に分類を振る。足したミームは AI がネット検索で検め、`review` 欄へ書く(`ExtractMemes(review=False)` で飛ばす)。足した件数を返す |
+| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)・出来事の本文から抜き出し、分類を振って `meme` テーブルへ足す。既にあるミームと同じ考え方の言い換えは足さない。最後に、分類の空いたミーム(md に直接書いたものなど)に分類を振る。足したミームは AI が Dラボのナレッジとネット検索で検め、`fact_check` 欄へ書く(`ExtractMemes(fact_check=False)` で飛ばす)。足した件数を返す |
 | 「ミームを引いて」                   | `meme.draw_memes.DrawMemes(person=True, seed=None)`。分類ごとに 0〜2 件引き、それぞれに古今表裏を割り振って返す。db には書かない |
 | 「ミームと要約の取りこぼしをまとめて作って」 | `meme.refresh_generated_content.RefreshGeneratedContent()`。`ExtractMemes` に加えて、まだ要約の無い出来事・話もすべて見て `event_summary` / `episode_summary` を作る。`CommitEvent` / `CommitStory` / `CommitEpisode` は確定した一件だけを見るので、md を直接編集して `import_db` した分などの取りこぼしを拾うのはこちら |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
@@ -72,6 +76,28 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
   理(世界の法則)は引かない(`ai/time_keeper/constants.py` の `MEME_*`)
 - 時の流れの中で生む人物(`ai/time_keeper/random_character_generator.py`)は、この引き方と整理を自動で行う
 
+## 中間段(下書き → 語の洗い出し → 清書)
+
+本文を書く生成は、下書き(一段目)と清書(二段目)のあいだに、アイデアと照らす中間段を挟む
+(`ai/time_keeper/idea_context.py`)。
+
+1. 下書きから、設定資料と照らす語とその言い換えを AI に挙げさせる(`idea_search.keywords_of`)
+2. 語と言い換えで、アイデアの名前・本文を部分一致で引く(`idea_search.search`)。その場所で効くアイデアだけ。
+   当たったアイデアに上位・下位のアイデアを足して、清書に「関係する設定」として渡す
+3. どのアイデアにも当たらなかった語は、種別「候補」のアイデアとして `worlds/idea/候補/` に足す。
+   候補は検索・断面・清書・ミームの抜き出しには出さない。kind を直して置き場所へ移すと、次から使われる
+4. 下書きが当たったアイデアと候補を、清書したレコードに中間テーブル(`event_idea` / `episode_idea` /
+   `character_idea`。md には出さない)で結ぶ
+
+| 生成 | 下書き | 清書 |
+| ---- | ------ | ---- |
+| 毎日の出来事 | 記録(`_progress_place`) | 小説の本文(`_novelize`) |
+| 人物の自動生成 | 中身を決めた説明 | 関係する設定があれば説明を清書 |
+| 話の自動生成(`story_writer`) | 種(`key`) | 本文 |
+
+claude が対話で書くときは、自分で語と言い換えを挙げて `ResolveTerms` を呼び、返った `ideas` を踏まえて清書し、
+確定したあとに `hits` と `candidates` の id を `LinkIdeas` で結ぶ。
+
 `meme` テーブル自体はアイデア(`idea`)・oracle・人物の筋書き・出来事から抜き出して貯めるだけで、
 人物との FK は持たない(ミームは人物の間を移り変わり・伝染していくため)。
 
@@ -81,7 +107,8 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
   `ai/time_keeper/generated_content.py` の `refresh` を自分で呼ぶ。ミームの棚卸し
   (`meme.refresh`)と、出来事・話ならその場での要約(`event_summary` / `episode_summary`)を
   まとめて行うので、`ExtractMemes` を別に呼ぶ必要は無い。確定の入口を通らなかった分の
-  取りこぼしをまとめて拾いたいときは `RefreshGeneratedContent` を呼ぶ
+  取りこぼしをまとめて拾いたいときは `RefreshGeneratedContent` を呼ぶ。これらの経路で足したミームは
+  検めない(`fact_check` が空のまま)ので、`CheckFacts("meme")` で後から埋める
 - 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
   入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
   `# data` の `start` / `end` / `place` / `viewpoint` に入る
@@ -140,14 +167,16 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 
 ## 作り方
 
-置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の六つ。
+置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の八つ。
 
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
 - `story/` — 作品・話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
 - `sync/` — db と md の同期
 - `world/` — 場所・人物・アイデア・出来事の一覧(読む専用)
 - `meme/` — アイデア・oracle・人物の筋書き・出来事からのミームの抽出と、人物に持たせるミームの引き出し
-- `review/` — アイデア・ミームを AI に Dラボのナレッジとネット検索で検めさせ、妥当性と補足を書く(`ai/claude_code/reviewer.py`)
+- `idea/` — 中間段(下書きの語をアイデアと照らす・本文とアイデアを結ぶ)
+- `review/` — ユーザの判断が要るものの一覧(読む専用)
+- `fact_check/` — アイデア・ミームを AI に Dラボのナレッジとネット検索で検めさせ、妥当性と補足を書く(`ai/claude_code/fact_checker.py`)
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ
@@ -167,15 +196,18 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 Entrypoint(interface/_base.py)
 ├─ SessionEntrypoint            db セッションを開いて execute(session) へ渡す
 │   ├─ CommitEntrypoint         「確定する」系の共通処理(parse/check_columns/check_exists)
-│   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_*.py
-│   │   └─ story.StoryCommit        → commit_*.py / update_story.py / delete_story.py / set_episode_synced.py
-│   ├─ world.WorldQuery          → list_*.py / search_ideas.py
+│   │   ├─ randomizer.CommitDraft   → commit_*.py / update_*.py / delete_*.py / merge_idea.py
+│   │   ├─ story.StoryCommit        → commit_*.py / update_story.py / delete_story.py / set_episode_synced.py
+│   │   └─ idea.ResolveTerms / idea.LinkIdeas(候補を足す・結ぶので確定側)
+│   ├─ world.WorldQuery          → list_*.py
+│   ├─ world.SearchIdeas         (単独。あいまい検索)
+│   ├─ review.ListPendingReviews (単独。読む専用)
 │   ├─ story.StoryQuery          → list_*.py / read_*.py / start_story.py
 │   └─ meme.DrawMemes            (単独。引くだけで db に書かない)
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
 ```
 
-(`sync/` の二つと `meme.extract_memes.ExtractMemes`・`review.review_records.ReviewRecords` は、`execute(session)` の外で
+(`sync/` の二つと `meme.extract_memes.ExtractMemes`・`fact_check.check_facts.CheckFacts` は、`execute(session)` の外で
 db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 
 ## 引き方は query 側にある
@@ -186,10 +218,11 @@ db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 | ------------------------------ | ------------------------------------------------------------ |
 | `common_query.py`              | 時刻の扱い・断面・顔ぶれ・場所の道筋                         |
 | `character_simulation_query.py` | 人物を軸に周辺を読む(`read_surroundings`)                   |
-| `dictionary_query.py`          | アイデア(辞書)のキーワード検索                               |
+| `dictionary_query.py`          | アイデア(辞書)の検索。名前・本文の部分一致、場所の範囲、候補の除外 |
 | `story_createion_query.py`     | 場所に掛かる作品(`story`)の読み出し                          |
 | `world_createion_query.py`     | 生きている人物、広さの整合、進行中の判定               |
 | `event_seed_query.py`          | 出来事の種をまだ抜き出していない元(`event_seeded` が false) |
+| `review_query.py`              | ユーザの判断が要るもの(本文に残った TODO・世界観へ反映していない話) |
 
 ここのファイルはその薄い呼び出し面で、**SQL は組み立てない。**
 引く条件は時刻とレコードの id だけで表す。足りない引き方が出てきたら

@@ -1,4 +1,3 @@
-"""`import_db`: id 無しの md は採番された id を頭に付けた名前へ改名する。"""
 import os
 
 from db.schema import Location

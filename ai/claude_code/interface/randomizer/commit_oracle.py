@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""oracle(著者の覚え書き)を一件、db へ確定する、claude が呼ぶ入口。"""
 from __future__ import annotations
 
-from ai.claude_code.interface.randomizer._base import CommitDraft
+from ai.claude_code.interface.randomizer._base import CommitMemeSource
 from db.schema import Oracle
 from db.schema_pydantic import to_dict
 
 
-class CommitOracle(CommitDraft):
+class CommitOracle(CommitMemeSource):
     model = Oracle
 
     def __init__(self, oracle: str | dict):

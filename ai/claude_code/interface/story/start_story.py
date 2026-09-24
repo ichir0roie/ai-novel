@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""話を書き始めるのに要る材料(同期確認・作品の見出し・直前の話・断面・顔ぶれ)を一度に出す、claude が呼ぶ入口。
-
-未同期の話があれば `stopped` を立てて材料を出さない。`skip_sync=True` で抜けられる。
-"""
 from __future__ import annotations
 
 from ai.claude_code.interface.story import _rows

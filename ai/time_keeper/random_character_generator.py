@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""世界の側の人物(と、人物以外の対象)を、時の流れの中で自動的に増やす。
-
-`generate_random`: 月初に確率 `constants.CHARACTER_PROBABILITY` で場所を一つ選び、一件生む。
-生む一件は確率 `constants.NON_PERSON_PROBABILITY` で人物以外の対象(国・組織・集団・物など)になり、
-どの種別かは AI に選ばせる。候補地は居る人物がもう多い場所を外す。
-"""
 from __future__ import annotations
 
 import random
@@ -21,7 +15,7 @@ from data_access_logic.query.base import *
 from db.schema import *
 from db.schema import PERSONALITY_COLUMNS, PERSONALITY_LEVELS
 from ai.time_keeper._ai import AIClient
-from ai.time_keeper import constants, meme
+from ai.time_keeper import constants, idea_context, meme
 from ai.time_keeper._format import format_time
 from randomizer.random_character_generator import build_character
 
@@ -109,6 +103,20 @@ _NON_PERSON_NAME_SYSTEM_PROMPT = f"""\
 「既にいる人物・対象の名」が渡されているときは、それらと紛らわしい名にしない。
 キーは name(名前)だけ。"""
 
+_POLISH_SYSTEM_PROMPT = f"""\
+あなたは架空の世界観を構築する設定作家です。
+決まったばかりの人物・対象の説明(下書き)と、その下書きに関係する設定を渡すので、設定を踏まえて説明を清書してください。
+下書きの人物像・生い立ち・関係・長さは変えない。設定と食い違うところ、設定を踏まえると具体的にできるところだけを直す。
+{_PLACEHOLDER_INSTRUCTION}
+キーは text(清書した説明)だけ。"""
+
+_POLISH_SCHEMA = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+    "additionalProperties": False,
+}
+
 _NAME_SCHEMA = {
     "type": "object",
     "properties": {
@@ -125,19 +133,16 @@ _PERSON_ONLY_COLUMNS = (
 
 
 def _should_roll(time: Stamp) -> bool:
-    """月に一度、月初(1日)にだけロールする。"""
     return time.day == 1
 
 
 def _personality_label(values) -> str:
-    """性格の 12 軸を「誠実性=高 / 好奇心=並 / …」の一行にする。`values` は辞書でもレコードでもよい。"""
     get = values.get if hasattr(values, "get") else (lambda column: getattr(values, column))
     columns = Character.__table__.columns
     return " / ".join(f"{columns[column].comment}={get(column)}" for column in PERSONALITY_COLUMNS)
 
 
 def _region_label(session: Session, born_place: Location | None) -> str:
-    """`born_place` が所属する、一つ上の地域の名前(無ければ「不明」)。"""
     if born_place is None or born_place.parent_id is None:
         return "不明"
     parent = session.get(Location, born_place.parent_id)
@@ -147,7 +152,6 @@ def _region_label(session: Session, born_place: Location | None) -> str:
 
 
 def _story_text(session: Session, born_place: Location | None, time: Stamp) -> str:
-    """`born_place` とその祖先、`time` に関連する作品の本文を、上位の場所から順につなげたもの。"""
     if born_place is None:
         return ""
     return story_createion_query.load_location_story_text(session, born_place.id, time)
@@ -170,9 +174,7 @@ _ELEMENT_SCHEMA = {
 
 
 def _story_elements(story_text: str, ai: AIClient) -> list[str]:
-    """`story_text` から、体現しうる人物像の要素を抜き出して集める。
-
-    抜き出し(この関数)と選択(呼び出し側の `rng.choice`)を分けることで、
+    """抜き出し(この関数)と選択(呼び出し側の `rng.choice`)を分けることで、
     複数の立場を持つ筋書きでも生成のたびランダムに割り振られるようにし、
     モデルが生成時に自由選択して同じ立場へ偏るのを防ぐ。
     """
@@ -184,17 +186,13 @@ def _story_elements(story_text: str, ai: AIClient) -> list[str]:
 
 
 def _nearby_place_ids(session: Session, born_place: Location | None) -> list[int]:
-    """`born_place` 自身と、その祖先の場所 id。無ければ空。"""
     if born_place is None:
         return []
     return [node["id"] for node in common_query.place_path(session, born_place.id)]
 
 
 def _nearby_characters(session: Session, born_place: Location | None, time: Stamp) -> list[Character]:
-    """`born_place` かその祖先に、`time` 時点で居る人物・対象。重複回避の材料にする。
-
-    件数は `constants.NEARBY_CHARACTER_LIMIT` まで(祖先をたどるほど無際限に増えるため)。
-    """
+    """件数は `constants.NEARBY_CHARACTER_LIMIT` まで(祖先をたどるほど無際限に増えるため)。"""
     place_ids = _nearby_place_ids(session, born_place)
     if not place_ids:
         return []
@@ -206,26 +204,18 @@ def _nearby_characters(session: Session, born_place: Location | None, time: Stam
 
 
 def _record_context(records: list[Character]) -> str:
-    """人物・対象のリストを、名前(種別)と説明の箇条書きにする。"""
     if not records:
         return "(無し)"
     return "\n".join(f"- {r.name}({r.kind}): {r.text or '(説明なし)'}" for r in records)
 
 
 def _character_names(characters: list[Character]) -> str:
-    """人物・対象のリストを、名前の一覧にする。命名時の重複回避に使う。"""
     if not characters:
         return "(無し)"
     return "、".join(c.name or "" for c in characters)
 
 
 def _location_context(place: Location | None) -> str:
-    """**人物の特徴を考える材料になる、場所の `text` と参考カラム。**
-
-    `text`(場所の説明)に加え、`sample_region` `sample_culture` `sample_era`
-    (参考にした実在の地域・文化・時代)があれば並べる。人物の性格・生業を
-    決めるとき、この場所固有の手がかりとして使う。
-    """
     if place is None:
         return "(不明)"
     lines = [place.text or "(説明なし)"]
@@ -245,7 +235,6 @@ def _generate_one(
     session: Session, born_place: Location | None, time: Stamp, rng: random.Random,
     ai: AIClient, person: bool = True,
 ) -> Character:
-    """**人物(`person=False` なら人物以外の対象)を一件、db へ確定して返す。** ロール判定(当たり外れ)は呼び出し側の責任。"""
     draft = build_character()
     if not person:
         for column in _PERSON_ONLY_COLUMNS:
@@ -299,6 +288,12 @@ def _generate_one(
         draft["kind"] = kind if kind in constants.NON_PERSON_KINDS else rng.choice(constants.NON_PERSON_KINDS)
 
     draft["text"] = decided.get("text") or draft["text"]
+    context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None)
+    if context.related:
+        polished = ai.try_generate_json(
+            f"下書き: {draft['text']}\n{idea_context.prompt_section(context.related)}この説明を清書してください。",
+            _POLISH_SCHEMA, system=_POLISH_SYSTEM_PROMPT, timeout=constants.IDEA_POLISH_TIMEOUT)
+        draft["text"] = (polished.get("text") or "").strip() or draft["text"]
     if drawn_memes:
         draft["text"] += f"\n\n# meme\n{meme.meme_section(drawn_memes)}"
         principle = (decided.get("principle") or "").strip()
@@ -341,6 +336,7 @@ def _generate_one(
         session.add(CharacterPlace(
             character_id=record.id, location_id=born_place.id,
             start=record.start, end=record.end))
+    idea_context.link(session, record, context.linked)
 
     session.commit()
     when = format_time(time)
@@ -357,8 +353,6 @@ def _generate_one(
 
 
 def get_usable_location_q(time: Stamp):
-    """`time` の時点で、居る人物・対象の数がまだ許容範囲未満の場所の id。"""
-
     base_q = (
         select(Location.id)
         .outerjoin(
@@ -395,8 +389,6 @@ def get_usable_location_q(time: Stamp):
 
 
 def generate_random(session: Session, time: Stamp, ai: AIClient) -> Character | None:
-    """ロールに当たったら、人物か人物以外の対象を一件 db へ確定して返す。当たらなければ None。"""
-
     usable_location_q = get_usable_location_q(time)
     eligible_places = session.scalars(select(Location).where(Location.id.in_(usable_location_q))).all()
     if not eligible_places:

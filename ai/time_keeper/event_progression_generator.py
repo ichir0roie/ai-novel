@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""場所・時刻ごとに、その場に居合わせる人物・対象(`Character`。人物以外の国・組織なども含む)を巻き込んだ出来事を起こす。
-
-出来事には `start`〜`end`(進行中と見なす幅)を持たせ、進行中の人物は次の出来事の対象にしない。
-"""
 from __future__ import annotations
 
 import random
@@ -191,12 +187,10 @@ _PLACE_SCHEMA = {
 
 
 def _should_roll(time: Stamp) -> bool:
-    """月に一度、月初(1日)にだけロールする。"""
     return time.day == 1
 
 
 def _place_roll_probability(session: Session, place_id: int, time: Stamp) -> float:
-    """直近でこの場所に出来事が集中しているほど、この回のロール確率を下げる。"""
     last_event = session.scalars(
         common_query.events_of_place_select(place_id, until=time, limit=1)
     ).first()
@@ -209,7 +203,6 @@ def _place_roll_probability(session: Session, place_id: int, time: Stamp) -> flo
 
 
 def _append_note(record: Character, note: str) -> None:
-    """人物の `text` に、生成時の基礎説明を残したまま直近の追記だけを積み足す(先頭の一段は常に残す)。"""
     if not record.text:
         record.text = note
         return
@@ -226,8 +219,6 @@ def _current_place_id(session: Session, character: Character, time: Stamp) -> in
 
 
 def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]:
-    """その時点で生きているサブキャラクターを、いま居る場所ごとにまとめる。
-    メインキャラクター(`main_character` が true)と、進行中の出来事に関わる者は外す。"""
     grouped: dict[int, list[Character]] = defaultdict(list)
 
     busy_character_ids = set(session.scalars(
@@ -253,7 +244,6 @@ def _group_by_place(session: Session, time: Stamp) -> dict[int, list[Character]]
 def _character_recent_event_names(
     session: Session, character_id: int, time: Stamp,
 ) -> list[str]:
-    """その人物・対象自身が、場所を問わず関わった直近の出来事の名前。"""
     events = session.scalars(
         common_query.events_of_character_select(character_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
@@ -261,7 +251,6 @@ def _character_recent_event_names(
 
 
 def age_at(character: Character, time: Stamp) -> int | None:
-    """`time` での満年齢。人物以外は成立からの年数。生年が無ければ None。"""
     if character.start is None:
         return None
     born = character.start
@@ -269,7 +258,6 @@ def age_at(character: Character, time: Stamp) -> int | None:
 
 
 def _relations(session: Session, character: Character, time: Stamp) -> list[str]:
-    """`time` に続いている相関を「甲から見た乙: 関係(説明)」の形で。"""
     lines = []
     for relation in session.scalars(
             common_query.character_relations_at_select(character.id, time)
@@ -285,9 +273,7 @@ def _relations(session: Session, character: Character, time: Stamp) -> list[str]
 def _story_recent_event_names(
     session: Session, top_location_id: int | None, place_id: int, time: Stamp,
 ) -> list[str]:
-    """その場所と、そこから作品の掛かる最上位の場所 `top_location_id` までの上位の場所で直近使われた出来事の名前。
-
-    横(兄弟の場所)の出来事は含めない。作品の配下全体を渡すと、他の国の
+    """横(兄弟の場所)の出来事は含めない。作品の配下全体を渡すと、他の国の
     展開まで持ち込まれて場所ごとの差が消えるため(2026-09 に観測)。
     """
     place_ids = []
@@ -305,7 +291,7 @@ def _story_recent_event_names(
 def _later_events(
     session: Session, place_id: int, characters: list[Character], time: Stamp, ai: AIClient,
 ) -> list[dict]:
-    """`time` より後に既にある、この場所か当事者の出来事。本文は写させないよう要約で渡す。"""
+    """本文は写させないよう要約で渡す。"""
     events = session.scalars(common_query.events_after_select(
         place_id, [c.id for c in characters], time, limit=constants.LATER_EVENT_LIMIT)).all()
     rows = []
@@ -320,7 +306,6 @@ def _later_events(
 def _think_participants(
     situation: str, characters_payload: list[dict], ai: AIClient,
 ) -> list[dict]:
-    """当事者ごとに思考・感情・望み・恐れ・行動を推測させる。出来事の候補はこれを土台に立てる。"""
     judgements: list[dict] = []
     for payload in characters_payload:
         prompt = f"""\
@@ -339,7 +324,6 @@ def _roll_candidate(
     rng: random.Random, situation: str, judgements: list[dict], ai: AIClient,
     seeds: list[str] | None = None,
 ) -> dict | None:
-    """起こりうる出来事の候補をローカル AI に列挙させ、その中から一件をサイコロで選ぶ。"""
     seed_lines = (
         f"出来事の種(時代・場所を抜いた、別の物語から取ったアイデア): {seeds}\n"
         "候補は、この種のどれかをこの場所・この時点・この当事者に合わせて具体化したものか、"
@@ -364,7 +348,6 @@ def _roll_candidate(
 def _move_destinations(
     session: Session, place_id: int, time: Stamp,
 ) -> list[dict]:
-    """人物が移れる先。一つ上の圏内にある、いま存在する場所。"""
     root_id = common_query.place_up(session, place_id, constants.REACH_LEVELS)
     nearby_ids = set(common_query.descendant_place_ids(session, root_id))
     nearby_ids -= {place_id, root_id}
@@ -382,9 +365,6 @@ def _progress_place(
     *, focus: Character | None = None, note: str = "", seeds: list[str] | None = None,
     use_story: bool = True,
 ) -> Event | None:
-    """`focus` は AI が選ばなくても当事者に入れる。`note` は状況の、時刻の直前に足す。
-    `seeds`(出来事の種)を渡すと、候補をその種か直近の出来事からの連想で立てさせる。
-    `use_story` が false なら、作品の本文(筋書き)を渡さず、筋書きへ向かう出来事も優先させない。"""
     recent_events = session.scalars(
         common_query.events_of_place_select(place_id, until=time, limit=RECENT_EVENT_LIMIT)
     ).all()
@@ -568,7 +548,6 @@ event_text 内では番号ではなく名前で書く。
 
 
 def generate_random(session: Session, time: Stamp, ai: AIClient) -> list[Event]:
-    """月初に、人物・対象が居る場所それぞれについて出来事を進行させる。"""
     if not _should_roll(time):
         return []
 
