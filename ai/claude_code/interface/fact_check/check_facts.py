@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
     CheckFacts("idea").run()              まだ検めていないアイデアをすべて検める
+    CheckFacts("oracle").run()            まだ検めていない oracle をすべて検める
     CheckFacts("meme", limit=10).run()    まだ検めていないミームを 10 件だけ検める
     CheckFacts("idea", ids=[30]).run()    名指ししたものを検め直す
+
+アイデア・oracle は、検めたあと本文と検証結果からミームを抜き出し、足したミームも検める。
+`{"checked": 検めた件数, "memes_added": 足したミームの件数}` を返す。
 """
 from __future__ import annotations
 
@@ -21,6 +25,6 @@ class CheckFacts(Entrypoint):
         self.ids = ids
         self.limit = limit
 
-    def run(self) -> int:
+    def run(self) -> dict:
         with get_env_session() as session:
-            return fact_checker.check(session, self.table, self.ids, self.limit)
+            return fact_checker.check_and_extract(session, self.table, self.ids, self.limit)

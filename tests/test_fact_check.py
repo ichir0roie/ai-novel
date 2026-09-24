@@ -9,6 +9,7 @@ from ai.claude_code.interface.meme.extract_memes import ExtractMemes
 from ai.claude_code.interface.randomizer.commit_idea import CommitIdea
 from ai.claude_code.interface.fact_check.check_facts import CheckFacts
 from ai.claude_code.interface.randomizer.commit_oracle import CommitOracle
+from ai.time_keeper import constants, meme
 from db.schema import Idea, Meme, Oracle
 from tool.markdown.export_db import export_db
 from tool.markdown.import_db import import_db
@@ -79,7 +80,7 @@ def test_check_fills_only_unreviewed_with_text(session, fake_check):
     ])
     session.commit()
 
-    assert CheckFacts("idea").run() == 1
+    assert CheckFacts("idea").run() == {"checked": 1, "memes_added": 0}
 
     session.expire_all()
     rows = {row.name: row.fact_check for row in session.query(Idea).all()}
@@ -94,7 +95,7 @@ def test_check_by_ids_redoes_reviewed(session, fake_check):
     session.add(meme)
     session.commit()
 
-    assert CheckFacts("meme", ids=[meme.id]).run() == 1
+    assert CheckFacts("meme", ids=[meme.id]).run() == {"checked": 1, "memes_added": 0}
 
     session.expire_all()
     assert session.get(Meme, meme.id).fact_check == "## 妥当性\n検めた:約束は守る"
@@ -104,7 +105,7 @@ def test_check_keeps_empty_when_ai_fails(session):
     session.add(Meme(text="約束は守る", category="信条"))
     session.commit()
 
-    assert CheckFacts("meme").run() == 0
+    assert CheckFacts("meme").run() == {"checked": 0, "memes_added": 0}
     session.expire_all()
     assert session.query(Meme).one().fact_check is None
 
@@ -136,17 +137,67 @@ def test_commit_idea_skips_check_when_asked(session, fake_check):
     assert fake_check.calls == []
 
 
-def test_commit_oracle_checks_only_new_memes(session, monkeypatch):
+def test_commit_oracle_checks_oracle_and_new_memes(session, monkeypatch):
     fake = _FactChecker(memes=[{"text": "書くことで考える", "category": "信条"}])
     monkeypatch.setattr(ai_client, "try_generate_json", fake)
 
     result = CommitOracle({"text": "毎朝書く"}).run()
 
-    assert "fact_check" not in result
-    assert len(fake.calls) == 1 and "書くことで考える" in fake.calls[0][0]
+    assert result["fact_check"] == "## 妥当性\n検めた:毎朝書く"
+    assert [call[0].splitlines()[1] for call in fake.calls] == ["覚え書き(oracle)", "ミーム(分類: 信条)"]
     session.expire_all()
     assert session.query(Meme).one().fact_check == "## 妥当性\n検めた:書くことで考える"
-    assert session.query(Oracle).count() == 1
+    assert session.query(Oracle).one().meme_seeded
+
+
+def test_memes_are_drawn_from_text_and_fact_check_separately(session, monkeypatch):
+    prompts = []
+
+    def extract(prompt, schema, **kwargs):
+        prompts.append(prompt)
+        return {"memes": []}
+
+    monkeypatch.setattr(ai_client, "try_generate_json", extract)
+    session.add_all([
+        Idea(name="魔力", kind="概念", text="大気に満ちる力", fact_check="## 補足\n錬金術師は秘密を守った"),
+        Oracle(text="毎朝書く"),
+    ])
+    session.commit()
+
+    meme.refresh(session, ai_client)
+
+    assert "## 元1(idea)\n大気に満ちる力" in prompts[0]
+    assert "## 元2(idea の検証結果)\n## 補足\n錬金術師は秘密を守った" in prompts[0]
+    assert "## 元3(oracle)\n毎朝書く" in prompts[0]
+    assert "oracle の検証結果" not in prompts[0]
+
+
+def test_record_is_unseeded_when_its_fact_check_part_fails(session, monkeypatch):
+    answers = iter([{"memes": []}, {}])
+    monkeypatch.setattr(ai_client, "try_generate_json", lambda *a, **k: next(answers, {}))
+    monkeypatch.setattr(constants, "MEME_BATCH_LETTERS", 10)
+    idea = Idea(name="魔力", kind="概念", text="大気に満ちる力", fact_check="錬金術師は秘密を守った")
+    session.add(idea)
+    session.commit()
+
+    meme.refresh(session, ai_client)
+
+    session.expire_all()
+    assert not session.get(Idea, idea.id).meme_seeded
+
+
+def test_check_resets_meme_seeded_and_extracts_from_result(session, monkeypatch):
+    idea = Idea(name="魔力", kind="概念", text="大気に満ちる力", meme_seeded=True)
+    session.add(idea)
+    session.commit()
+    fake = _FactChecker(memes=[{"text": "秘密は力になる", "category": "信条"}])
+    monkeypatch.setattr(ai_client, "try_generate_json", fake)
+
+    assert CheckFacts("idea").run() == {"checked": 1, "memes_added": 1}
+
+    session.expire_all()
+    assert session.get(Idea, idea.id).meme_seeded
+    assert session.query(Meme).one().fact_check == "## 妥当性\n検めた:秘密は力になる"
 
 
 def test_extract_memes_checks_only_new(session, fake_check, monkeypatch):

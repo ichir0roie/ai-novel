@@ -24,12 +24,15 @@ _CATEGORY_GUIDE = "\n".join(f"  - {name}: {CATEGORY_DESCRIPTIONS[name]}" for nam
 
 _SYSTEM_PROMPT = f"""\
 あなたは物語の編集者です。
-用語の説明・著者の創作についての覚え書き・人物の筋書き・起きた出来事をいくつか番号つきで渡すので、それぞれから、\
+用語の説明・著者の創作についての覚え書き・それらの検証結果・人物の筋書き・起きた出来事をいくつか番号つきで渡すので、それぞれから、\
 人物の行動原理の芯になりうる「ミーム」(繰り返し現れる考え方・価値観・行動の型)を抜き出してください。
 - 人名・地名・組織名・その作品だけの固有名詞を抜き、他の人物にも乗り移りうる普遍的な考え方として書く。
 - 一つのミームは一文。何を大事にし、何を避け、何をきっかけに動くかが分かるように書く。
 - 作者の前書き・使用環境・書き方の約束など、考え方にならない文からは抜き出さない。
 - 出来事(event)からは、当事者がその出来事を経て選んだこと・手放したこと・行き着いた考え方だけを抜き出す。起きたことをなぞっただけの記録からは抜き出さない。
+- 検証結果(〜の検証結果)は、用語の説明や覚え書きを現実の科学・歴史・思想・心理学に照らした調べ書き。\
+そこに出てくる現実の人・集団の考え方や、研究で裏付けられた行動の傾向を、人物の行動原理になりうる考え方として抜き出す。\
+出典の一覧や、妥当性の判定そのものからは抜き出さない。
 - 一つの元から 0〜3 件。同じ元の中で似たミームは一つにまとめる。
 - それぞれに、次の分類から一つを振る。
 {_CATEGORY_GUIDE}
@@ -104,15 +107,17 @@ def _plot_section(text: str | None) -> str:
     return match.group(1).strip() if match else ""
 
 
-# 元のテーブルと、そこから抜き出す本文。人物は `# plot` の節だけを使う。
+# 元のテーブルと、そこから抜き出す (見出し, 本文)。人物は `# plot` の節だけを使う。
+# アイデア・oracle は本文と検証結果(`fact_check`)を別の元として渡し、それぞれから抜き出させる。
 _SOURCE_TEXTS = (
-    (Idea, lambda idea: idea.text),
-    (Oracle, lambda oracle: oracle.text),
-    (Character, lambda character: _plot_section(character.text)),
-    (Event, lambda event: event.text),
+    (Idea, lambda idea: [("idea", idea.text), ("idea の検証結果", idea.fact_check)]),
+    (Oracle, lambda oracle: [("oracle", oracle.text), ("oracle の検証結果", oracle.fact_check)]),
+    (Character, lambda character: [("character", _plot_section(character.text))]),
+    (Event, lambda event: [("event", event.text)]),
 )
 
-_Pending = tuple[Idea | Oracle | Character | Event, str]
+# (元のレコード, 本文, 見出し)。一つのレコードから複数の元が出ることがある。
+_Pending = tuple[Idea | Oracle | Character | Event, str, str]
 # 抜き出したミームの (文面, 分類)。分類が分からなければ None にして、`_classify` に回す。
 _Candidate = tuple[str, str | None]
 
@@ -132,11 +137,12 @@ def _batches(items: list[tuple[object, str]], limit: int) -> list[list]:
 
 def _pending(session: Session) -> list[_Pending]:
     pending = []
-    for model, text_of in _SOURCE_TEXTS:
+    for model, texts_of in _SOURCE_TEXTS:
         for record in session.scalars(meme_query.unseeded_select(model)).all():
-            text = (text_of(record) or "").strip()
-            if text:
-                pending.append((record, text))
+            for label, text in texts_of(record):
+                text = (text or "").strip()
+                if text:
+                    pending.append((record, text, label))
     return pending
 
 
@@ -214,28 +220,40 @@ def _classify(session: Session, ai: AIClient) -> int:
     return classified
 
 
+def _unseed(session: Session, batch: list[_Pending], failed: set) -> None:
+    for record, _, _ in batch:
+        failed.add(record)
+        record.meme_seeded = False
+    session.commit()
+
+
 def refresh(session: Session, ai: AIClient) -> int:
     pending = _pending(session)
     added = 0
+    # 本文と検証結果が別の束に分かれたとき、片方でも抜き出せなければ、そのレコードは次の回に抜き出し直す。
+    failed: set = set()
     for batch in _batches(pending, constants.MEME_BATCH_LETTERS):
         numbered = "\n\n".join(
-            f"## 元{number}({record.__tablename__})\n{text}"
-            for number, (record, text) in enumerate(batch, start=1))
+            f"## 元{number}({label})\n{text}"
+            for number, (_, text, label) in enumerate(batch, start=1))
         decided = ai.try_generate_json(
             f"{numbered}\n\nそれぞれの元からミームを抜き出してください。",
             _SCHEMA, system=_SYSTEM_PROMPT, timeout=constants.MEME_TIMEOUT)
         if "memes" not in decided:
             print(f"[time_keepr/meme] 元{len(batch)}件からミームを抜き出せなかった。次の回に抜き出し直す")
+            _unseed(session, batch, failed)
             continue
         fresh = _without_duplicates(session, _candidates(decided["memes"]), ai)
         if fresh is None:
             print(f"[time_keepr/meme] 元{len(batch)}件から抜き出したミームの重複を確かめられなかった。次の回に抜き出し直す")
+            _unseed(session, batch, failed)
             continue
         for text, category in fresh:
             session.add(Meme(text=text, category=category))
             added += 1
-        for record, _ in batch:
-            record.meme_seeded = True
+        for record, _, _ in batch:
+            if record not in failed:
+                record.meme_seeded = True
         session.commit()
     if pending:
         print(f"[time_keepr/meme] 元{len(pending)}件から抜き出し、ミームを{added}件足した")

@@ -297,7 +297,7 @@ class Meme(FactCheckMixin, MarkdownBase):
         sort_order=200)
 
 
-class Oracle(MemeSeededMixin, MarkdownBase):
+class Oracle(FactCheckMixin, MemeSeededMixin, MarkdownBase):
     """著者自身の創作・AI についての覚え書き。物語のデータではない。"""
 
     __tablename__ = "oracle"

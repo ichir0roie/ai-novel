@@ -11,7 +11,7 @@ ai/claude_code/
                           中身は `claude -p --output-format json --json-schema …` の subprocess
   claude_code_time_keeper.py  `ai/time_keeper/main.py` に claude_code の ai_client を渡して回す入口
   story_writer.py         作品の次の話を書いて db へ確定する(local_ai に無い、ここだけの生成器)
-  fact_checker.py         アイデア・ミームを Dラボのナレッジとネット検索で検め、妥当性と補足を `fact_check` 欄へ書く(local_ai に無い)
+  fact_checker.py         アイデア・oracle・ミームを Dラボのナレッジとネット検索で検め、妥当性と補足を `fact_check` 欄へ書く(local_ai に無い)
   interface/              Claude が db を読み書きする入口(一覧は interface/readme.md)
 ```
 

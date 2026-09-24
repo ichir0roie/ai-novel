@@ -11,7 +11,8 @@ import os
 from sqlalchemy import func, or_, select
 
 from ai.claude_code import ai_client
-from db.schema import Idea, Meme, Session
+from ai.time_keeper import meme
+from db.schema import Idea, Meme, Oracle, Session
 
 WEB_TOOLS = ("WebSearch", "WebFetch", "ToolSearch")
 DEFAULT_DLAB_TOOLS = "mcp__d-lab"
@@ -22,7 +23,7 @@ BATCH_LETTERS = 3000
 
 _SYSTEM_PROMPT = """\
 あなたは創作の設定を検める、科学・歴史・思想に詳しい校閲者です。
-小説の世界の設定(アイデア)か、人物の行動原理の芯になる考え方(ミーム)を番号つきで渡すので、\
+小説の世界の設定(アイデア)か、著者の創作・AI についての覚え書き(oracle)か、人物の行動原理の芯になる考え方(ミーム)を番号つきで渡すので、\
 それぞれをDラボのナレッジとネット検索で調べ、内容の妥当性を検め、書き手の役に立つ補足を書いてください。
 - Dラボのナレッジ検索(search_dlab_knowledge。見当たらなければ ToolSearch で「dlab」を探す)が使えるなら、\
   必ず先にそれで調べる。心理学・行動科学・脳科学・健康・人間関係・社会・AI に関わる内容は特に、Dラボの知見を軸にする。\
@@ -32,6 +33,8 @@ _SYSTEM_PROMPT = """\
 - 補足には、現実で近いもの(実在の現象・技術・制度・歴史上の出来事・思想や心理学の知見)と、\
   設定を厚くするのに使える事実を書く。
 - ミームは、現実にその考え方を持った人・集団・思想の系譜や、心理学・社会学での裏付けを挙げる。
+- 覚え書き(oracle)は、書かれた創作論・AI の使い方・物の見方が、現実の研究や実践に照らして妥当かを検め、裏付けや反論を挙げる。
+- 検めた結果は、あとで人物の行動原理(ミーム)を抜き出す元にもなる。現実の人・集団がどう考え、どう動いたかを具体的に書く。
 - 検索で確かめた事実だけを書き、分からないことは分からないと書く。
 - 各 fact_check は次の三つの小見出しを持つ markdown にする。見出しは必ず `##` を使い、`#` 一つの見出しは使わない。
   ## 妥当性
@@ -61,7 +64,7 @@ _SCHEMA = {
     "additionalProperties": False,
 }
 
-MODELS = {"idea": Idea, "meme": Meme}
+MODELS = {"idea": Idea, "oracle": Oracle, "meme": Meme}
 
 
 def tools() -> tuple[str, ...]:
@@ -69,13 +72,15 @@ def tools() -> tuple[str, ...]:
     return WEB_TOOLS + tuple(tool.strip() for tool in dlab.split(",") if tool.strip())
 
 
-def _describe(record: Idea | Meme) -> str:
+def _describe(record: Idea | Oracle | Meme) -> str:
     if isinstance(record, Idea):
         return f"アイデア「{record.name}」(種類: {record.kind})\n{record.text}"
+    if isinstance(record, Oracle):
+        return f"覚え書き(oracle)\n{record.text}"
     return f"ミーム(分類: {record.category or '未分類'})\n{record.text}"
 
 
-def _batches(records: list[Idea | Meme]) -> list[list[Idea | Meme]]:
+def _batches(records: list) -> list[list]:
     batches: list[list] = []
     letters = 0
     for record in records:
@@ -119,7 +124,11 @@ def check(session: Session, table: str, ids: list[int] | None = None, limit: int
                 continue
             text = item["fact_check"].strip()
             if 1 <= number <= len(batch) and text:
-                batch[number - 1].fact_check = text
+                record = batch[number - 1]
+                record.fact_check = text
+                # 検証結果もミームの元になるので、抜き出し直させる
+                if hasattr(record, "meme_seeded"):
+                    record.meme_seeded = False
                 written += 1
         session.commit()
     if records:
@@ -135,3 +144,14 @@ def check_new_memes(session: Session, last_id: int) -> int:
     """`last_id` より後に足したミームだけを検める(既にあるミームの後埋めは `check` を名指しなしで呼ぶ)。"""
     ids = list(session.scalars(select(Meme.id).where(Meme.id > last_id)).all())
     return check(session, "meme", ids=ids) if ids else 0
+
+
+def check_and_extract(session: Session, table: str, ids: list[int] | None = None, limit: int | None = None) -> dict:
+    """検めたあと、ミームの元(アイデア・oracle)なら本文と検証結果からミームを抜き出し、足したミームも検める。"""
+    checked = check(session, table, ids, limit)
+    if table == "meme":
+        return {"checked": checked, "memes_added": 0}
+    last_id = last_meme_id(session)
+    added = meme.refresh(session, ai_client)
+    check_new_memes(session, last_id)
+    return {"checked": checked, "memes_added": added}
