@@ -27,7 +27,8 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「出来事を足して」                   | `randomizer.create_random_event.CreateRandomEvent()` → `randomizer.commit_event.CommitEvent(event)` |
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
-| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea)`                                    |
+| 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, review=True)`。確定したあと AI がネット検索で中身を検め、妥当性と補足を `review` 欄(md の `# review` 節)へ書く。`review=False` で飛ばす |
+| 「アイデア・ミームを検めて」「妥当性を調べて」 | `review.review_records.ReviewRecords(table, ids=None, limit=None)`。`table` は `"idea"` / `"meme"`。AI がネット検索で妥当性と補足を書き、`review` 欄へ入れる。`ids` を省くと `review` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。書いた件数を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
@@ -37,7 +38,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「覚え書きを直して」                 | `randomizer.update_oracle.UpdateOracle(oracle)`。`id` 必須、渡した欄だけ直す |
 | 「ミームを直して」「ミームの分類を直して」 | `randomizer.update_meme.UpdateMeme(meme)`。`id` 必須、渡した欄だけ直す。`category` は 信条/欲求/境遇/集団/理 のいずれか |
 | 「ミームを消して」                   | `randomizer.delete_meme.DeleteMeme(meme_id)`                                 |
-| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)・出来事の本文から抜き出し、分類を振って `meme` テーブルへ足す。既にあるミームと同じ考え方の言い換えは足さない。最後に、分類の空いたミーム(md に直接書いたものなど)に分類を振る。足した件数を返す |
+| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)・人物の筋書き(`# plot`)・出来事の本文から抜き出し、分類を振って `meme` テーブルへ足す。既にあるミームと同じ考え方の言い換えは足さない。最後に、分類の空いたミーム(md に直接書いたものなど)に分類を振る。足したミームは AI がネット検索で検め、`review` 欄へ書く(`ExtractMemes(review=False)` で飛ばす)。足した件数を返す |
 | 「ミームを引いて」                   | `meme.draw_memes.DrawMemes(person=True, seed=None)`。分類ごとに 0〜2 件引き、それぞれに古今表裏を割り振って返す。db には書かない |
 | 「ミームと要約の取りこぼしをまとめて作って」 | `meme.refresh_generated_content.RefreshGeneratedContent()`。`ExtractMemes` に加えて、まだ要約の無い出来事・話もすべて見て `event_summary` / `episode_summary` を作る。`CommitEvent` / `CommitStory` / `CommitEpisode` は確定した一件だけを見るので、md を直接編集して `import_db` した分などの取りこぼしを拾うのはこちら |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
@@ -139,13 +140,14 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 
 ## 作り方
 
-置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の五つ。
+置き場所は `<領域>/<動詞_対象>.py`。領域はいまのところ次の六つ。
 
 - `randomizer/` — ランダム生成(作る／確定する)と、確定済みレコードの修正
 - `story/` — 作品・話(`story`/`episode`)まわりの読み書き(材料を引く・本文を確定する)
 - `sync/` — db と md の同期
 - `world/` — 場所・人物・アイデア・出来事の一覧(読む専用)
 - `meme/` — アイデア・oracle・人物の筋書き・出来事からのミームの抽出と、人物に持たせるミームの引き出し
+- `review/` — アイデア・ミームを AI にネット検索させて検め、妥当性と補足を書く(`ai/claude_code/reviewer.py`)
 
 - **「作る」と「確定する」を別ファイルに分ける。** 「作る」側(`create_random_*`)は
   db に一切触れず、素の辞書 / JSON を返すだけ。db を触るのは「確定する」側だけ
@@ -173,7 +175,7 @@ Entrypoint(interface/_base.py)
 └─ randomizer.RandomDraft        db に触れない下書き作成 → create_random_*.py
 ```
 
-(`sync/` の二つと `meme.extract_memes.ExtractMemes` は、`execute(session)` の外で
+(`sync/` の二つと `meme.extract_memes.ExtractMemes`・`review.review_records.ReviewRecords` は、`execute(session)` の外で
 db セッションを開き直したいので `Entrypoint` を直接継ぐ)
 
 ## 引き方は query 側にある

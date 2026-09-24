@@ -211,6 +211,16 @@ class MemeSeededMixin:
         sort_order=9010)
 
 
+class ReviewMixin:
+    """AI がネット検索で内容の妥当性を検め、補足を書く `# review` 節。空ならまだ検めていない。"""
+
+    TEXT_SECTIONS = ("text", "review")
+
+    review: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="AI がネット検索で検めた妥当性と補足。空ならまだ検めていない",
+        sort_order=10010)
+
+
 class Event(EventSeededMixin, MemeSeededMixin, MarkdownBase):
 
     __tablename__ = "event"
@@ -299,7 +309,7 @@ class MemeCategory(enum.StrEnum):
 MEME_CATEGORIES = tuple(category.value for category in MemeCategory)
 
 
-class Meme(MarkdownBase):
+class Meme(ReviewMixin, MarkdownBase):
     """アイデア(`Idea`)・oracle(著者の覚え書き)・人物の筋書き・出来事から抜き出した、キャラクターの芯になる考え方。
     `worlds/meme/` に md として出し入れするので、著者が直接書き足すこともできる。
 
@@ -463,7 +473,7 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-class Idea(MemeSeededMixin, MarkdownBase):
+class Idea(ReviewMixin, MemeSeededMixin, MarkdownBase):
     __tablename__ = "idea"
 
     name: Mapped[str] = mapped_column(String, sort_order=200)

@@ -48,13 +48,16 @@ def _effort() -> str:
     return os.environ.get("DEM_CLAUDE_AI_EFFORT", _DEFAULT_EFFORT)
 
 
-def _build_args(system: str | None, schema: dict | None) -> list[str]:
+def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] = ()) -> list[str]:
     args = [
         _command(), "-p",
         "--output-format", "json",
-        "--tools", "",
+        "--tools", ",".join(tools),
         "--no-session-persistence",
     ]
+    if tools:
+        # -p では許可を尋ねられないので、渡した道具は先に許しておく(許さないと拒まれて使えない)。
+        args += ["--allowedTools", ",".join(tools)]
     if system is not None:
         args += ["--system-prompt", system]
     if schema is not None:
@@ -86,15 +89,17 @@ def generate(
     format: dict | str | None = None,
     timeout: float = 120.0,
     options: dict | None = None,
+    tools: tuple[str, ...] = (),
 ) -> str:
     """`claude -p` に `prompt` を渡し、生成テキストを返す。
 
     `format` が JSON Schema の辞書なら `--json-schema` で構造化出力に制約し、
     その JSON を文字列にして返す(`"json"` は制約なしの素通し)。
     `options`(Ollama の temperature 等)は Claude Code に相当する設定が無いので受け取るだけで使わない。
+    `tools` は使わせる道具(`"WebSearch"` など)。既定は道具なし。
     """
     schema = format if isinstance(format, dict) else None
-    args = _build_args(system, schema)
+    args = _build_args(system, schema, tools)
     # CLI の起動と思考のぶん、Ollama 向けの timeout(既定 120 秒)では足りないことがある。
     timeout = max(float(timeout), float(os.environ.get("DEM_CLAUDE_AI_TIMEOUT", 300)))
     # プロジェクトの CLAUDE.md・設定を拾わせない(生成の指示は system だけにする)。
@@ -140,10 +145,11 @@ def generate_json(
     system: str | None = None,
     timeout: float = 120.0,
     options: dict | None = None,
+    tools: tuple[str, ...] = (),
 ) -> dict:
     """`generate` を `schema`(JSON Schema)で構造化出力に制約して呼び、パースした辞書を返す。"""
     text = generate(
-        prompt, system=system, format=schema, timeout=timeout, options=options)
+        prompt, system=system, format=schema, timeout=timeout, options=options, tools=tools)
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:
@@ -158,10 +164,11 @@ def try_generate_json(
     system: str | None = None,
     timeout: float = 120.0,
     options: dict | None = None,
+    tools: tuple[str, ...] = (),
 ) -> dict:
     """`generate_json` を試し、失敗(起動不可・応答がJSONとして壊れている)なら空の辞書を返す。"""
     try:
-        return generate_json(prompt, schema, system=system, timeout=timeout, options=options)
+        return generate_json(prompt, schema, system=system, timeout=timeout, options=options, tools=tools)
     except ClaudeAIError as error:
         print(f"[claude_ai] Claude Code の応答が使えなかったため既定値で進める: {error}")
         return {}
