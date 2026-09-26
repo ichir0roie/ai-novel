@@ -17,7 +17,7 @@ from db.schema_pydantic import to_dict_with
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
 
-# 本文だけは質を優先する。要約・ミームなどの抽出は ai_client の既定(sonnet low)のまま。
+# 本文だけは質を優先する。要約・ミームなどの抽出は ai_client の既定(sonnet high)のまま。
 EPISODE_MODEL = "claude-fable-5-1"
 EPISODE_EFFORT = "high"
 

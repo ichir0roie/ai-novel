@@ -180,13 +180,12 @@ def test_history_section_writes_the_year_and_age_of_each_step_up_to_now():
 
     assert history_section(items, 11538, 30) == (
         "- 11538年(0歳): 隊商宿に生まれる。\n"
-        "- 11552年(14歳): 関所に雇われる。\n"
-        "- 11568年(30歳): 現在。"
+        "- 11552年(14歳): 関所に雇われる。"
     )
 
 
-def test_history_section_marks_the_last_step_at_the_current_age_as_now():
-    items = [{"age": 0, "text": "生まれる。"}, {"age": 20, "text": "港で荷を担ぐ。"}]
+def test_history_section_leaves_the_last_step_as_the_ai_wrote_it():
+    items = [{"age": 0, "text": "生まれる。"}, {"age": 20, "text": "現在。港で荷を担ぐ。"}]
 
     assert history_section(items, 2080, 20).splitlines()[-1] == "- 2100年(20歳): 現在。港で荷を担ぐ。"
 
@@ -207,7 +206,7 @@ def test_generate_person_writes_the_history_before_the_memes(session, monkeypatc
 
     record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), _TellsHistory(seed=1), person=True)
 
-    assert f"\n\n# 来歴\n- 2080年(0歳): {record.name}が生まれる。\n- 2100年(20歳): 現在。港で荷を担ぐ。\n\n# meme\n" in record.text
+    assert f"\n\n# 来歴\n- 2080年(0歳): {record.name}が生まれる。\n- 2100年(20歳): 港で荷を担ぐ。\n\n# meme\n" in record.text
 
 
 def test_generate_non_person_has_no_history(session):

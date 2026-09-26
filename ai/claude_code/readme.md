@@ -20,7 +20,7 @@ ai/claude_code/
 - 各呼び出しは `--tools ""`(道具なし。`tools=("WebSearch", "WebFetch")` を渡したときだけ、その道具を許す)・`--no-session-persistence`・`--system-prompt`
   で、単発の「プロンプト → JSON」に絞る。カレントは一時ディレクトリにして、
   このリポジトリの `CLAUDE.md` や設定を読み込ませない
-- モデルと effort は `ai_client.py` の `_MODEL`(`claude-sonnet-5`)・`_EFFORT`(`low`)を既定にし、`--model` `--effort` に渡す。
+- モデルと effort は `ai_client.py` の `_MODEL`(`claude-sonnet-5`)・`_EFFORT`(`high`)を既定にし、`--model` `--effort` に渡す。
   本文の生成(`story_writer.py`)だけは `EPISODE_MODEL`(`claude-fable-5-1`)・`EPISODE_EFFORT`(`high`)を渡す
 - 認証は CLI に任せる(`claude login` 済みか `ANTHROPIC_API_KEY`)
 - ループの終わりに Claude Code の呼び出し回数・トークン・費用を出す
@@ -30,7 +30,7 @@ ai/claude_code/
 | 変数                    | 意味                                                                                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
 | `DEM_CLAUDE_AI_COMMAND` | 実行する CLI。既定 `claude`                                                                          |
-| `DEM_CLAUDE_AI_TIMEOUT` | 一回の呼び出しを待つ秒数の下限。既定 300(CLI の起動ぶん、Ollama 向けの 120 秒では足りないことがある) |
+| `DEM_CLAUDE_AI_TIMEOUT` | 一回の呼び出しを待つ秒数の下限。既定 600(CLI の起動ぶん、Ollama 向けの 120 秒では足りないことがある) |
 | `DEM_CLAUDE_AI_DLAB_TOOLS` | 検める(`fact_checker.py`)ときに許す Dラボの道具。カンマ区切りの許可ルール、既定 `mcp__d-lab`。`claude mcp list` の Dラボのサーバー名に合わせて `mcp__<サーバー名>` にする。空にすると Dラボを使わない |
 | `DEM_CLAUDE_AI_MCP_CONFIG` | MCP の道具を使わせる呼び出しで `--mcp-config` に渡すファイル。Dラボを claude.ai のコネクタ以外で繋ぐときに使う。既定なし |
 

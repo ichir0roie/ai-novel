@@ -22,7 +22,7 @@ _tally = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
 _MODEL = "claude-sonnet-5"
-_EFFORT = "low"
+_EFFORT = "high"
 
 
 def _command() -> str:
@@ -86,7 +86,7 @@ def generate(
     schema = format if isinstance(format, dict) else None
     args = _build_args(system, schema, tools, model, effort)
     # CLI の起動と思考のぶん、Ollama 向けの timeout(既定 120 秒)では足りないことがある。
-    timeout = max(float(timeout), float(os.environ.get("DEM_CLAUDE_AI_TIMEOUT", 300)))
+    timeout = max(float(timeout), float(os.environ.get("DEM_CLAUDE_AI_TIMEOUT", 600)))
     # プロジェクトの CLAUDE.md・設定を拾わせない(生成の指示は system だけにする)。
     cwd = tempfile.gettempdir()
     try:
