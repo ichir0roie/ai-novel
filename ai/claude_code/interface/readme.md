@@ -67,6 +67,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
 | 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `daily_event`。主役を決めるなら `character_id` を渡す。「〇〇の17歳の出来事」のように歳を決めるなら `age` も渡す(直前の出来事の後ではなく、その歳のうちに差し込む) |
 | 「この場所・この時の出来事を起こして」「ヴァレンツァで11579/03/02に〇〇な場面」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `place_event`。場所 id・時刻・`key`(ジャンルや場面を一言で)を渡す。当事者はその時刻にそこにいるサブキャラクターから選ぶ |
+| 「この種で話を書いて」「〇〇と△△が出る話を 11579/03/02 で」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `episode`。作品 id・`key`(話の種)・時刻・登場人物の id のリストを渡す。前の話を名指しするなら `previous_episode_ids`(省けば作品の中でその時刻より前の三話)。場所・視点を決めるなら `place_id` / `viewpoint` |
 
 **まだ入口が無いもの**(頼まれたら作ってから行う): 人物の削除。
 
@@ -187,6 +188,7 @@ claude が対話で書くときは、自分で語と言い換えを挙げて `Re
 | ある作品の開始から指定年数ぶん進める         | `local_ai_time_keeper.loop_time_for_story()` | `claude_code_time_keeper.claude_story_years_main()`               |
 | サブキャラ一人の次の出来事を一件起こす(毎日のルーチン) | `local_ai_time_keeper.daily_event()`       | `claude_code_time_keeper.claude_daily_event_main()`                |
 | ある場所・時刻に、居合わせるサブキャラで出来事を一件起こす(場面を指定) | `local_ai_time_keeper.place_event(place_id, time, key)` | `claude_code_time_keeper.claude_place_event_main(place_id, time, key)` |
+| 種・時刻・登場人物を決めて、作品に話を一話足す | `local_ai_time_keeper.episode(story_id, key, time, character_ids, previous_episode_ids=None)` | `claude_code_time_keeper.claude_episode_main(story_id, key, time, character_ids, previous_episode_ids=None)` |
 
 (`ai.local_ai.` / `ai.claude_code.` を頭に付ける)
 
@@ -211,6 +213,16 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 場所を名指しするので、場所の `active_random_generation` は見ない。`key` は候補・記録・小説のすべての段に場面の指定として渡し、
 小説は当事者のうち指定が一番よく伝わる一人の視点で書く。`time` は `Stamp` か `"11579/03/02"` の形の文字列。
 居合わせる者がいなければ何もせず None を返す(`ai/time_keeper/place_event_generator.py`)。
+
+話の生成(`episode`)は、作者が決めた種(`key`)・時刻・登場人物(`character_ids`)から、作品(`story_id`)に話を一話足す。
+`story_writer` と違い、書く位置(本文の入っている最後の話の次)も世界の断面も見ず、材料は呼び出し側が名指しする。
+前の話(`previous_episode_ids`)は概要と文体の覚え書きで渡し(省けば作品の中で `time` より前の三話)、
+登場人物ごとに、その時点の歳・人となり・口調・相関・直近の出来事(要約)を渡す。場所(`place_id`。省けば作品の立つ場所)の
+直近の出来事と、その場所か登場人物に掛かる「この時点より後に既に決まっている出来事」も渡し、矛盾させない。
+種から中間段でアイデアを引いて「関係する設定」として渡し、話に結ぶ(`episode_idea`)。
+足した話は `key` / `start` / `title` / `text` / `viewpoint`(渡さなければ AI が選んだ視点人物)/ `place`(`place_id` を渡したときだけその名前)を持ち、
+自動生成なので `synced` を立てる。Claude では本文だけ `story_writer` と同じモデルで書く。
+本文が得られなければ話を足さずに None を返す(`ai/time_keeper/episode_generator.py`)。
 
 上の表の「作る」「確定する」入口を使えば、Claude も対話の中で人物・場所・出来事の
 内容を決めて確定してよい。

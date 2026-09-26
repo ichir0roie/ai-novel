@@ -208,13 +208,15 @@ def events_under_select(event_id: int, *, until=None, limit=5) -> Select:
     return _events_where(Event.parent_event_id == event_id, until, limit)
 
 
-def events_after_select(place_id: int, character_ids, after: Stamp, *, limit=5) -> Select:
-    """人物ごとに時を刻むので、ある人物の出来事を起こす時点より後に、別の人物の出来事が既にあることがある。"""
+def events_after_select(place_id: int | None, character_ids, after: Stamp, *, limit=5) -> Select:
+    """人物ごとに時を刻むので、ある人物の出来事を起こす時点より後に、別の人物の出来事が既にあることがある。
+    `place_id` が None なら当事者の出来事だけ(場所の無い出来事まで拾わない)。"""
+    conditions = [Event.event_characters.any(EventCharacter.character_id.in_(list(character_ids)))]
+    if place_id is not None:
+        conditions.append(Event.location_id == place_id)
     return (select(Event)
             .options(*EVENT_LOAD_OPTIONS)
-            .where(Event.time > after,
-                   or_(Event.location_id == place_id,
-                       Event.event_characters.any(EventCharacter.character_id.in_(list(character_ids)))))
+            .where(Event.time > after, or_(*conditions))
             .order_by(Event.time.asc(), Event.id.asc())
             .limit(limit))
 

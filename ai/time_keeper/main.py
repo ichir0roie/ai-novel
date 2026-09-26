@@ -5,7 +5,8 @@ import random
 import traceback
 
 from ai.time_keeper import (
-    character_event_generator, event_progression_generator, event_seed, meme, place_event_generator,
+    character_event_generator, episode_generator, event_progression_generator, event_seed, meme,
+    place_event_generator,
 )
 from data_access_logic.query import common_query, world_createion_query
 from db.schema import Session, Stamp, Story, get_env_session
@@ -74,6 +75,18 @@ def place_event(ai: AIClient, place_id: int, time: Stamp | str, key: str) -> int
         event_seed.refresh(s, ai)
         event_seed.consolidate(s, ai)
         record = place_event_generator.generate_at(s, ai, place_id, time, key)
+        return record.id if record is not None else None
+
+
+def episode(
+    ai: AIClient, story_id: int, key: str, time: Stamp | str, character_ids: list[int],
+    previous_episode_ids: list[int] | None = None, *, place_id: int | None = None,
+    viewpoint: str | None = None, writer_options: dict | None = None,
+) -> int | None:
+    with get_env_session() as s:
+        record = episode_generator.generate(
+            s, ai, story_id, key, time, character_ids, previous_episode_ids,
+            place_id=place_id, viewpoint=viewpoint, writer_options=writer_options)
         return record.id if record is not None else None
 
 
