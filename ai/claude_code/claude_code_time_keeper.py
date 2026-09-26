@@ -43,6 +43,17 @@ def claude_daily_event_main(character_id: int | None = None, age: int | None = N
     return daily_event(character_id, age)
 
 
+def place_event(place_id: int, time: Stamp | str, key: str) -> int | None:
+    try:
+        return _main.place_event(ai_client, place_id, time, key)
+    finally:
+        print(f"[claude_ai] {ai_client.usage_summary()}")
+
+
+def claude_place_event_main(place_id: int, time: Stamp | str, key: str) -> int | None:
+    return place_event(place_id, time, key)
+
+
 if __name__ == "__main__":
     year = int(input("year>>"))
     loop_time(Stamp(year))
