@@ -13,7 +13,6 @@ from ai.claude_code.interface.world.search_ideas import SearchIdeas
 from ai.time_keeper import character_event_generator, episode_summary, idea_context, idea_search, meme
 from ai.time_keeper import random_character_generator
 from db.schema import (
-    IDEA_CANDIDATE_DIRECTORY,
     Character, CharacterIdea, CharacterPlace, Episode, EpisodeIdea, Event, EventIdea, Idea, Location, Story,
 )
 from db.stamp import Stamp
@@ -186,7 +185,7 @@ def test_unmatched_term_becomes_an_auto_generated_idea_of_the_world(session, pla
     assert candidate.auto_generated is True
     assert candidate.location_id == places["world"].id
     assert candidate.start == Stamp(2100, 4, 1) and candidate.end is None
-    assert candidate.directory_path == IDEA_CANDIDATE_DIRECTORY
+    assert candidate.directory_path == "技術"
 
 
 def test_general_words_do_not_become_candidates(session, places):

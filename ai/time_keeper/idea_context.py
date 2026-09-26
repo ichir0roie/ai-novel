@@ -4,6 +4,7 @@
 下書きから語を洗い出してアイデアと照らし、当たったアイデアとその上位・下位を清書に渡す。
 どのアイデアにも当たらなかった固有の語(`coined`)は、自動生成(`auto_generated`)のアイデアとして足す(候補)。
 候補も他のアイデアと同じく検索・清書に出る。下書きが踏まえたアイデアと候補は、中間テーブル(`event_idea` など)で清書したレコードに結ぶ。
+清書に渡すアイデアは本質のアイデアにそろえ、その場所・時代の作中での呼び名(`idea_alias`)で呼ばせる。
 """
 from __future__ import annotations
 
@@ -12,12 +13,11 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 
 from ai.instructions.idea_context import IDEA_CONTEXT_INSTRUCTION
-from ai.time_keeper import constants, idea_search
+from ai.time_keeper import constants, idea_alias, idea_search
 from ai.time_keeper._ai import AIClient
 from data_access_logic.query import common_query, dictionary_query
 from db.schema import (
-    IDEA_CANDIDATE_DIRECTORY, IDEA_LINK_MODELS,
-    Character, Idea, Location, Session,
+    IDEA_LINK_MODELS, Character, Idea, Location, Session,
 )
 from db.stamp import Stamp
 
@@ -27,6 +27,8 @@ class IdeaContext:
     hits: list[Idea] = field(default_factory=list)
     related: list[Idea] = field(default_factory=list)
     candidates: list[Idea] = field(default_factory=list)
+    # related の本質のアイデアの id ごとの、作中での呼び名
+    called: dict[int, Idea] = field(default_factory=dict)
 
     @property
     def linked(self) -> list[Idea]:
@@ -56,7 +58,7 @@ def _candidate_for(session: Session, term: dict, place_id: int | None, time: Sta
     candidate = Idea(
         name=term["keyword"], kind=term["kind"], auto_generated=True, text=term["description"],
         location_id=_world_id(session, place_id), start=time,
-        directory_path=IDEA_CANDIDATE_DIRECTORY)
+        directory_path=term["kind"].replace("/", "／") or None)
     session.add(candidate)
     session.flush()
     print(f"[time_keepr/idea] 候補を足した: {candidate.name}(id={candidate.id})")
@@ -97,7 +99,9 @@ def resolve(session: Session, keywords, place_id: int | None = None, time=None) 
         candidate = _candidate_for(session, term, place_id, time)
         if candidate is not None and candidate not in context.candidates:
             context.candidates.append(candidate)
-    context.related = _related(session, context.hits, place_id, time)
+    context.related = idea_alias.essences(
+        session, _related(session, idea_alias.essences(session, context.hits), place_id, time))
+    context.called = idea_alias.called(session, [idea.id for idea in context.related], place_id, time)
     return context
 
 
@@ -106,16 +110,20 @@ def gather(session: Session, draft: str, ai: AIClient, place_id: int | None = No
     return resolve(session, idea_search.keywords_of(draft, ai), place_id, time)
 
 
-def prompt_section(ideas: list[Idea]) -> str:
-    """清書のプロンプトに足す「関係する設定」の節。アイデアが無ければ空。"""
+def prompt_section(ideas: list[Idea], called: dict[int, Idea] | None = None) -> str:
+    """清書のプロンプトに足す「関係する設定」の節。アイデアが無ければ空。
+
+    `called`(`IdeaContext.called`)に呼び名があるアイデアは、その呼び名で出し、呼び名の本文を前に置く。
+    """
     if not ideas:
         return ""
+    called = called or {}
     lines = []
     for idea in ideas:
-        text = (idea.text or "").strip()
+        text = idea_alias.text_of(idea, called)
         if len(text) > constants.IDEA_CONTEXT_LETTERS:
             text = text[:constants.IDEA_CONTEXT_LETTERS] + "…"
-        lines.append(f"- {idea.name}({idea.kind}): {text}")
+        lines.append(f"- {idea_alias.name_of(idea, called)}({idea.kind}): {text}")
     return f"関係する設定:\n{IDEA_CONTEXT_INSTRUCTION}\n" + "\n".join(lines) + "\n"
 
 

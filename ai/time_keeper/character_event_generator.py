@@ -109,7 +109,7 @@ def _sheet(character: Character, time: Stamp) -> dict:
 
 def _novelize(
     session: Session, record: Event, focus: Character, participants: list[Character],
-    previous_row: dict | str, ai: AIClient, ideas: list | None = None,
+    previous_row: dict | str, ai: AIClient, ideas: idea_context.IdeaContext | None = None,
     later_events: list[dict] | None = None,
 ) -> None:
     involved_ids = set(session.scalars(
@@ -124,7 +124,7 @@ def _novelize(
         f"主役の直前の出来事: {_dump(previous_row)}",
         *([f"この時点より後に既に決まっている出来事: {_dump(later_events)}"] if later_events else []),
         f"この出来事の記録: {_dump({'name': record.name, 'text': record.text})}",
-        idea_context.prompt_section(ideas or []),
+        idea_context.prompt_section(ideas.related, ideas.called) if ideas else "",
         f"この出来事を、{focus.name}を視点人物にした"
         f"{EVENT_NOVEL_TARGET_LETTERS[0]}〜{EVENT_NOVEL_TARGET_LETTERS[1]}字の小説の本文に書き起こしてください。",
     ])
@@ -190,7 +190,7 @@ def generate_next(
         if record is not None:
             context = idea_context.gather(session, f"{record.name}\n{record.text}", ai, record.location_id, record.time)
             later_events = progression._later_events(session, record.location_id, participants, record.start, ai)
-            _novelize(session, record, character, participants, previous_row, ai, context.related, later_events)
+            _novelize(session, record, character, participants, previous_row, ai, context, later_events)
             idea_context.link(session, record, context.linked)
             session.commit()
         return record

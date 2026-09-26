@@ -21,10 +21,10 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
 | 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
-| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None, time=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返す。自動生成の候補も返す。`place_id` は現在地から最上位までの場所に、`time` はその時刻に効く(`start` <= time < `end`)アイデアに絞る |
-| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None, time=None)`。下書きから洗い出した語(`{"keyword", "variants", "description", "kind"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」)。`time` は出来事の時刻 |
+| 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None, time=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返す。自動生成の候補も返す。`place_id` は現在地から最上位までの場所に、`time` はその時刻に効く(`start` <= time < `end`)アイデアに絞る。`called` はその場所・時刻での作中の呼び名 |
+| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None, time=None)`。下書きから洗い出した語(`{"keyword", "variants", "description", "kind"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」)。`time` は出来事の時刻。呼び名に当たったら本質のアイデアにそろえ、作中の呼び名を `called` に付ける |
 | 「この本文が踏まえたアイデアを結んで」 | `idea.link_ideas.LinkIdeas(idea_ids, event_id=None, episode_id=None, character_id=None)`。三つのうち一つだけ渡す |
-| 「この候補をあのアイデアにまとめて」 | `randomizer.merge_idea.MergeIdea(source_id, target_id)`。結んだ本文を付け替えてから source を消す |
+| 「この候補をあのアイデアにまとめて」 | `randomizer.merge_idea.MergeIdea(source_id, target_id)`。結んだ本文と source の呼び名を付け替えてから source を消す |
 | 「判断待ちの一覧」「週次レビュー」   | `review.list_pending_reviews.ListPendingReviews()`。候補・未同期の話・本文に残った TODO。Todoist へ載せる手順はスキル `weekly-review` |
 | 「場所を足して」                     | `randomizer.create_random_place.CreateRandomPlace()` で下書き → 内容を決めて `randomizer.commit_place.CommitPlace(place)` |
 | 「人物を足して」                     | `randomizer.create_random_character.CreateRandomCharacter()` → `randomizer.commit_character.CommitCharacter(character)`。持たせるミームは `meme.draw_memes.DrawMemes(person=True)` で引き、`text` の `# meme` 節と `# 行動原理` 節に書く(下の「人物が持つミーム」)。`# 来歴` 節には節目を歳付きで書く(下の「人物の来歴」) |
@@ -32,18 +32,20 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「この人物の出自・居場所を足して」   | `randomizer.commit_character_place.CommitCharacterPlace(place)`              |
 | 「この二人の相関を足して」           | `randomizer.commit_character_relation.CommitCharacterRelation(relation)`     |
 | 「アイデアを足して」                 | `randomizer.commit_idea.CommitIdea(idea, fact_check=True)`。効く場所は `location_id`(その場所と配下で効く)、効く期間は `start` / `end`(出来事の時刻と比べる。空なら限らない)。確定したあと、AI が Dラボのナレッジとネット検索でアイデアの妥当性・補足を検め、`fact_check` 欄(md の `# fact_check` 節)へ書く。続けて本文と検証結果のそれぞれからミームを抜き出し(`memes_added`)、足したミームも検める。`fact_check=False` で検めずに本文からだけ抜き出す |
+| 「作中での呼び名を足して」「この場所・時代では〇〇と呼ぶ」 | `randomizer.commit_idea.CommitIdea(idea)` に `alias_of_idea_id`(本質のアイデア)を付けて足す。呼び名を使う場所・時代は `location_id` / `start` / `end`(空の列はどこでも・いつでも)。清書・断面・検索は、場所・時代が当てはまる呼び名のうち場所の近いものを選んで本質のアイデアをその名で呼び、当てはまらなければ本質の `name` を使う。呼び名の呼び名は持てない |
 | 「アイデア・oracle・ミームを検めて」「妥当性を調べて」 | `fact_check.check_facts.CheckFacts(table, ids=None, limit=None)`。`table` は `"idea"` / `"oracle"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`fact_check` 欄へ入れる。`ids` を省くと `fact_check` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。アイデア・oracle は検めたあと本文と検証結果からミームを抜き出し直し、足したミームも検める。`{"checked", "memes_added"}` を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
 | 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
 | 「出来事を消して」「出来事を作り直して」 | `randomizer.delete_event.DeleteEvent(event_id)`。子の出来事が残っていれば止まる。当事者・アイデアとの中間テーブルの行と要約も消す。出来事で人物の `text` に積み足した一文と、足したアイデアの候補は残るので、要らなければ `UpdateCharacter` / `DeleteIdea` で別に戻す |
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
-| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアが残っていれば止まる。結んだ本文との中間テーブルの行も消す |
+| 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアか呼び名が残っていれば止まる。結んだ本文との中間テーブルの行も消す |
 | 「覚え書きを足して」「oracle に書いて」 | `randomizer.commit_oracle.CommitOracle(oracle, fact_check=True)`。`text` 必須。置き場所は `directory_path`(`worlds/oracle/` からの相対)と `filename` で決める。確定したあとは `CommitIdea` と同じく、検めて(`fact_check`)、本文と検証結果のそれぞれからミームを抜き出し(`memes_added`)、足したミームも検める |
 | 「覚え書きを直して」                 | `randomizer.update_oracle.UpdateOracle(oracle)`。`id` 必須、渡した欄だけ直す |
 | 「ミームを直して」「ミームの分類を直して」 | `randomizer.update_meme.UpdateMeme(meme)`。`id` 必須、渡した欄だけ直す。`category` は 信条/欲求/境遇/集団/理 のいずれか |
 | 「ミームを消して」                   | `randomizer.delete_meme.DeleteMeme(meme_id)`                                 |
-| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)の本文と検証結果(`fact_check`。別々の元として渡す)・人物の筋書き(`# plot`)・出来事の本文から抜き出し、分類を振って `meme` テーブルへ足す。既にあるミームと同じ考え方の言い換えは足さない。最後に、分類の空いたミーム(md に直接書いたものなど)に分類を振る。足したミームは AI が Dラボのナレッジとネット検索で検め、`fact_check` 欄へ書く(`ExtractMemes(fact_check=False)` で飛ばす)。足した件数を返す |
+| 「出来事の種を直して」               | `randomizer.update_event_seed.UpdateEventSeed(seed)`。`id` 必須、渡した欄だけ直す。種は md に出ないので、語の置き換えなどは db を読んで id を拾ってから呼ぶ |
+| 「ミームを抜き出して」               | `meme.extract_memes.ExtractMemes()`。アイデア・oracle(`worlds/oracle/` の著者の覚え書き)の本文と検証結果(`fact_check`。別々の元として渡す)・人物の筋書き(`# plot`)・出来事の本文から抜き出し、分類を振って `meme` テーブルへ足す(md は分類のディレクトリ `worlds/meme/<分類>/` に置く)。既にあるミームと同じ考え方の言い換えは足さない。最後に、分類の空いたミーム(md に直接書いたものなど)に分類を振り、置き場所の無いものは分類のディレクトリへ置く。足したミームは AI が Dラボのナレッジとネット検索で検め、`fact_check` 欄へ書く(`ExtractMemes(fact_check=False)` で飛ばす)。足した件数を返す |
 | 「ミームを引いて」                   | `meme.draw_memes.DrawMemes(person=True, seed=None)`。分類ごとに 0〜2 件引き、それぞれに古今表裏を割り振って返す。db には書かない |
 | 「ミームと要約の取りこぼしをまとめて作って」 | `meme.refresh_generated_content.RefreshGeneratedContent()`。`ExtractMemes` に加えて、まだ要約の無い出来事・話もすべて見て `event_summary` / `episode_summary` を作る。`CommitEvent` / `CommitStory` / `CommitEpisode` は確定した一件だけを見るので、md を直接編集して `import_db` した分などの取りこぼしを拾うのはこちら |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
@@ -94,9 +96,9 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
    場所は、アイデアの `location_id` が現在地から最上位までの場所のどれかに当たるもの。
    時刻は、出来事の時刻が `start` 以上 `end` 未満のもの(空なら限らない)。
    当たったアイデアに上位・下位のアイデアを足して、清書に「関係する設定」として渡す
-3. どのアイデアにも当たらなかった語は、AI が決めた種別(`kind`)と `auto_generated=true` で `worlds/idea/候補/` に足す。
+3. どのアイデアにも当たらなかった語は、AI が決めた種別(`kind`)と `auto_generated=true` で、種別のディレクトリ(`worlds/idea/<kind>/`)に足す。
    場所は世界線、`start` は出来事の時刻。候補も他のアイデアと同じく検索・断面・清書・ミームの抜き出しに出る。
-   確かめたら `auto_generated` を false にして置き場所へ移す
+   確かめたら `auto_generated` を false にする
 4. 下書きが当たったアイデアと候補を、清書したレコードに中間テーブル(`event_idea` / `episode_idea` /
    `character_idea`。md には出さない)で結ぶ
 

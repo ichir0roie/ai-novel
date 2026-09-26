@@ -6,11 +6,12 @@
 
 名前か本文に、キーワードか言い換えのどれかを含むアイデアを、当たり方の強い順に返す。
 `place_id` を渡すとそこから最上位までの場所に置いたアイデアに、`time` を渡すとその時刻に効くアイデアに絞る。
+`called` は、その場所・時刻での作中の呼び名(呼び名に当たったときは、その本質のアイデアの呼び名)。
 """
 from __future__ import annotations
 
 from ai.claude_code.interface._base import SessionEntrypoint
-from ai.time_keeper import idea_search
+from ai.time_keeper import idea_alias, idea_search
 
 
 class SearchIdeas(SessionEntrypoint):
@@ -21,9 +22,13 @@ class SearchIdeas(SessionEntrypoint):
         self.time = time
 
     def execute(self, session) -> list[dict]:
+        hits = idea_search.search(session, self.keywords, self.place_id, self.time, limit=self.limit)
+        essences = {hit.idea.id: idea_alias.essences(session, [hit.idea])[0] for hit in hits}
+        called = idea_alias.called(session, [essence.id for essence in essences.values()], self.place_id, self.time)
         return [
             {"id": hit.idea.id, "name": hit.idea.name, "kind": hit.idea.kind,
              "auto_generated": hit.idea.auto_generated,
-             "parent_idea_id": hit.idea.parent_idea_id, "text": hit.idea.text,
+             "parent_idea_id": hit.idea.parent_idea_id, "alias_of_idea_id": hit.idea.alias_of_idea_id,
+             "called": idea_alias.name_of(essences[hit.idea.id], called), "text": hit.idea.text,
              "score": hit.score, "keywords": hit.keywords}
-            for hit in idea_search.search(session, self.keywords, self.place_id, self.time, limit=self.limit)]
+            for hit in hits]

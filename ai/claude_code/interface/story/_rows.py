@@ -4,6 +4,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ai.time_keeper import idea_alias
 from data_access_logic.query import common_query
 from db.schema import Character, Event, Location, Story
 from db.schema_pydantic import to_dict_with
@@ -119,8 +120,9 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
     recent = [event_row(row) for row in session.scalars(recent_query).all()]
 
     character_ids = residents(session, place_ids, until)
-    ideas = session.scalars(
-        common_query.ideas_select(common_query.idea_scope_ids(session, place_id), until)).all()
+    ideas = idea_alias.essences(session, session.scalars(
+        common_query.ideas_select(common_query.idea_scope_ids(session, place_id), until)).all())
+    called = idea_alias.called(session, [idea.id for idea in ideas], place_id, until)
 
     character_names = _names_for(session, character_ids, "Character")
 
@@ -131,8 +133,8 @@ def brief(session: Session, place_id: int, when=None, *, reach: int = 60,
         "reach": reach,
         "open_events": visible(open_events(session, place_ids, until)),
         "recent_events": visible(recent),
-        "ideas": [{"id": idea.id, "name": idea.name, "kind": idea.kind,
-                   "text": idea.text} for idea in ideas],
+        "ideas": [{"id": idea.id, "name": idea_alias.name_of(idea, called), "kind": idea.kind,
+                   "text": idea_alias.text_of(idea, called)} for idea in ideas],
         "present_characters": [
             {"id": id_, "name": character_names.get(id_)} for id_ in character_ids],
     }

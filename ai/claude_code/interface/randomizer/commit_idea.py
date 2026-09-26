@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitMemeSource
+from ai.time_keeper import idea_alias
 from db.schema import Idea, Location
 from db.schema_pydantic import to_dict
 
@@ -25,6 +26,7 @@ class CommitIdea(CommitMemeSource):
 
         self.check_exists(session, Location, data.get("location_id"), "location_id")
         self.check_exists(session, Idea, data.get("parent_idea_id"), "parent_idea_id")
+        idea_alias.check(session, None, data.get("alias_of_idea_id"))
 
         record = Idea(**data)
         session.add(record)

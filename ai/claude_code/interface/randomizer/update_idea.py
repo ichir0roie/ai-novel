@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft
+from ai.time_keeper import idea_alias
 from db.schema import Idea, Location
 from db.schema_pydantic import to_dict
 
@@ -27,6 +28,7 @@ class UpdateIdea(CommitDraft):
         if data.get("parent_idea_id") == idea_id:
             raise ValueError(f"parent_idea_id={idea_id} が自分自身を指している")
         self.check_exists(session, Idea, data.get("parent_idea_id"), "parent_idea_id")
+        idea_alias.check(session, idea_id, data.get("alias_of_idea_id"))
 
         for key, value in data.items():
             setattr(record, key, value)

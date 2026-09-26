@@ -1,5 +1,9 @@
 import random
 
+import pytest
+
+from ai.claude_code.interface._base import UnknownRecordError
+from ai.claude_code.interface.randomizer.update_event_seed import UpdateEventSeed
 from ai.time_keeper import event_seed
 from data_access_logic.query import event_seed_query
 from db.schema import Character, Episode, Event, EventSeed, Story
@@ -211,3 +215,17 @@ def test_fresh_seeds_stay_unmarked_when_the_ai_fails(session, monkeypatch):
 
     assert event_seed.consolidate(session, _Fails(seed=1)) == 0
     assert _texts(session) == {"新一": False, "新二": False}
+
+
+def test_update_event_seed_rewrites_the_text(session):
+    record = EventSeed(text="いつか一党を組もうと言い合う。", consolidated=True)
+    session.add(record)
+    session.commit()
+
+    result = UpdateEventSeed({"id": record.id, "text": "いつかチームを組もうと言い合う。"}).run()
+
+    assert result["text"] == "いつかチームを組もうと言い合う。" and result["consolidated"] is True
+    with pytest.raises(ValueError, match="id は必須"):
+        UpdateEventSeed({"text": "種"}).run()
+    with pytest.raises(UnknownRecordError):
+        UpdateEventSeed({"id": record.id + 1, "text": "種"}).run()

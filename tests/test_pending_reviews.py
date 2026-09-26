@@ -2,7 +2,7 @@
 from ai.claude_code.interface.review.list_pending_reviews import ListPendingReviews
 from ai.time_keeper import idea_context
 from db.schema import (
-    IDEA_CANDIDATE_DIRECTORY, Episode, Event, Idea, Location, Story,
+    Episode, Event, Idea, Location, Story,
 )
 from db.stamp import Stamp
 
@@ -14,7 +14,7 @@ def test_nothing_to_review_on_an_empty_world(session):
 def test_candidate_idea_is_listed_with_where_it_came_from(session):
     event = Event(name="峠越え", text="", time=Stamp(2100))
     candidate = Idea(name="宿り", kind="技術", auto_generated=True, text="体に虫を宿す治療",
-                     directory_path=IDEA_CANDIDATE_DIRECTORY)
+                     directory_path="技術")
     session.add_all([event, candidate, Idea(name="魔力", kind="技術", text="")])
     session.commit()
     idea_context.link(session, event, [candidate])
@@ -27,7 +27,7 @@ def test_candidate_idea_is_listed_with_where_it_came_from(session):
     assert "「宿り」" in item["title"]
     assert "体に虫を宿す治療" in item["detail"]
     assert f"event「峠越え」(id={event.id})" in item["detail"]
-    assert f"md: worlds/idea/候補/{candidate.id}_宿り.md" in item["detail"]
+    assert f"md: worlds/idea/技術/{candidate.id}_宿り.md" in item["detail"]
     assert f"MergeIdea({candidate.id}, " in item["detail"]
 
 

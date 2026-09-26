@@ -40,7 +40,7 @@ def candidate_items(session: Session) -> list[dict]:
                 f"出てきた所: {_appearances(session, idea)}",
                 f"md: {md_path(idea)}",
                 f"種別: {idea.kind}",
-                f"確定: md の auto_generated を false にし、置き場所のディレクトリへ移す / "
+                f"確定: md の auto_generated を false にする / "
                 f"統合: MergeIdea({idea.id}, 統合先の id) / 削除: DeleteIdea({idea.id})",
             ]),
         })

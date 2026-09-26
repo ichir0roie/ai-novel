@@ -155,7 +155,8 @@ def test_extracted_memes_keep_their_category(session):
 
     assert meme.refresh(session, ai) == 2
 
-    assert {m.text: m.category for m in session.query(Meme)} == {"約束を守る": "信条", "空を目指す": "欲求"}
+    assert {m.text: (m.category, m.directory_path) for m in session.query(Meme)} == {
+        "約束を守る": ("信条", "信条"), "空を目指す": ("欲求", "欲求")}
 
 
 def test_a_meme_with_the_same_wording_is_dropped_without_asking(session):
@@ -210,15 +211,17 @@ def test_sources_are_drawn_again_when_the_duplicate_check_fails(session):
 def test_memes_without_a_category_are_classified(session):
     hand_written = Meme(text="手で書いたミーム")
     unanswered = Meme(text="分類の外を答えられたミーム")
-    session.add_all([hand_written, unanswered])
+    placed = Meme(text="置き場所を決めたミーム", directory_path="手書き")
+    session.add_all([hand_written, unanswered, placed])
     session.commit()
     ai = _Scripted({meme._CLASSIFY_SYSTEM_PROMPT: {"categories": [
-        {"number": 1, "category": "境遇"}, {"number": 2, "category": "不明"}]}})
+        {"number": 1, "category": "境遇"}, {"number": 2, "category": "不明"}, {"number": 3, "category": "理"}]}})
 
     meme.refresh(session, ai)
 
-    assert hand_written.category == "境遇"
-    assert unanswered.category is None
+    assert (hand_written.category, hand_written.directory_path) == ("境遇", "境遇")
+    assert (unanswered.category, unanswered.directory_path) == (None, None)
+    assert (placed.category, placed.directory_path) == ("理", "手書き")
     assert "1. 手で書いたミーム" in ai.calls_for(meme._CLASSIFY_SYSTEM_PROMPT)[0]["prompt"]
 
 

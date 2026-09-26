@@ -147,7 +147,7 @@ def write_next_episode(
     if seed:
         lines.append(f"この話の種(これを場面まで展開する。種に無い出来事を足さない): {seed}")
     if context.related:
-        lines.append(idea_context.prompt_section(context.related))
+        lines.append(idea_context.prompt_section(context.related, context.called))
     if record is not None and (record.viewpoint or record.place):
         lines.append(f"視点と場所: {record.viewpoint or ''} / {record.place or ''}")
     lines.append(f"この作品の第{number}話を書いてください。")

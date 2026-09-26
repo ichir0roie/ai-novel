@@ -442,9 +442,6 @@ class CharacterRelation(MarkdownBase):
         foreign_keys="CharacterRelation.character_id_2", lazy="noload")
 
 
-IDEA_CANDIDATE_DIRECTORY = "候補"
-
-
 class Idea(FactCheckMixin, MemeSeededMixin, MarkdownBase):
     __tablename__ = "idea"
 
@@ -465,6 +462,11 @@ class Idea(FactCheckMixin, MemeSeededMixin, MarkdownBase):
 
     parent_idea_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("idea.id"), comment="上位のアイデア。置いたディレクトリで決まる", sort_order=250)
+    alias_of_idea_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("idea.id"), index=True,
+        comment="作中での呼び名であるときの、本質のアイデア。呼び名は location_id・start・end の場所と時代で使い、"
+                "空の列はどこでも・いつでも使う。当てはまる呼び名が無ければ本質の name をそのまま使う",
+        sort_order=260)
 
     def default_filename(self) -> str | None:
         return self.name

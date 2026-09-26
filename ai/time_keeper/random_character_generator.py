@@ -330,7 +330,7 @@ def _generate_one(
     context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None, time)
     if context.related:
         polished = ai.try_generate_json(
-            f"下書き: {draft['text']}\n{idea_context.prompt_section(context.related)}この説明を清書してください。",
+            f"下書き: {draft['text']}\n{idea_context.prompt_section(context.related, context.called)}この説明を清書してください。",
             _POLISH_SCHEMA, system=_POLISH_SYSTEM_PROMPT, timeout=constants.IDEA_POLISH_TIMEOUT)
         draft["text"] = (polished.get("text") or "").strip() or draft["text"]
     try:
