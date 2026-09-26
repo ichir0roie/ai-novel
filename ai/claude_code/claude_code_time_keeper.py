@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from ai.claude_code import ai_client
+from ai.claude_code import ai_client, story_writer
 from db.schema import Session, Stamp
 from ai.time_keeper import main as _main
 
@@ -52,6 +52,29 @@ def place_event(place_id: int, time: Stamp | str, key: str) -> int | None:
 
 def claude_place_event_main(place_id: int, time: Stamp | str, key: str) -> int | None:
     return place_event(place_id, time, key)
+
+
+def episode(
+    story_id: int, key: str, time: Stamp | str, character_ids: list[int],
+    previous_episode_ids: list[int] | None = None, *, place_id: int | None = None,
+    viewpoint: str | None = None,
+) -> int | None:
+    try:
+        return _main.episode(
+            ai_client, story_id, key, time, character_ids, previous_episode_ids,
+            place_id=place_id, viewpoint=viewpoint,
+            writer_options={"model": story_writer.EPISODE_MODEL, "effort": story_writer.EPISODE_EFFORT})
+    finally:
+        print(f"[claude_ai] {ai_client.usage_summary()}")
+
+
+def claude_episode_main(
+    story_id: int, key: str, time: Stamp | str, character_ids: list[int],
+    previous_episode_ids: list[int] | None = None, *, place_id: int | None = None,
+    viewpoint: str | None = None,
+) -> int | None:
+    return episode(story_id, key, time, character_ids, previous_episode_ids,
+                   place_id=place_id, viewpoint=viewpoint)
 
 
 if __name__ == "__main__":

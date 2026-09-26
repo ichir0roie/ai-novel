@@ -292,7 +292,7 @@ def _story_recent_event_names(
 
 
 def _later_events(
-    session: Session, place_id: int, characters: list[Character], time: Stamp, ai: AIClient,
+    session: Session, place_id: int | None, characters: list[Character], time: Stamp, ai: AIClient,
 ) -> list[dict]:
     """本文は写させないよう要約で渡す。"""
     events = session.scalars(common_query.events_after_select(

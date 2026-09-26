@@ -97,6 +97,16 @@ MEME_POSITIONS = {
     "裏": "内に秘めている",
 }
 
+# episode_generator
+# 本文を一話ぶん書かせるので、断片の JSON より長く待つ秒数。
+EPISODE_TIMEOUT = 900.0
+# 前の話を名指ししないときに、作品の中から渡す直前の話の本数。
+EPISODE_PREVIOUS_LIMIT = 3
+# 登場人物一人ぶんに渡す、直近の出来事の件数。
+EPISODE_CHARACTER_EVENT_LIMIT = 3
+# 話の場所で起きた直近の出来事を、いくつまで渡すか。
+EPISODE_PLACE_EVENT_LIMIT = 3
+
 # story_summary
 # 話一話ぶんの概要・文体を覚え書きにさせるのを待つ秒数。
 RECAP_TIMEOUT = 300.0
