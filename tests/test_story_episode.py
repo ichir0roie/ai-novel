@@ -190,6 +190,12 @@ def test_story_markdown_name_uses_name(session, place, tmp_path):
     export_db(root)
     assert os.listdir(os.path.join(root, "story")) == ["1_遥かなる幻想郷まで.md"]
 
+    # 手で直していない md は取り込まないので、本文に手を入れて取り込ませる
+    path = os.path.join(root, "story", "1_遥かなる幻想郷まで.md")
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content + "追記\n")
     import_db(root)
     session.expire_all()
     assert session.get(Story, 1).filename is None

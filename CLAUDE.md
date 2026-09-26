@@ -79,7 +79,7 @@ git push
 - 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
   **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
 - **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
-  好きに覗いてよい。読むだけなら `import_db` / `export_db` も回さなくてよい。
+  好きに覗いてよい。読むだけなら同期(`SyncDb`)も回さなくてよい。
   書き込み(`insert` `update` `delete`)は必ず入口越しに行う
 - 調査用の読み取り例(世界リポジトリのルートで `.venv/bin/python` を使う。`core/` は `.venv` の場所を持たない):
 
@@ -94,14 +94,22 @@ print(c.execute('select count(*) from character').fetchone())
 
 # md と db の同期(import / export)
 
-`import_db` は md を db へ無条件に上書きする。
-`export_db` は `worlds/` をまるごと消して db から書き直す。
-`sync_db`は、import_db,export_dbの順に実行する。
+**db が正で、`worlds/` の md はユーザが db を読み書きするための窓口**。Claude は db だけで作業を完結させ、
+md を読んで判断したり、md を直接書き換えたりはしない(worlds/**/*.md は直接変更しない)。
 
-worlds/**/*.markdownファイルは直接変更しない。
-db を修正する作業は、import_db → 入口越しの修正 → export_db の順で回す(ローカルでもクラウドでも同じ)。
-修正の後に import_db(sync_db)を回すと、md の古い内容で修正が消える。
-修正したレコードが巻き戻った場合は、importされたものを優先する。ユーザの直接編集を優先する。
+同期は入口 `sync.sync_db.SyncDb()`(`tool.markdown.sync_db`)で行う。差分だけを動かすので、いつ何度呼んでもよい。
+
+- `worlds/` の隣の `.markdown_sync.json`(台帳)に、md ごとに前回の同期時点の md と db の中身のハッシュを持つ
+- 取り込み(`import_db`)は、台帳と中身が違う md(ユーザが手で直した・足した md)だけを db へ入れる。
+  台帳が無ければすべての md を取り込む
+- 書き出し(`export_db`)は、db と中身が違う md だけを書き直し、db に行が無くなった md を消す。
+  手で直された md が残っていれば止まる(`force=True` で md を捨てて押し切る)
+- `sync_db` は取り込み → 書き出しの順に回す。同じ行を md と db の両方で直していたら、
+  md(ユーザの直接編集)を勝たせ、`conflicts` に返す。返ってきたら db 側でした修正をやり直す
+- 同期は `worlds/` の隣の `.markdown_sync.lock` で、セッションをまたいで一度に一つだけ走る
+
+db を修正する作業は、入口越しの修正 → `SyncDb()` の順で回す(ローカルでもクラウドでも同じ)。
+ユーザが md を直していそうなら、作業の前にも `SyncDb()` を回して取り込んでおく。
 
 
 # schema の確認方法

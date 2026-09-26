@@ -15,7 +15,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 | 依頼内容(言い回しの例)           | 呼ぶコード                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------- |
-| 「同期して」「sync_db」             | `sync.import_db.ImportDb()` → `sync.export_db.ExportDb()`(= `sync_db`)。件数を辞書で返す。`ExportDb` は前回の同期より後に手で書かれた md があれば止まる(`ExportDb(force=True)` で押し切る) |
+| 「同期して」「sync_db」             | `sync.sync_db.SyncDb()`。手で直された md だけを取り込み、db と食い違う md だけを書き直す。`{"imported", "conflicts", "written", "removed"}` を返す。`conflicts` は md と db の両方で直されていて md を勝たせたもの。取り込み・書き出しを片方だけ回すなら `sync.import_db.ImportDb()` / `sync.export_db.ExportDb()`(手で直された md が残っていれば止まる。`ExportDb(force=True)` で押し切る) |
 | 「どんな場所がある?」「村の一覧」   | `world.list_places.ListPlaces(kind=None)`                                    |
 | 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
@@ -164,7 +164,7 @@ claude が対話で書くときは、自分で語と言い換えを挙げて `Re
 
 前日譚をここで閉じる。父の顔は最後まで見せない。
 ```
-- `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`../worlds/maps/map.html`・
+- `SyncDb` / `ExportDb` は md の写しに加えて、星ごとの地図 `{id}_map.svg`・`../worlds/maps/map.html`・
   人物相関の `../worlds/maps/relation.html` も描く。`ImportDb` は md → db の逆向き
 - 場所の輪郭は `polygon` 欄(GeoJSON の Polygon。`[[経度, 緯度], ...]` の環を渡せば
   閉じて揃える)で `CommitPlace` / `UpdatePlace` から入れる。経緯度が無い面の場所

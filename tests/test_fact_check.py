@@ -12,6 +12,7 @@ from ai.claude_code.interface.randomizer.commit_oracle import CommitOracle
 from ai.time_keeper import constants, meme
 from db.schema import Idea, Meme, Oracle
 from tool.markdown.export_db import export_db
+from tool.markdown import sync_manifest
 from tool.markdown.import_db import import_db
 
 
@@ -229,6 +230,8 @@ def test_check_round_trips_through_markdown(session, tmp_path):
 
     session.get(Idea, 5).fact_check = None
     session.commit()
+    # 台帳が無ければ md をすべて取り込むので、db 側の変更より md が勝つ
+    os.remove(sync_manifest.manifest_path(root))
     import_db(root)
 
     session.expire_all()

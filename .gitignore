@@ -8,4 +8,4 @@ backup
 
 tmp
 .pytest_cache
-.markdown_sync
+.markdown_sync*

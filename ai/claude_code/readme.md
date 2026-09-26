@@ -52,12 +52,11 @@ claude_main(year=2027, max_days=30)
 
 ```
 .venv/bin/python -c "
-from ai.claude_code.interface.sync.import_db import ImportDb
-from ai.claude_code.interface.sync.export_db import ExportDb
+from ai.claude_code.interface.sync.sync_db import SyncDb
 from ai.claude_code.claude_code_time_keeper import claude_daily_event_main
-ImportDb().run()
+SyncDb().run()
 claude_daily_event_main()
-ExportDb().run()
+SyncDb().run()
 "
 ```
 

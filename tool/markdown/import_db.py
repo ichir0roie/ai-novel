@@ -10,10 +10,11 @@ import shutil
 from db.child_lists import ChildListError, load_children
 from db.schema import NOVEL_DB_PATH, WORLDS_ROOT, Base, MarkdownBase, StampType, get_novel_session
 from db.stamp import Stamp
-from tool.markdown import export_db, sync_stamp
+from tool.markdown import export_db
+from tool.markdown.sync_manifest import Manifest, digest, locked, read_text
 
 
-__all__ = ["WORLDS_ROOT", "ImportDbError", "import_db"]
+__all__ = ["WORLDS_ROOT", "ImportDbError", "import_db", "import_changes"]
 
 
 class ImportDbError(ValueError):
@@ -57,11 +58,9 @@ def _parse(content: str, names: tuple[str, ...]) -> tuple[dict, dict[str, str]]:
 
 def _upsert(
     session, model: type, columns: set[str], stamp_columns: set[str],
-    path: str, directory_path: str | None,
-):
-    with open(path, encoding="utf-8") as f:
-        content = f.read()
-
+    path: str, directory_path: str | None, content: str, manifest: Manifest,
+) -> tuple[object, bool]:
+    """md を一件 db へ入れる。db 側も前回の同期から変わっていたら、衝突として True を返す。"""
     stem = os.path.basename(path)[: -len(".md")]
     row_id, stem_values = model.parse_markdown_stem(stem)
 
@@ -86,6 +85,10 @@ def _upsert(
     values.update(sections)
 
     row = session.get(model, row_id) if row_id is not None else None
+    entry = manifest.get(path)
+    conflict = False
+    if entry is not None and entry["table"] == model.__tablename__ and entry["id"] == row_id:
+        conflict = row is None or digest(export_db.render_row(model, row)) != entry["db"]
     # md 名は前回の書き出し時の名前のままなので、`# data` で名前を直した md は直す前の名前と比べる
     default_filenames = {row.default_filename()} if row is not None else set()
     if row is None:
@@ -104,53 +107,94 @@ def _upsert(
     if row.filename is not None and row.filename in default_filenames:
         row.filename = None
     session.flush()
+    rendered = export_db.render_row(model, row)
     if row_id is None:
         # 採番した id を md 側にも残す(名前か `# data` のどちらかに入る)
         os.remove(path)
-        export_db._write(os.path.join(os.path.dirname(path), row.markdown_name),
-                         export_db._row_data(model, row, export_db.IGNORE_COLUMNS), sections)
+        path = os.path.join(os.path.dirname(path), row.markdown_name)
+        export_db._write(path, rendered)
+        content = rendered
+    manifest.set(path, model.__tablename__, row.id, digest(content), digest(rendered))
+    return row, conflict
+
+
+def _unchanged_row(session, model: type, path: str, directory_path: str | None, content: str):
+    """md が db の行をそのまま書き出した中身と同じなら、その行を返す(取り込まなくてよい)。"""
+    stem = os.path.basename(path)[: -len(".md")]
+    row_id, _stem_values = model.parse_markdown_stem(stem)
+    if row_id is None:
+        data_match = _DATA_RE.search(content)
+        if not data_match:
+            return None
+        data_id = json.loads(data_match.group(1)).get("id")
+        row_id = int(data_id) if data_id is not None else None
+    row = session.get(model, row_id) if row_id is not None else None
+    if (row is None or row.directory_path != directory_path
+            or os.path.basename(path) != row.markdown_name
+            or export_db.render_row(model, row) != content):
+        return None
     return row
 
 
-def _process_table_dir(
-    session, model: type, columns: set[str], stamp_columns: set[str], table_dir: str,
-) -> int:
-    count = 0
-    for dirpath, _dirnames, filenames in os.walk(table_dir):
-        relative = os.path.relpath(dirpath, table_dir)
-        directory_path = None if relative == "." else relative.replace(os.sep, "/")
-        for filename in sorted(filenames):
-            if not filename.endswith(".md"):
-                continue
-            _upsert(session, model, columns, stamp_columns, os.path.join(dirpath, filename), directory_path)
-            count += 1
-    return count
+def _edited_files(root: str, manifest: Manifest) -> list[tuple[type, str, str | None, str]]:
+    edited = []
+    for table_name, model in _markdown_models().items():
+        table_dir = os.path.join(root, table_name)
+        for dirpath, _dirnames, filenames in os.walk(table_dir):
+            relative = os.path.relpath(dirpath, table_dir)
+            directory_path = None if relative == "." else relative.replace(os.sep, "/")
+            for filename in sorted(filenames):
+                if not filename.endswith(".md"):
+                    continue
+                path = os.path.join(dirpath, filename)
+                content = read_text(path)
+                if manifest.edited(path, content):
+                    edited.append((model, path, directory_path, content))
+    return edited
 
 
-def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
+def _backup() -> None:
     date_str = datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = f"backup/{date_str}.db.bk"
     os.makedirs(os.path.dirname(backup_path), exist_ok=True)
     shutil.copy(NOVEL_DB_PATH, backup_path)
 
-    models_by_table = _markdown_models()
 
+def import_changes(session, root: str, manifest: Manifest) -> dict:
+    """前回の同期より後に手で直された(または足された)md だけを db へ入れる。commit はしない。
+
+    db 側も同じ行を直していたら md の方を勝たせ、その md を `conflicts` に返す。
+    """
+    edited = []
+    for model, path, directory_path, content in _edited_files(root, manifest):
+        # 台帳が無い・古いだけで、db と同じ中身の md(git で両方そろって入ってきたものなど)は台帳に載せるだけにする
+        row = _unchanged_row(session, model, path, directory_path, content)
+        if row is None:
+            edited.append((model, path, directory_path, content))
+        else:
+            manifest.set(path, model.__tablename__, row.id, digest(content), digest(content))
+    if edited:
+        _backup()
     counts: dict[str, int] = {}
-    with get_novel_session() as session:
-        for table_name, model in models_by_table.items():
-            table_dir = os.path.join(root, table_name)
-            if not os.path.isdir(table_dir):
-                continue
+    conflicts = []
+    for model, path, directory_path, content in edited:
+        columns = {column.key for column in model.__table__.columns}
+        stamp_columns = {
+            column.key for column in model.__table__.columns
+            if isinstance(column.type, StampType)
+        }
+        _row, conflict = _upsert(session, model, columns, stamp_columns, path, directory_path, content, manifest)
+        if conflict:
+            conflicts.append(path)
+        counts[model.__tablename__] = counts.get(model.__tablename__, 0) + 1
+    return {"counts": counts, "conflicts": conflicts}
 
-            columns = {column.key for column in model.__table__.columns}
-            stamp_columns = {
-                column.key for column in model.__table__.columns
-                if isinstance(column.type, StampType)
-            }
 
-            counts[table_name] = _process_table_dir(session, model, columns, stamp_columns, table_dir)
-
-        session.commit()
-
-    sync_stamp.mark_synced(root)
-    return counts
+def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
+    with locked(root):
+        manifest = Manifest(root)
+        with get_novel_session() as session:
+            result = import_changes(session, root, manifest)
+            session.commit()
+        manifest.save()
+    return result["counts"]
