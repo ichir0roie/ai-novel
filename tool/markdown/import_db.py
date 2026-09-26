@@ -9,8 +9,10 @@ import shutil
 
 from sqlalchemy import delete, select
 
+from ai.claude_code import ai_client
+from ai.time_keeper import idea_kind
 from db.child_lists import ChildListError, load_children
-from db.schema import NOVEL_DB_PATH, WORLDS_ROOT, Base, MarkdownBase, StampType, get_novel_session
+from db.schema import NOVEL_DB_PATH, WORLDS_ROOT, Base, Idea, MarkdownBase, StampType, get_novel_session
 from db.stamp import Stamp
 from tool.markdown import export_db
 from tool.markdown.sync_manifest import Manifest, digest, locked, read_text
@@ -93,6 +95,8 @@ def _upsert(
         conflict = row is None or digest(export_db.render_row(model, row)) != entry["db"]
     # md 名は前回の書き出し時の名前のままなので、`# data` で名前を直した md は直す前の名前と比べる
     default_filenames = {row.default_filename()} if row is not None else set()
+    if model is Idea and not values.get("kind", row.kind if row is not None else None):
+        values["kind"] = idea_kind.judge(session, values.get("name"), values.get("text"), directory_path, ai_client)
     if row is None:
         row = model(**values)
         session.add(row)

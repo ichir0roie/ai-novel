@@ -15,7 +15,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 | 依頼内容(言い回しの例)           | 呼ぶコード                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------- |
-| 「同期して」「sync_db」             | `sync.sync_db.SyncDb()`。手で直された md だけを取り込み、手で消された md の行を db から消し(md に出さない要約・中間テーブル・子の行も一緒に消す。残っている他の md の行が指していれば止まる)、db と食い違う md だけを書き直す。`{"imported", "deleted", "conflicts", "written", "removed"}` を返す。`deleted` は手で消されて行を消した md、`conflicts` は md と db の両方で直されていて md を勝たせたもの。取り込み・書き出しを片方だけ回すなら `sync.import_db.ImportDb()` / `sync.export_db.ExportDb()`(手で直された・消された md が残っていれば止まる。`ExportDb(force=True)` で押し切る) |
+| 「同期して」「sync_db」             | `sync.sync_db.SyncDb()`。手で直された md だけを取り込み、手で消された md の行を db から消し(md に出さない要約・中間テーブル・子の行も一緒に消す。残っている他の md の行が指していれば止まる)、db と食い違う md だけを書き直す。`{"imported", "deleted", "conflicts", "written", "removed"}` を返す。`deleted` は手で消されて行を消した md、`conflicts` は md と db の両方で直されていて md を勝たせたもの。`# data` の無い手書きの md は、md 名を `filename` のほか場所・人物・アイデア・作品の `name` にも使い、種別(`kind`)の無いアイデアは AI が既にある種別から選んで付ける(応答が使えなければ「概念」)。取り込み・書き出しを片方だけ回すなら `sync.import_db.ImportDb()` / `sync.export_db.ExportDb()`(手で直された・消された md が残っていれば止まる。`ExportDb(force=True)` で押し切る) |
 | 「どんな場所がある?」「村の一覧」   | `world.list_places.ListPlaces(kind=None)`                                    |
 | 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |

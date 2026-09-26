@@ -112,6 +112,8 @@ class MarkdownBase(Base):
     TEXT_SECTIONS: tuple[str, ...] = ("text",)
     # `# data` に子の行の配列として出し入れする relationship の名前
     CHILD_LISTS: tuple[str, ...] = ()
+    # md 名の既定にする列。`# data` の無い手書きの md では、この列を md 名から埋める
+    NAME_COLUMN: str | None = None
 
     text: Mapped[str] = mapped_column(String,  nullable=False, sort_order=10000)
 
@@ -125,7 +127,7 @@ class MarkdownBase(Base):
                 "空なら {id}.md。テーブルが持つ name 等の列とは別物")
 
     def default_filename(self) -> str | None:
-        return None
+        return getattr(self, self.NAME_COLUMN) if self.NAME_COLUMN else None
 
     @property
     def markdown_name(self) -> str:
@@ -135,9 +137,11 @@ class MarkdownBase(Base):
     @classmethod
     def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
         id_part, _, filename_part = stem.partition("_")
-        if id_part.isdigit():
-            return int(id_part), {"filename": filename_part or None}
-        return None, {"filename": stem}
+        row_id, filename = (int(id_part), filename_part or None) if id_part.isdigit() else (None, stem)
+        values = {"filename": filename}
+        if cls.NAME_COLUMN and filename:
+            values[cls.NAME_COLUMN] = filename
+        return row_id, values
 
 
 class Location(MarkdownBase):
@@ -186,8 +190,7 @@ class Location(MarkdownBase):
         remote_side="Location.id", viewonly=True, lazy="noload")
     children: Mapped[list[Location]] = relationship(viewonly=True)
 
-    def default_filename(self) -> str | None:
-        return self.name
+    NAME_COLUMN = "name"
 
 
 class EventSeededMixin:
@@ -371,8 +374,7 @@ class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
     # 名字・体格・口調・性格は期間ごとに CharacterParameter が持ち、md では `# data` の parameters に並ぶ。
     CHILD_LISTS = ("parameters",)
 
-    def default_filename(self) -> str | None:
-        return self.name
+    NAME_COLUMN = "name"
 
     def parameters_at(self, time=None) -> dict:
         return resolve_parameters(self.parameters, time)
@@ -538,8 +540,7 @@ class Idea(FactCheckMixin, MemeSeededMixin, MarkdownBase):
                 "空の列はどこでも・いつでも使う。当てはまる呼び名が無ければ本質の name をそのまま使う",
         sort_order=260)
 
-    def default_filename(self) -> str | None:
-        return self.name
+    NAME_COLUMN = "name"
 
 
 class Story(EventSeededMixin, MarkdownBase):
@@ -566,8 +567,7 @@ class Story(EventSeededMixin, MarkdownBase):
         back_populates="story", lazy="noload",
         order_by="[Episode.start.asc().nulls_last(), Episode.id.asc()]")
 
-    def default_filename(self) -> str | None:
-        return self.name
+    NAME_COLUMN = "name"
 
 
 class Episode(EventSeededMixin, MarkdownBase):

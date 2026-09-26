@@ -19,8 +19,9 @@ def test_name_only_file_is_renamed_with_assigned_id(session, tmp_path):
     counts = import_db(root)
     assert counts["location"] == 2
 
-    rows = {r.filename: r for r in session.query(Location).all()}
+    rows = {r.name: r for r in session.query(Location).all()}
     assert set(rows) == {"新しい村", "隠れ里"}
+    assert {r.filename for r in rows.values()} == {None}
     assert rows["新しい村"].text == "本文" and rows["新しい村"].kind == "村"
     assert rows["隠れ里"].directory_path == "奥"
 

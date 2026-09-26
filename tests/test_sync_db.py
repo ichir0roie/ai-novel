@@ -3,11 +3,13 @@ import time
 
 import pytest
 
+from ai.claude_code import ai_client
+from ai.time_keeper.idea_search import DEFAULT_KIND
 from ai.claude_code.interface.sync.export_db import ExportDb, ExportError
 from ai.claude_code.interface.sync.import_db import ImportDb
 from ai.claude_code.interface.sync.sync_db import SyncDb
 from tool.markdown.import_db import ImportDbError
-from db.schema import Character, CharacterParameter, CharacterPlace, Location
+from db.schema import Character, CharacterParameter, CharacterPlace, Idea, Location
 from tool.markdown import sync_manifest
 
 
@@ -193,10 +195,38 @@ def test_new_hand_written_markdown_gets_id(session, root):
 
     result = SyncDb(root).run()
     assert result["imported"] == {"location": 1}
-    row = session.query(Location).filter_by(filename="新しい村").one()
+    row = session.query(Location).filter_by(name="新しい村").one()
+    assert row.filename is None
     assert os.path.exists(_md(root, f"{row.id}_新しい村.md"))
     assert not os.path.exists(_md(root, "新しい村.md"))
     assert SyncDb(root).run()["written"] == []
+
+
+def test_hand_written_markdown_without_data_takes_name_from_markdown_name(session, root, monkeypatch):
+    prompts = []
+    monkeypatch.setattr(ai_client, "try_generate_json", lambda prompt, *a, **k: prompts.append(prompt) or {"kind": "歴史"})
+    ExportDb(root).run()
+    path = os.path.join(root, "idea", "歴史", "古代.md")
+    os.makedirs(os.path.dirname(path))
+    _hand_edit(path, "\n\n5000年に到着した。\n")
+
+    result = SyncDb(root).run()
+    assert result["imported"] == {"idea": 1}
+    row = session.query(Idea).filter_by(name="古代").one()
+    assert (row.kind, row.filename, row.directory_path, row.text) == ("歴史", None, "歴史", "\n\n5000年に到着した。")
+    assert "5000年に到着した。" in prompts[0]
+    assert os.path.exists(os.path.join(root, "idea", "歴史", f"{row.id}_古代.md"))
+    assert SyncDb(root).run()["written"] == []
+
+
+def test_hand_written_idea_falls_back_to_default_kind_when_ai_fails(session, root):
+    ExportDb(root).run()
+    path = os.path.join(root, "idea", "古代.md")
+    os.makedirs(os.path.dirname(path))
+    _hand_edit(path, "本文\n")
+
+    SyncDb(root).run()
+    assert session.query(Idea).filter_by(name="古代").one().kind == DEFAULT_KIND
 
 
 def test_without_manifest_only_markdown_differing_from_db_is_imported(session, root):
