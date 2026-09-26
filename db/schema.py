@@ -4,6 +4,7 @@ from __future__ import annotations
 import enum
 import hashlib
 import os
+import re
 
 from sqlalchemy import (
     BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator,
@@ -493,7 +494,8 @@ class Story(EventSeededMixin, MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
     episodes: Mapped[list["Episode"]] = relationship(
-        back_populates="story", lazy="noload", order_by="Episode.number.asc()")
+        back_populates="story", lazy="noload",
+        order_by="[Episode.start.asc().nulls_last(), Episode.id.asc()]")
 
     def default_filename(self) -> str | None:
         return self.name
@@ -507,8 +509,6 @@ class Episode(EventSeededMixin, MarkdownBase):
 
     story_id: Mapped[int] = mapped_column(Integer, ForeignKey("story.id"), sort_order=200)
     story: Mapped[Story] = relationship(back_populates="episodes", lazy="noload")
-    number: Mapped[int | None] = mapped_column(
-        Integer, comment="話数。ファイル名の数がそのまま入る。**ゼロ埋めしない**", sort_order=210)
     title: Mapped[str] = mapped_column(
         String,  comment="サブタイトル。本文の見出しから読む", sort_order=220)
     letters: Mapped[int | None] = mapped_column(Integer, comment="字数", sort_order=230)
@@ -519,7 +519,8 @@ class Episode(EventSeededMixin, MarkdownBase):
                 "オフの話があるあいだは、次の話の材料を読み出せない",
         sort_order=240)
 
-    start: Mapped[Stamp | None] = mapped_column(StampType, comment="話が立つ時刻", sort_order=250)
+    start: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="話が立つ時刻。作品の中の話はこの順に並ぶ(空の話は後ろに id 順)", sort_order=250)
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
     viewpoint: Mapped[str | None] = mapped_column(
         String, comment="視点。誰に寄って語るか(「ノア(十四歳)」「アウレア / ミレア」)", sort_order=270)
@@ -536,20 +537,37 @@ class Episode(EventSeededMixin, MarkdownBase):
 
     @property
     def markdown_name(self) -> str:
-        head = f"{self.story_id}_{self.number}" if self.number is not None else f"{self.story_id}"
+        head = f"{self.story_id}_{episode_stamp_stem(self.start)}"
         return f"{head}_{self.title.replace('/', '／')}.md" if self.title else f"{head}.md"
 
     @classmethod
     def parse_markdown_stem(cls, stem: str) -> tuple[int | None, dict]:
-        # 名前は id を持たない({story_id}_{number}_{title})。行の取り違えを避けるため id は `# data` から読む
+        # 名前は id を持たない({story_id}_{start}_{title})。行の取り違えを避けるため id は `# data` から読む
         story_part, _, rest = stem.partition("_")
         if not story_part.isdigit():
             return super().parse_markdown_stem(stem)
-        number_part, _, title_part = rest.partition("_")
-        if number_part.isdigit():
-            return None, {"story_id": int(story_part), "number": int(number_part),
+        stamp_part, _, title_part = rest.partition("_")
+        if stamp_part == "" or _EPISODE_STAMP.match(stamp_part):
+            return None, {"story_id": int(story_part), "start": parse_episode_stamp_stem(stamp_part),
                           "title": title_part or None}
         return None, {"story_id": int(story_part), "title": rest or None}
+
+
+_EPISODE_STAMP = re.compile(r"^\d+-\d{2}-\d{2}-\d{4}$")
+
+
+def episode_stamp_stem(start: Stamp | None) -> str:
+    """話の md 名の時刻。`/` `:` を名前に置けないので `年-月-日-時分` にする。空なら空文字"""
+    if start is None:
+        return ""
+    return f"{start.year}-{start.month:02d}-{start.day:02d}-{start.hour:02d}{start.minute:02d}"
+
+
+def parse_episode_stamp_stem(stem: str) -> Stamp | None:
+    if not stem:
+        return None
+    year, month, day, clock = stem.split("-")
+    return Stamp(int(year), int(month), int(day), int(clock[:2]), int(clock[2:]))
 
 
 class EpisodeSummary(Base):

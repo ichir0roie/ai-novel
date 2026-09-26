@@ -50,7 +50,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「ミームと要約の取りこぼしをまとめて作って」 | `meme.refresh_generated_content.RefreshGeneratedContent()`。`ExtractMemes` に加えて、まだ要約の無い出来事・話もすべて見て `event_summary` / `episode_summary` を作る。`CommitEvent` / `CommitStory` / `CommitEpisode` は確定した一件だけを見るので、md を直接編集して `import_db` した分などの取りこぼしを拾うのはこちら |
 | 「作品の一覧」                       | `story.list_stories.ListStories()`                                           |
 | 「話を書き始める」「次の話を書く」   | `story.start_story.StartStory(story_id)`。同期確認・見出し・直前の話・断面・顔ぶれを一度に出す |
-| 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)` |
+| 「前の話を読ませて」                 | `story.read_episodes.ReadEpisodes(story_id, count=10, before=None, text=True)`。`before` は時刻で、start がそれより前の話に絞る |
 | 「その時点の顔ぶれは?」             | `story.read_cast.ReadCast(story_id, time=None)`                              |
 | 「その場所・その時点の様子は?」     | `story.read_brief.ReadBrief(place_id, time)`                                 |
 | 「この人物の周りで何が起きている?」 | `story.read_surroundings.ReadSurroundings(character_id, time)`               |
@@ -58,9 +58,9 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「作品を作る」「筋書きを足して」     | `story.commit_story.CommitStory(story)`。筋書きは作品の `text` に書く        |
 | 「作品を直して」「筋書きを直して」   | `story.update_story.UpdateStory(story)`                                      |
 | 「作品を消して」                     | `story.delete_story.DeleteStory(story_id)`。話が残っていれば止まる           |
-| 「本文を確定する」「話の種を入れる」 | `story.commit_episode.CommitEpisode(episode)`。`key`(種)か `text`(本文)のどちらかがあればよい |
+| 「本文を確定する」「話の種を入れる」 | `story.commit_episode.CommitEpisode(episode)`。`id` を渡せばその話を直し(渡した欄だけ)、省けば `story_id` の作品に新しい話を足す。`key`(種)か `text`(本文)のどちらかがあればよい。話に番号は無く、作品の中では `start` の順に並ぶ(`start` の無い話は後ろに id 順)。あいだに話を足すときは、前後の話のあいだの `start` を付ける |
 | 「未同期の話は残ってる?」           | `story.list_unsynced_episodes.ListUnsyncedEpisodes(story_id=None)`           |
-| 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(story_id, number, synced=True)`   |
+| 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(episode_id, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
 | 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `daily_event`。主役を決めるなら `character_id` を渡す。「〇〇の17歳の出来事」のように歳を決めるなら `age` も渡す(直前の出来事の後ではなく、その歳のうちに差し込む) |
 
@@ -124,7 +124,8 @@ claude が対話で書くときは、自分で語と言い換えを挙げて `Re
   検めない(`fact_check` が空のまま)ので、`CheckFacts("meme")` で後から埋める
 - 話(`episode`)の md だけは `# data` `# key` `# text` の三節を持つ。`# key` は作者が
   入れる種(AI 生成前)、`# text` は AI か作者が書く、投稿する本文。時期・場所・視点は
-  `# data` の `start` / `end` / `place` / `viewpoint` に入る
+  `# data` の `start` / `end` / `place` / `viewpoint` に入る。md の名前は `{story_id}_{start}_{title}.md`
+  (start は `年-月-日-時分`。start の無い話は `{story_id}__{title}.md`)。同じ日の話は時分で並べ分ける
 - 本文は一話 5000〜8000 字(`ai/instructions/style.py` の `EPISODE_TARGET_LETTERS`)。
   場面の数と一場面の長さは決めず、中身に合わせる。**書く直前に種を場面まで割ってから本文に入る**。種はその話ぶんで 300〜500 字を目安に、
   `## 場面` の箇条書き(`場所 / 出る人 / そこで変わること`)と `## 狙い` で書く:

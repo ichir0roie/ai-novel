@@ -6,14 +6,13 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
-
 from ai.instructions.style import EPISODE_STYLE_INSTRUCTION
 from ai.claude_code import ai_client
 from ai.claude_code.interface.story import _rows
 from ai.time_keeper import episode_summary, idea_context
 from data_access_logic.query import common_query
 from db.schema import Episode, Session, get_env_session
+from db.schema_pydantic import to_dict_with
 
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
@@ -45,27 +44,27 @@ def _dump(value) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
-def _episode(session: Session, story_id: int, number: int) -> Episode | None:
-    return session.scalars(
-        select(Episode).where(Episode.story_id == story_id,
-                              Episode.number == number)).first()
+def _ordered(session: Session, story_id: int) -> list[Episode]:
+    return list(session.scalars(common_query.story_episodes_select(story_id)).all())
 
 
-def _next_number(session: Session, story_id: int) -> int:
-    rows = session.scalars(
-        select(Episode).where(Episode.story_id == story_id)
-        .order_by(Episode.number)).all()
-    written = [record.number for record in rows if (record.text or "").strip()]
-    return (max(written) if written else 0) + 1
+def _target_index(rows: list[Episode], episode_id: int | None) -> int:
+    """書く話の位置。`episode_id` を省くと、本文の入っている最後の話の次。
+    その位置に種だけの話があればそれを埋め、無ければ末尾に新しい話を足す(len(rows) を返す)。
+    """
+    if episode_id is not None:
+        for index, record in enumerate(rows):
+            if record.id == int(episode_id):
+                return index
+        raise ValueError(f"id={episode_id} という話がこの作品に無い")
+    written = [index for index, record in enumerate(rows) if (record.text or "").strip()]
+    return (written[-1] + 1) if written else 0
 
 
-def _blocking_unsynced(session: Session, story_id: int, number: int) -> list[int]:
+def _blocking_unsynced(rows: list[Episode], index: int) -> list[dict]:
     """本文がまだ無い話(種だけ入れてある先の話)は、書きようがないので数えない。"""
-    rows = session.scalars(
-        select(Episode).where(Episode.story_id == story_id,
-                              Episode.number < number,
-                              Episode.synced.is_(False))).all()
-    return [record.number for record in rows if (record.text or "").strip()]
+    return [{"id": record.id, "title": record.title} for record in rows[:index]
+            if (record.text or "").strip() and not record.synced]
 
 
 def _episode_recap(session: Session, episode: dict) -> dict:
@@ -91,10 +90,10 @@ def _recap(session: Session, episodes: list[dict]) -> dict:
 
 def _materials(
     session: Session, story_id: int, time, *,
-    number: int, episodes: int, count: int, reach: int, levels: int,
+    rows: list[Episode], index: int, episodes: int, count: int, reach: int, levels: int,
 ) -> dict:
     story = common_query.get_story(session, story_id)
-    unsynced = _blocking_unsynced(session, story_id, number)
+    unsynced = _blocking_unsynced(rows, index)
     result = {
         "story": _rows.story_digest(session, story),
         "unsynced": unsynced,
@@ -106,29 +105,28 @@ def _materials(
         raise ValueError(f"作品 {story.name} に立つ場所(place_id)が無い")
     _, until = common_query.resolve_time(session, time, story)
     result["time"] = str(until)
-    result["episodes"] = _rows.episodes(session, story_id, count=episodes, before=number)
+    result["episodes"] = [to_dict_with(record) for record in rows[max(0, index - episodes):index]]
     result["cast"] = _rows.cast(session, story_id, until, count=count, levels=levels)
     result["brief"] = _rows.brief(session, story.place_id, until, reach=reach)
     return result
 
 
 def write_next_episode(
-    session: Session, story_id: int, time=None, *, number: int | None = None,
+    session: Session, story_id: int, time=None, *, episode_id: int | None = None,
     episodes: int = RECAP_EPISODE_LIMIT, count: int = 5, reach: int = 60, levels: int = 1,
 ) -> Episode | None:
     story_row = common_query.get_story(session, story_id)
-    if number is None:
-        number = _next_number(session, story_id)
-    number = int(number)
+    rows = _ordered(session, story_id)
+    index = _target_index(rows, episode_id)
 
-    materials = _materials(session, story_id, time, number=number,
+    materials = _materials(session, story_id, time, rows=rows, index=index,
                            episodes=episodes, count=count, reach=reach, levels=levels)
     story = materials["story"]
     if materials["stopped"]:
         print(f"[claude_ai/story] {story['name']}: 未同期の話 {materials['unsynced']} が残っているので書かない")
         return None
 
-    record = _episode(session, story_id, number)
+    record = rows[index] if index < len(rows) else None
     seed = (record.key or "").strip() if record is not None else ""
     context = (idea_context.gather(session, seed, ai_client, story_row.place_id, materials["time"])
                if seed else idea_context.IdeaContext())
@@ -150,18 +148,18 @@ def write_next_episode(
         lines.append(idea_context.prompt_section(context.related, context.called))
     if record is not None and (record.viewpoint or record.place):
         lines.append(f"視点と場所: {record.viewpoint or ''} / {record.place or ''}")
-    lines.append(f"この作品の第{number}話を書いてください。")
+    lines.append("この作品の次の話を書いてください。")
 
     decided = ai_client.try_generate_json(
         "\n".join(lines), _SCHEMA, system=_SYSTEM_PROMPT, timeout=EPISODE_TIMEOUT)
     text = (decided.get("text") or "").strip()
     if not text:
-        print(f"[claude_ai/story] {story['name']} 第{number}話: 本文が得られなかったので見送り")
+        print(f"[claude_ai/story] {story['name']}: 本文が得られなかったので見送り")
         return None
     title = (decided.get("title") or "").strip()
 
     if record is None:
-        record = Episode(story_id=story_id, number=number, title=title,
+        record = Episode(story_id=story_id, title=title,
                          text=text, letters=len(text), synced=True)
         session.add(record)
     else:
@@ -172,18 +170,19 @@ def write_next_episode(
     session.flush()
     idea_context.link(session, record, context.linked)
     session.commit()
-    print(f"[claude_ai/story] {story_row.name} 第{record.number}話「{record.title}」"
+    print(f"[claude_ai/story] {story_row.name}「{record.title}」"
           f" id={record.id} {record.letters}字")
     return record
 
 
 def write_story(story_id: int, episodes_to_write: int = 1, time=None,
-                number: int | None = None) -> list[Episode]:
+                episode_id: int | None = None) -> list[Episode]:
+    """`episode_id` は一話目にだけ効く。二話目からは、本文の入っている最後の話の次を書く"""
     written: list[Episode] = []
     with get_env_session() as session:
         for offset in range(episodes_to_write):
-            target = None if number is None else int(number) + offset
-            record = write_next_episode(session, story_id, time, number=target)
+            target = episode_id if offset == 0 else None
+            record = write_next_episode(session, story_id, time, episode_id=target)
             if record is None:
                 break
             written.append(record)

@@ -43,7 +43,7 @@ def world(session):
 
 def _episodes(session, story_id, numbers, *, synced=True):
     for number in numbers:
-        session.add(Episode(story_id=story_id, number=number, title=f"第{number}話",
+        session.add(Episode(story_id=story_id, start=Stamp(2100, 1, number), title=f"第{number}話",
                             text=f"本文{number}", synced=synced))
     session.commit()
 
@@ -57,8 +57,8 @@ def test_list_stories_counts_episodes(session, world):
     assert stories[0]["name"] == "村の話"
     assert stories[0]["place_name"] == "村"
     assert stories[0]["episode_count"] == 3
-    assert stories[0]["last_episode"] == 3
-    assert stories[0]["unsynced"] == [3]
+    assert stories[0]["last_episode"]["title"] == "第3話"
+    assert [row["title"] for row in stories[0]["unsynced"]] == ["第3話"]
 
 
 def test_delete_story_returns_deleted_row(session, world):
@@ -86,8 +86,9 @@ def test_delete_story_rejects_unknown_id():
 def test_read_episodes_returns_latest_in_order(session, world):
     _episodes(session, world["story"], range(1, 6))
 
-    assert [e["number"] for e in ReadEpisodes(world["story"], count=3).run()] == [3, 4, 5]
-    assert [e["number"] for e in ReadEpisodes(world["story"], count=2, before=4).run()] == [2, 3]
+    assert [e["title"] for e in ReadEpisodes(world["story"], count=3).run()] == ["第3話", "第4話", "第5話"]
+    assert [e["title"] for e in ReadEpisodes(world["story"], count=2, before="2100/01/04").run()] == [
+        "第2話", "第3話"]
     assert ReadEpisodes(world["story"], count=1).run()[0]["text"] == "本文5"
     assert "text" not in ReadEpisodes(world["story"], count=1, text=False).run()[0]
 
@@ -106,23 +107,25 @@ def test_list_unsynced_episodes(session, world):
     _episodes(session, other.id, [1], synced=False)
 
     rows = ListUnsyncedEpisodes().run()
-    assert [(row["story_id"], row["number"]) for row in rows] == [(world["story"], 2), (other.id, 1)]
+    assert [(row["story_id"], row["title"]) for row in rows] == [(world["story"], "第2話"), (other.id, "第1話")]
     assert rows[0]["story_name"] == "村の話"
-    assert [row["number"] for row in ListUnsyncedEpisodes(world["story"]).run()] == [2]
+    assert rows[0]["start"] == "2100/01/02 00:00:00"
+    assert [row["title"] for row in ListUnsyncedEpisodes(world["story"]).run()] == ["第2話"]
 
 
 def test_set_episode_synced_toggles_flag(session, world):
     _episodes(session, world["story"], [1], synced=False)
+    episode_id = session.query(Episode).one().id
 
-    assert SetEpisodeSynced(world["story"], 1).run()["synced"] is True
+    assert SetEpisodeSynced(episode_id).run()["synced"] is True
     assert ListUnsyncedEpisodes(world["story"]).run() == []
-    assert SetEpisodeSynced(world["story"], 1, False).run()["synced"] is False
-    assert [row["number"] for row in ListUnsyncedEpisodes(world["story"]).run()] == [1]
+    assert SetEpisodeSynced(episode_id, False).run()["synced"] is False
+    assert [row["id"] for row in ListUnsyncedEpisodes(world["story"]).run()] == [episode_id]
 
 
 def test_set_episode_synced_rejects_missing_episode(world):
     with pytest.raises(UnknownRecordError):
-        SetEpisodeSynced(world["story"], 9).run()
+        SetEpisodeSynced(9999).run()
 
 
 def test_read_brief_hides_hidden_events(session, world):
@@ -196,7 +199,7 @@ def test_start_story_stops_on_unsynced_episode(session, world):
 
     result = StartStory(world["story"]).run()
     assert result["stopped"] is True
-    assert [row["number"] for row in result["unsynced"]] == [1]
+    assert [row["title"] for row in result["unsynced"]] == ["第1話"]
     assert "message" in result
     assert "cast" not in result
 
@@ -212,7 +215,7 @@ def test_start_story_gathers_materials(session, world):
     assert result["stopped"] is False
     assert result["story"]["name"] == "村の話"
     assert result["time"] == "2100/12/31 23:59:59"
-    assert [e["number"] for e in result["episodes"]] == [2]
+    assert [e["title"] for e in result["episodes"]] == ["第2話"]
     assert sorted(c["name"] for c in result["cast"]["characters"]) == ["アル", "ベル"]
     assert result["brief"]["place"]["name"] == "村"
 

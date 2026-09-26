@@ -32,9 +32,9 @@ def _story(session, text="村の筋書き") -> Story:
 
 def test_seeds_are_drawn_out_of_stories_episodes_character_plots_and_events(session):
     story = _story(session)
-    with_key = Episode(story_id=story.id, number=1, title="一", text="本文一", key="種一", synced=False)
-    text_only = Episode(story_id=story.id, number=2, title="二", text="本文二", key="", synced=False)
-    empty = Episode(story_id=story.id, number=3, title="三", text="", key="", synced=False)
+    with_key = Episode(story_id=story.id, title="一", text="本文一", key="種一", synced=False)
+    text_only = Episode(story_id=story.id, title="二", text="本文二", key="", synced=False)
+    empty = Episode(story_id=story.id, title="三", text="", key="", synced=False)
     planned = Character(name="甲", text="説明\n\n# plot\n\n起: 旅に出る\n\n# 来歴\n\n村の生まれ")
     unplanned = Character(name="乙", text="説明だけ")
     happened = Event(name="峠越え", text="峠を越えた", time=Stamp(2100))

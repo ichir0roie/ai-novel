@@ -72,9 +72,14 @@ def story_digest(session: Session, story: Story) -> dict:
     digest = to_dict_with(
         story, relations={"world": "world_name", "place": "place_name"})
     digest["episode_count"] = len(episodes)
-    digest["last_episode"] = episodes[-1].number if episodes else None
-    digest["unsynced"] = [episode.number for episode in episodes if not episode.synced]
+    digest["last_episode"] = _episode_head(episodes[-1]) if episodes else None
+    digest["unsynced"] = [_episode_head(episode) for episode in episodes if not episode.synced]
     return digest
+
+
+def _episode_head(episode) -> dict:
+    return {"id": episode.id, "start": None if episode.start is None else str(episode.start),
+            "title": episode.title}
 
 
 def stories(session: Session) -> list[dict]:
@@ -94,7 +99,8 @@ def unsynced_episodes(session: Session, story_id: int | None = None) -> list[dic
     rows = session.scalars(common_query.unsynced_episodes_select(story_id)).all()
     return [{"id": episode.id, "story_id": episode.story_id,
              "story_name": None if episode.story is None else episode.story.name,
-             "number": episode.number, "title": episode.title}
+             "start": None if episode.start is None else str(episode.start),
+             "title": episode.title}
             for episode in rows]
 
 

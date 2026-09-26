@@ -55,11 +55,11 @@ def unsynced_episode_items(session: Session) -> list[dict]:
         items.append({
             "key": f"episode:{episode.id}",
             "kind": "未同期の話",
-            "title": f"{story_name} 第{episode.number}話「{episode.title}」を世界観へ反映して synced を立てる",
+            "title": f"{story_name}「{episode.title}」を世界観へ反映して synced を立てる",
             "detail": "\n".join([
                 "本文の出来事・行動を台帳へ戻す。戻すまで、この作品の次の話が書けない。",
                 f"md: {md_path(episode)}",
-                f"済んだら: SetEpisodeSynced({episode.story_id}, {episode.number})",
+                f"済んだら: SetEpisodeSynced({episode.id})",
             ]),
         })
     return items

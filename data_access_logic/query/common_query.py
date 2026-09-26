@@ -292,20 +292,26 @@ def stories_select() -> Select:
             .order_by(Story.id))
 
 
+def episode_order() -> tuple:
+    """作品の中の話の並び。start の順で、start の無い話は後ろに id 順"""
+    return (Episode.start.asc().nulls_last(), Episode.id.asc())
+
+
 def story_episodes_select(story_id: int) -> Select:
     return (select(Episode)
             .where(Episode.story_id == story_id)
-            .order_by(Episode.number))
+            .order_by(*episode_order()))
 
 
 def episodes_select(story_id: int, *, count: int = 10, before=None) -> Select:
     """呼び出し側は取り出した後に `reversed()` して古い順に並べ直す
     (新しい順に `limit` するため、select 自体は新しい順のまま返す)。
+    `before` は時刻。start がそれより前の話だけに絞る(start の無い話は外れる)。
     """
     query = select(Episode).where(Episode.story_id == story_id)
     if before is not None:
-        query = query.where(Episode.number < int(before))
-    return query.order_by(Episode.number.desc()).limit(count)
+        query = query.where(Episode.start < Stamp.parse(before))
+    return query.order_by(Episode.start.desc().nulls_first(), Episode.id.desc()).limit(count)
 
 
 def unsynced_episodes_select(story_id: int | None = None) -> Select:
@@ -314,7 +320,7 @@ def unsynced_episodes_select(story_id: int | None = None) -> Select:
              .where(Episode.synced.is_(False)))
     if story_id is not None:
         query = query.where(Episode.story_id == story_id)
-    return query.order_by(Episode.story_id, Episode.number)
+    return query.order_by(Episode.story_id, *episode_order())
 
 
 # ---------------------------------------------------------------- 断面

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from sqlalchemy import select
-
 from ai.claude_code import ai_client
+from ai.claude_code.interface._base import UnknownRecordError
 from ai.claude_code.interface.story._base import StoryCommit
 from ai.time_keeper import generated_content
 from db.schema import Episode, Story, get_env_session
@@ -18,26 +17,32 @@ class CommitEpisode(StoryCommit):
 
     def execute(self, session) -> dict:
         data = self.parse(self.episode)
-        data.pop("id", None)
+        episode_id = data.pop("id", None)
         data.pop("synced", None)
         self.check_columns(data)
-        for required in ("story_id", "number"):
-            if data.get(required) in (None, ""):
-                raise ValueError(f"{required} は必須")
-        if data.get("key") in (None, "") and data.get("text") in (None, ""):
-            raise ValueError("key(種)か text(本文)のどちらかは必須")
+        record = None
+        if episode_id is not None:
+            record = session.get(Episode, episode_id)
+            if record is None:
+                raise UnknownRecordError(f"id={episode_id} という話が見つからない")
+        elif data.get("story_id") in (None, ""):
+            raise ValueError("story_id は必須(id を渡さず新しい話を足すとき)")
 
-        data["number"] = int(data["number"])
-        data.setdefault("key", "")
-        data.setdefault("text", "")
-        data["letters"] = len(str(data["text"]))
-        data.setdefault("title", "")
+        if record is None or "key" in data or "text" in data:
+            key = data.get("key", "" if record is None else record.key)
+            text = data.get("text", "" if record is None else record.text)
+            if key in (None, "") and text in (None, ""):
+                raise ValueError("key(種)か text(本文)のどちらかは必須")
+        if "text" in data:
+            data["letters"] = len(str(data["text"] or ""))
+        if "story_id" in data:
+            self.check_exists(session, Story, data["story_id"], "story_id")
 
-        self.check_exists(session, Story, data["story_id"], "story_id")
-        record = session.scalars(
-            select(Episode).where(Episode.story_id == data["story_id"],
-                                  Episode.number == data["number"])).first()
         if record is None:
+            data.setdefault("key", "")
+            data.setdefault("text", "")
+            data.setdefault("letters", 0)
+            data.setdefault("title", "")
             record = Episode(synced=False, **data)
             session.add(record)
         else:

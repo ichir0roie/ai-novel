@@ -38,7 +38,7 @@ def summarize(session: Session, episode: Episode, ai: AIClient) -> dict | None:
     if row is not None and row.source_hash == digest:
         return {"summary": row.summary, "style": row.style}
 
-    source = {"id": episode.id, "number": episode.number, "title": episode.title, "text": text}
+    source = {"id": episode.id, "title": episode.title, "text": text}
     decided = ai.try_generate_json(
         f"話: {json.dumps(source, ensure_ascii=False)}\nこの話の概要と文体を覚え書きにしてください。",
         _SCHEMA, system=_SYSTEM_PROMPT, timeout=constants.RECAP_TIMEOUT)

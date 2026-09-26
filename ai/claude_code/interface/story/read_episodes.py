@@ -6,7 +6,7 @@ from ai.claude_code.interface.story._base import StoryQuery
 
 
 class ReadEpisodes(StoryQuery):
-    def __init__(self, story_id: int, count: int = 10, before: int | None = None,
+    def __init__(self, story_id: int, count: int = 10, before=None,
                  text: bool = True):
         self.story_id = story_id
         self.count = count

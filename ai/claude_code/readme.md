@@ -81,7 +81,7 @@ ExportDb().run()
 .venv/bin/python -c "
 from ai.claude_code.story_writer import write_story
 write_story(story_id=1, episodes_to_write=1)
-write_story(story_id=1, number=4)          # 種だけ入っている第4話を埋める
+write_story(story_id=1, episode_id=40)     # 種だけ入っている話(id=40)を埋める
 "
 ```
 
@@ -91,7 +91,8 @@ write_story(story_id=1, number=4)          # 種だけ入っている第4話を�
 覚え書きは `story_summary` テーブル(md には出さない)に一話ずつ残し、本文が変わっていなければ作り直さない。
 概要が作れなかった話は本文のまま渡す。
 
-- 書く話は `number` で指す。省くと**本文の入っている最後の話の次**を書く。
+- 書く話は `episode_id` で指す。省くと**本文の入っている最後の話の次**(`start` の順)を書く。
+  その位置に種だけの話が無ければ、`start` の無い新しい話として末尾に足す。
   種(`key`)だけ入れてある先の話は「まだ書かれていない」扱いなので、
   先まで種を並べてある作品でも止まらない
 - その話に種があればプロンプトへ載せ、視点・場所・種はそのままに、題と本文だけを上書きする

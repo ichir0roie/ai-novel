@@ -22,4 +22,4 @@ def todo_select(model) -> Select:
 def written_unsynced_episodes_select() -> Select:
     return (select(Episode)
             .where(Episode.synced.is_(False), Episode.text != "")
-            .order_by(Episode.story_id, Episode.number))
+            .order_by(Episode.story_id, Episode.start.asc().nulls_last(), Episode.id))

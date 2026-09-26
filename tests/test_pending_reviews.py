@@ -38,19 +38,19 @@ def test_written_but_unsynced_episode_is_listed_and_seed_only_one_is_not(session
     story = Story(name="村の話", place_id=place.id, text="", narration="", state="執筆中")
     session.add(story)
     session.flush()
-    written = Episode(story_id=story.id, number=1, title="旅立ち", text="本文", synced=False)
+    written = Episode(story_id=story.id, title="旅立ち", text="本文", synced=False)
     session.add_all([
         written,
-        Episode(story_id=story.id, number=2, title="", key="種だけ", text="", synced=False),
-        Episode(story_id=story.id, number=3, title="済み", text="本文", synced=True),
+        Episode(story_id=story.id, title="", key="種だけ", text="", synced=False),
+        Episode(story_id=story.id, title="済み", text="本文", synced=True),
     ])
     session.commit()
 
     [item] = ListPendingReviews().run()
 
     assert item["key"] == f"episode:{written.id}"
-    assert item["title"] == "村の話 第1話「旅立ち」を世界観へ反映して synced を立てる"
-    assert f"SetEpisodeSynced({story.id}, 1)" in item["detail"]
+    assert item["title"] == "村の話「旅立ち」を世界観へ反映して synced を立てる"
+    assert f"SetEpisodeSynced({written.id})" in item["detail"]
 
 
 def test_todo_left_in_a_text_is_listed_with_its_lines(session):
