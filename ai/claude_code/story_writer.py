@@ -17,6 +17,10 @@ from db.schema_pydantic import to_dict_with
 # 一話ぶんの本文を書かせるので、断片の JSON より長く待つ。
 EPISODE_TIMEOUT = 900.0
 
+# 本文だけは質を優先する。要約・ミームなどの抽出は ai_client の既定(sonnet low)のまま。
+EPISODE_MODEL = "claude-fable-5-1"
+EPISODE_EFFORT = "high"
+
 # 本文の代わりに概要で渡す、直前の話の本数。文体の覚え書きは一番新しい話のものを使う。
 RECAP_EPISODE_LIMIT = 3
 
@@ -151,7 +155,8 @@ def write_next_episode(
     lines.append("この作品の次の話を書いてください。")
 
     decided = ai_client.try_generate_json(
-        "\n".join(lines), _SCHEMA, system=_SYSTEM_PROMPT, timeout=EPISODE_TIMEOUT)
+        "\n".join(lines), _SCHEMA, system=_SYSTEM_PROMPT, timeout=EPISODE_TIMEOUT,
+        model=EPISODE_MODEL, effort=EPISODE_EFFORT)
     text = layout_novel_text(decided.get("text") or "")
     if not text:
         print(f"[claude_ai/story] {story['name']}: 本文が得られなかったので見送り")

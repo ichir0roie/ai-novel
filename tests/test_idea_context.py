@@ -174,6 +174,20 @@ def test_resolve_returns_hits_with_their_parents_and_children(session, places):
     assert context.candidates == []
 
 
+def test_resolve_at_a_time_leaves_undated_ideas_out_of_the_references(session, places):
+    undated = _idea(session, "奇跡", "地下が地上に配る", location_id=places["world"].id)
+    dated = _idea(session, "奇跡の型", "書き込む型", location_id=places["world"].id,
+                  parent_idea_id=undated.id, start=Stamp(2050))
+
+    context = idea_context.resolve(
+        session, [{"keyword": "奇跡", "description": "", "kind": "技術"}], places["village"].id, "2100")
+
+    assert {idea.id for idea in context.hits} == {undated.id, dated.id}
+    assert [idea.id for idea in context.related] == [dated.id]
+    # 語は当たっているので、同じ名の候補は足さない
+    assert context.candidates == []
+
+
 def test_unmatched_term_becomes_an_auto_generated_idea_of_the_world(session, places):
     context = idea_context.resolve(
         session, [{"keyword": "宿り", "variants": ["寄生"], "description": "体に虫を宿す治療", "kind": "技術"}],
@@ -332,7 +346,8 @@ def _sub_character(session, place):
 
 
 def test_daily_event_novel_is_told_the_ideas_and_the_event_is_linked(session, places):
-    idea = _idea(session, "遺伝子異常", "世代を重ねると出る病", location_id=places["world"].id)
+    idea = _idea(session, "遺伝子異常", "世代を重ねると出る病", location_id=places["world"].id,
+                 start=Stamp(2000))
     _sub_character(session, places["village"])
     ai = _Terms([{"keyword": "遺伝子異常", "variants": [], "description": ""},
                  {"keyword": "宿り", "variants": [], "description": "治療"}])
@@ -361,7 +376,8 @@ def test_daily_event_without_matching_ideas_tells_no_setting(session, places):
 
 
 def test_generated_character_is_polished_with_the_ideas_and_linked(session, places):
-    idea = _idea(session, "遺伝子異常", "世代を重ねると出る病", location_id=places["world"].id)
+    idea = _idea(session, "遺伝子異常", "世代を重ねると出る病", location_id=places["world"].id,
+                 start=Stamp(2000))
     session.add(Story(name="村の話", place_id=places["village"].id, text="村の筋書き", narration="",
                       state="構想中", start=Stamp(2000), end=Stamp(2300)))
     session.commit()
@@ -386,7 +402,8 @@ def test_generated_character_is_not_polished_without_ideas(session, places):
 
 
 def test_seeded_episode_is_written_with_the_ideas_of_its_seed(session, places, monkeypatch):
-    idea = _idea(session, "寄生型", "悪魔のデータベースにあった治療", location_id=places["world"].id)
+    idea = _idea(session, "寄生型", "悪魔のデータベースにあった治療", location_id=places["world"].id,
+                 start=Stamp(2000))
     story = Story(name="村の話", place_id=places["village"].id, text="筋書き", narration="三人称",
                   state="執筆中", start=Stamp(2100, 4, 1), end=Stamp(2300))
     session.add(story)
@@ -396,7 +413,7 @@ def test_seeded_episode_is_written_with_the_ideas_of_its_seed(session, places, m
     session.commit()
     calls = []
 
-    def fake(prompt, schema, *, system=None, timeout=None, options=None):
+    def fake(prompt, schema, *, system=None, timeout=None, options=None, **_):
         calls.append({"prompt": prompt, "schema": schema})
         if schema is idea_search._SCHEMA:
             return {"terms": [{"keyword": "寄生型", "variants": [], "description": ""}]}

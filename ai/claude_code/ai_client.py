@@ -21,8 +21,8 @@ class ClaudeAIError(RuntimeError):
 _tally = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
-_MODEL = "claude-fable-5-1"
-_DEFAULT_EFFORT = "medium"
+_MODEL = "claude-sonnet-5"
+_EFFORT = "low"
 
 
 def _command() -> str:
@@ -31,11 +31,8 @@ def _command() -> str:
     return shutil.which(name) or name
 
 
-def _effort() -> str:
-    return os.environ.get("DEM_CLAUDE_AI_EFFORT", _DEFAULT_EFFORT)
-
-
-def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] = ()) -> list[str]:
+def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] = (),
+                model: str = _MODEL, effort: str = _EFFORT) -> list[str]:
     # `--tools` は組み込みの道具だけを絞る。MCP の道具(`mcp__…`)は MCP サーバーから来るので、許可だけ渡す。
     builtin = [tool for tool in tools if not tool.startswith("mcp__")]
     args = [
@@ -54,7 +51,7 @@ def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] 
         args += ["--system-prompt", system]
     if schema is not None:
         args += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
-    args += ["--model", _MODEL, "--effort", _effort()]
+    args += ["--model", model, "--effort", effort]
     return args
 
 
@@ -82,10 +79,12 @@ def generate(
     timeout: float = 120.0,
     options: dict | None = None,
     tools: tuple[str, ...] = (),
+    model: str = _MODEL,
+    effort: str = _EFFORT,
 ) -> str:
     """`options`(Ollama の temperature 等)は Claude Code に相当する設定が無いので受け取るだけで使わない。"""
     schema = format if isinstance(format, dict) else None
-    args = _build_args(system, schema, tools)
+    args = _build_args(system, schema, tools, model, effort)
     # CLI の起動と思考のぶん、Ollama 向けの timeout(既定 120 秒)では足りないことがある。
     timeout = max(float(timeout), float(os.environ.get("DEM_CLAUDE_AI_TIMEOUT", 300)))
     # プロジェクトの CLAUDE.md・設定を拾わせない(生成の指示は system だけにする)。
@@ -132,9 +131,12 @@ def generate_json(
     timeout: float = 120.0,
     options: dict | None = None,
     tools: tuple[str, ...] = (),
+    model: str = _MODEL,
+    effort: str = _EFFORT,
 ) -> dict:
     text = generate(
-        prompt, system=system, format=schema, timeout=timeout, options=options, tools=tools)
+        prompt, system=system, format=schema, timeout=timeout, options=options, tools=tools,
+        model=model, effort=effort)
     try:
         return json.loads(text)
     except json.JSONDecodeError as error:
@@ -150,9 +152,12 @@ def try_generate_json(
     timeout: float = 120.0,
     options: dict | None = None,
     tools: tuple[str, ...] = (),
+    model: str = _MODEL,
+    effort: str = _EFFORT,
 ) -> dict:
     try:
-        return generate_json(prompt, schema, system=system, timeout=timeout, options=options, tools=tools)
+        return generate_json(prompt, schema, system=system, timeout=timeout, options=options, tools=tools,
+                             model=model, effort=effort)
     except ClaudeAIError as error:
         print(f"[claude_ai] Claude Code の応答が使えなかったため既定値で進める: {error}")
         return {}

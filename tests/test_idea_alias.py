@@ -91,6 +91,8 @@ def test_nearer_place_then_later_start_wins(session, places, energy):
 # ---------------------------------------------------------------- 各処理
 
 def test_resolve_hitting_an_alias_returns_the_essence_called_by_the_alias(session, places, energy):
+    energy.start = Stamp(1000)
+    session.commit()
     alias = _idea(session, "魔力", "住人は魔法の力だと思っている", kind="呼称", alias_of_idea_id=energy.id,
                   location_id=places["world"].id)
 

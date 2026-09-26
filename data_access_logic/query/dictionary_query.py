@@ -64,3 +64,11 @@ def ideas_by_parent_select(parent_ids, place_ids=None, time: Stamp | None = None
     return (select(Idea)
             .where(Idea.parent_idea_id.in_(list(parent_ids)), idea_in_scope(place_ids, time))
             .order_by(Idea.id))
+
+
+def later_ideas_select(place_ids, time: Stamp) -> Select:
+    """`time` より後に始まる、`place_ids` の場所で効くアイデア(呼び名は除く)。"""
+    return (select(Idea)
+            .where(Idea.location_id.in_(list(place_ids)), Idea.alias_of_idea_id.is_(None),
+                   Idea.start > time)
+            .order_by(Idea.start, Idea.id))

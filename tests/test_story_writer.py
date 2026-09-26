@@ -34,7 +34,7 @@ def last_episode(session, story):
 def calls(monkeypatch):
     recorded = []
 
-    def fake(prompt, schema, *, system=None, timeout=None, options=None):
+    def fake(prompt, schema, *, system=None, timeout=None, options=None, **_):
         recorded.append({"prompt": prompt, "schema": schema, "system": system})
         if schema is episode_summary._SCHEMA:
             return {"summary": "二人が村を出た", "style": "短い地の文と会話"}
@@ -67,6 +67,24 @@ def test_episode_prompt_passes_summaries_instead_of_texts(session, story, calls)
     assert '"title": "第1話"' in episode_prompt and '"title": "第2話"' in episode_prompt
     assert "直前の話の文体(これに揃える): 短い地の文と会話" in episode_prompt
     assert last_episode(session, story).id == record.id
+
+
+def test_only_episode_text_uses_fable_high(session, story, monkeypatch):
+    add_episodes(session, story, 1)
+    used = []
+
+    def fake(prompt, schema, *, model=None, effort=None, **_):
+        used.append((schema, model, effort))
+        if schema is episode_summary._SCHEMA:
+            return {"summary": "", "style": ""}
+        return {"title": "題", "text": "本文"}
+
+    monkeypatch.setattr(story_writer.ai_client, "try_generate_json", fake)
+
+    story_writer.write_next_episode(session, story.id)
+
+    assert used[-1] == (story_writer._SCHEMA, "claude-fable-5-1", "high")
+    assert all((model, effort) == (None, None) for _, model, effort in used[:-1])
 
 
 def test_written_episode_is_laid_out(session, story, monkeypatch):
@@ -130,7 +148,7 @@ def test_texts_are_passed_when_no_recap_is_written(session, story, monkeypatch):
     add_episodes(session, story, 2)
     prompts = []
 
-    def fake(prompt, schema, *, system=None, timeout=None, options=None):
+    def fake(prompt, schema, *, system=None, timeout=None, options=None, **_):
         prompts.append(prompt)
         if schema is episode_summary._SCHEMA:
             return {}

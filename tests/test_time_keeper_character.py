@@ -2,11 +2,11 @@ import random
 
 from ai.time_keeper import constants
 from ai.time_keeper.random_character_generator import (
-    _CONTENT_SYSTEM_PROMPT, _NON_PERSON_CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
+    _CONTENT_SYSTEM_PROMPT, _ELEMENT_SYSTEM_PROMPT, _NON_PERSON_CONTENT_SYSTEM_PROMPT, _generate_one, _personality_label,
     history_section,
 )
 from db.schema import (
-    MEME_CATEGORIES, PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterParameter, Location, Meme,
+    MEME_CATEGORIES, PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterParameter, Idea, Location, Meme,
     Story,
 )
 from db.stamp import Stamp
@@ -216,3 +216,22 @@ def test_generate_non_person_has_no_history(session):
     record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), MockAIClient(seed=2), person=False)
 
     assert "# 来歴" not in record.text
+
+
+def test_generate_tells_ideas_that_start_later_as_not_yet_existing(session):
+    place = _place(session)
+    session.add_all([
+        Idea(name="奇跡", kind="呼称", text="地下が地上に配る", location_id=place.id, start=Stamp(2150)),
+        Idea(name="古い掟", kind="制度", text="昔からある", location_id=place.id, start=Stamp(2000)),
+    ])
+    session.commit()
+    ai = MockAIClient(seed=1)
+
+    _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    content = next(c for c in ai.calls if c["system"] == _CONTENT_SYSTEM_PROMPT)["prompt"]
+    later = content.split("この時刻より後に始まる設定(まだ無い):\n", 1)[1]
+    assert later.startswith("- 奇跡(呼称。2150年から): 地下が地上に配る\n")
+    assert "古い掟" not in later
+    elements = next(c for c in ai.calls if c["system"] == _ELEMENT_SYSTEM_PROMPT)["prompt"]
+    assert "- 奇跡(呼称。2150年から)" in elements

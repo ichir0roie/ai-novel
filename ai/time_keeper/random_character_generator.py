@@ -10,7 +10,9 @@ from ai.instructions.naming import (
     CHARACTER_NAMING_INSTRUCTION, NAME_PLACEHOLDER, IDEA_NAMING_INSTRUCTION,
     fill_name_placeholder,
 )
-from data_access_logic.query import common_query, story_createion_query, world_createion_query
+from data_access_logic.query import (
+    common_query, dictionary_query, story_createion_query, world_createion_query,
+)
 from data_access_logic.query.base import *
 from db.schema import *
 from db.schema import PERSON_PARAMETER_COLUMNS, PERSONALITY_COLUMNS, PERSONALITY_LEVELS
@@ -25,6 +27,13 @@ _PLACEHOLDER_INSTRUCTION = (
 )
 
 _AGE_RANGE = f"{constants.GENERATION_CHARACTER_AGE_RANGE[0]}〜{constants.GENERATION_CHARACTER_AGE_RANGE[1]}"
+
+
+_LATER_INSTRUCTION = (
+    "筋書きや既にいる人物・対象の説明は、現在の時刻より後の姿で書かれていることがある。"
+    "「この時刻より後に始まる設定」が渡されているときは、それはまだ世に無い。その設定に当たる立場・仕事・組織・技術・出来事を、"
+    "来歴にも現在の姿にも出さず、既にいる人物の説明に出てきても、この時刻にはまだ無いものとして扱う。"
+)
 
 
 def _meme_instruction(subject: str) -> str:
@@ -42,6 +51,7 @@ _CONTENT_SYSTEM_PROMPT = f"""\
 渡す場所の説明・参考地域・参考文化・参考時代や、所属する地域、その場所・時刻に関連する筋書きに、この人物の生活・仕事・性格が自然に馴染むよう考慮してください(参考地域・参考文化・参考時代は、固有名詞をそのまま持ち込むのではなく、地理・気候・生業・価値観の手がかりとして使ってください)。
 「この人物が体現する要素」が渡されているときは、複数の立場のうちあなたが選びやすいものへ寄せず、渡された要素をこの人物の生き方の核として必ず反映してください。
 「既にいる人物・対象」が渡されているときは、その役割・関係・特徴とは重ならない人物にしてください(同じ立場・同じ能力・同じ関係性の作り直しをしない)。
+{_LATER_INSTRUCTION}
 「性格」は各軸を {'/'.join(PERSONALITY_LEVELS)} の五段階で渡す(サイコロで決まっていて変えられない)。人物説明はこの段階と矛盾しないようにし、「無」「必」の軸はその極端さが生活・仕事・人との関わり方に具体的な癖として表れるように書く。段階の語をそのまま書き写さない。
 {_meme_instruction("人物")}
 {_PLACEHOLDER_INSTRUCTION}
@@ -83,6 +93,7 @@ _NON_PERSON_CONTENT_SYSTEM_PROMPT = f"""\
 渡す場所の産業・地形・人間関係のうち少なくとも一つを具体的に使う。
 「この対象が体現する要素」が渡されているときは、渡された要素をこの対象の成り立ちの核として必ず反映してください。
 既にある対象と役割が重なるものは作らない。
+{_LATER_INSTRUCTION}
 {_meme_instruction("対象")}
 {_PLACEHOLDER_INSTRUCTION}
 キーは次の四つだけ。
@@ -204,6 +215,7 @@ _ELEMENT_SYSTEM_PROMPT = """\
 あなたは筋書きの構成を分析する設定作家です。
 渡す筋書きの本文から、その筋書きの中で人物が生きうる、互いに重ならない具体的な立場・職業・関わり方を箇条書きで抜き出してください。
 筋書きが複数の立場を挙げている場合は、それぞれを一つずつの要素にして漏らさず拾ってください。
+筋書きは時の流れをまたいで書かれている。渡す現在の時刻にまだ始まっていない立場(筋書きの中で後の年に起きる出来事や、「この時刻より後に始まる設定」を前提にする立場)は抜き出さないでください。
 キーは elements(文字列の配列)だけです。"""
 
 _ELEMENT_SCHEMA = {
@@ -216,7 +228,7 @@ _ELEMENT_SCHEMA = {
 }
 
 
-def _story_elements(story_text: str, ai: AIClient) -> list[str]:
+def _story_elements(story_text: str, time: Stamp, later_label: str, ai: AIClient) -> list[str]:
     """抜き出し(この関数)と選択(呼び出し側の `rng.choice`)を分けることで、
     複数の立場を持つ筋書きでも生成のたびランダムに割り振られるようにし、
     モデルが生成時に自由選択して同じ立場へ偏るのを防ぐ。
@@ -224,7 +236,7 @@ def _story_elements(story_text: str, ai: AIClient) -> list[str]:
     if not story_text:
         return []
     decided = ai.try_generate_json(
-        story_text, _ELEMENT_SCHEMA, system=_ELEMENT_SYSTEM_PROMPT)
+        f"現在の時刻: {time}\n{later_label}筋書き:\n{story_text}", _ELEMENT_SCHEMA, system=_ELEMENT_SYSTEM_PROMPT)
     return [e.strip() for e in decided.get("elements", []) if e and e.strip()]
 
 
@@ -244,6 +256,22 @@ def _nearby_characters(session: Session, born_place: Location | None, time: Stam
         return []
     ids = ids[:constants.NEARBY_CHARACTER_LIMIT]
     return list(session.scalars(select(Character).where(Character.id.in_(ids))).all())
+
+
+def _later_ideas_label(session: Session, born_place: Location | None, time: Stamp) -> str:
+    if born_place is None:
+        return ""
+    ideas = session.scalars(dictionary_query.later_ideas_select(
+        common_query.idea_scope_ids(session, born_place.id), time)).all()
+    if not ideas:
+        return ""
+    lines = []
+    for idea in ideas:
+        text = (idea.text or "").strip()
+        if len(text) > constants.IDEA_CONTEXT_LETTERS:
+            text = text[:constants.IDEA_CONTEXT_LETTERS] + "…"
+        lines.append(f"- {idea.name}({idea.kind}。{idea.start.year}年から): {text}")
+    return "この時刻より後に始まる設定(まだ無い):\n" + "\n".join(lines) + "\n"
 
 
 def _record_context(records: list[Character]) -> str:
@@ -289,7 +317,8 @@ def _generate_one(
     story_text = _story_text(session, born_place, time)
     story_label = story_text or "(無し)"
 
-    elements = _story_elements(story_text, ai)
+    later_label = _later_ideas_label(session, born_place, time)
+    elements = _story_elements(story_text, time, later_label, ai)
     chosen_element = rng.choice(elements) if elements else None
     subject = "人物" if person else "対象"
     element_line = (
@@ -318,6 +347,7 @@ def _generate_one(
         f"{person_line}"
         f"現在の時刻: {time}\n"
         f"この場所・時刻に関連する筋書き:\n{story_label}\n"
+        f"{later_label}"
         f"{element_line}"
         f"{meme_line}"
         f"既にいる人物・対象:\n{_record_context(nearby_characters)}\n"
