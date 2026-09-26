@@ -21,7 +21,7 @@ class ClaudeAIError(RuntimeError):
 _tally = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
 
 
-_DEFAULT_MODEL = "claude-opus-5-5"
+_MODEL = "claude-fable-5-1"
 _DEFAULT_EFFORT = "medium"
 
 
@@ -29,10 +29,6 @@ def _command() -> str:
     name = os.environ.get("DEM_CLAUDE_AI_COMMAND", "claude")
     # Windows の npm shim は `claude.cmd` なので、PATHEXT を見て実体のパスに解決する。
     return shutil.which(name) or name
-
-
-def _model() -> str:
-    return os.environ.get("DEM_CLAUDE_AI_MODEL", _DEFAULT_MODEL)
 
 
 def _effort() -> str:
@@ -58,7 +54,7 @@ def _build_args(system: str | None, schema: dict | None, tools: tuple[str, ...] 
         args += ["--system-prompt", system]
     if schema is not None:
         args += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
-    args += ["--model", _model(), "--effort", _effort()]
+    args += ["--model", _MODEL, "--effort", _effort()]
     return args
 
 

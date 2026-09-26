@@ -141,6 +141,7 @@ class CharacterParameterFactory(_ModelFactory):
     start = _optional_stamp()
     end = _end_after_start()
 
+    family_name = factory.Faker("last_name", locale=_LOCALE)
     sex = factory.Faker("random_element", elements=_SEX_CHOICES)
     height = factory.Faker("pyfloat", min_value=140, max_value=195, right_digits=1)
     build_ = factory.Faker("random_element", elements=_BUILD_CHOICES)

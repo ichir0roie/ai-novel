@@ -147,6 +147,29 @@ def test_generate_non_person_has_no_dialect(session):
     assert all("方言: " not in c["prompt"] for c in ai.calls)
 
 
+def test_generate_person_decides_family_name_at_naming(session):
+    place = _place(session)
+    ai = MockAIClient(seed=1)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
+
+    assert ai.calls[-1]["schema"]["required"] == ["name", "family_name"]
+    session.expire_all()
+    stored = session.get(Character, record.id)
+    assert stored.parameters_at()["family_name"].startswith("モックfamily_name")
+    assert stored.name.startswith("モックname")
+
+
+def test_generate_non_person_has_no_family_name(session):
+    place = _place(session)
+    ai = MockAIClient(seed=2)
+
+    record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), ai, person=False)
+
+    assert "family_name" not in ai.calls[-1]["schema"]["properties"]
+    assert record.parameters_at()["family_name"] is None
+
+
 def test_history_section_writes_the_year_and_age_of_each_step_up_to_now():
     items = [
         {"age": 14, "text": "関所に雇われる。"},

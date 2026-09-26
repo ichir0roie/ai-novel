@@ -380,6 +380,7 @@ def _progress_place(
     )
     characters_payload = [
         {"character_id": c.id, "kind": c.kind, "name": c.name, "age": age_at(c, time),
+         "family_name": parameters["family_name"],
          "tone": parameters["tone"], "dialect": parameters["dialect"], "text": c.text,
          "traits": {column: parameters[column] for column in constants.TRAIT_COLUMNS},
          "relations": _relations(session, c, time),

@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 # 文体の特徴を抽出する材料にする、直近の話の本数。
@@ -17,8 +18,99 @@ EPISODE_TARGET_LETTERS = (5000, 8000)
 # 話と同じ小説の形で書く出来事の本文(毎日のルーチン)の目安。一話の三分の一。
 EVENT_NOVEL_TARGET_LETTERS = tuple(int(round(letters / 3, -2)) for letters in EPISODE_TARGET_LETTERS)
 
-# 場面の切れ目に置く行。
+# 生成のときに場面の切れ目へ置かせる行。`layout_novel_text` が空行二つに置き換える。
 SCENE_BREAK = "◇"
+
+# 一行がこの字数を超えるときは、文の切れ目か読点で折り返す。
+LINE_LETTERS = 50
+
+_SENTENCE_END = "。！？!?"
+_COMMA = "、"
+_QUOTE_OPEN = "「『"
+_QUOTE_CLOSE = "」』"
+
+
+def _quote_depth(text: str, depth: int = 0) -> int:
+    for char in text:
+        if char in _QUOTE_OPEN:
+            depth += 1
+        elif char in _QUOTE_CLOSE:
+            depth = max(depth - 1, 0)
+    return depth
+
+
+# 折り返した行(「」が閉じていない行・読点で終わる行)は、前の行へつなぎ直してから整える。
+def _join_wrapped_lines(lines: list[str]) -> list[str]:
+    joined, depth = [], 0
+    for line in (line.strip() for line in lines):
+        if joined and (depth > 0 or joined[-1].endswith(_COMMA)):
+            joined[-1] += line
+        else:
+            joined.append(line)
+        depth = _quote_depth(line, depth)
+    return joined
+
+
+def _cut_after(text: str, marks: str) -> list[str]:
+    pieces, current = [], ""
+    for index, char in enumerate(text):
+        current += char
+        following = text[index + 1:index + 2]
+        if char in marks and following and following not in marks + _QUOTE_CLOSE:
+            pieces.append(current)
+            current = ""
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def _wrap(sentence: str) -> list[str]:
+    if len(sentence) <= LINE_LETTERS:
+        return [sentence]
+    pieces = [part for piece in _cut_after(sentence, _SENTENCE_END)
+              for part in (_cut_after(piece, _COMMA) if len(piece) > LINE_LETTERS else [piece])]
+    lines = [""]
+    for piece in pieces:
+        if lines[-1] and len(lines[-1]) + len(piece) > LINE_LETTERS:
+            lines.append(piece)
+        else:
+            lines[-1] += piece
+    return lines
+
+
+def _split_sentences(line: str) -> list[str]:
+    sentences, current, depth = [], "", 0
+    for index, char in enumerate(line):
+        current += char
+        if char in _QUOTE_OPEN:
+            depth += 1
+        elif char in _QUOTE_CLOSE:
+            depth = max(depth - 1, 0)
+        elif depth == 0 and char in _SENTENCE_END:
+            following = line[index + 1:index + 2]
+            if following and following in _SENTENCE_END + _QUOTE_CLOSE:
+                continue
+            sentences.append(current.strip())
+            current = ""
+    if current.strip():
+        sentences.append(current.strip())
+    return sentences
+
+
+# 空行一つは話し手や流れの切れ目、空行二つ以上と「◇」の行は場面の切れ目として読む。
+# 読点も文の切れ目も無い長い文は、折り返さずに残す。
+def layout_novel_text(text: str) -> str:
+    scenes = []
+    marked = re.sub(rf"^[ \t　]*{SCENE_BREAK}[ \t　]*$", "\n\n\n", text.replace("\r\n", "\n"), flags=re.M)
+    for scene in re.split(r"\n[ \t　]*\n(?:[ \t　]*\n)+", marked.strip()):
+        if not scene.strip():
+            continue
+        beats = [beat for beat in re.split(r"\n[ \t　]*\n", scene.strip()) if beat.strip()]
+        scenes.append("\n\n".join(
+            "\n".join(wrapped for line in _join_wrapped_lines(beat.splitlines())
+                      for sentence in _split_sentences(line) for wrapped in _wrap(sentence))
+            for beat in beats))
+    return "\n\n\n".join(scenes)
 
 
 @dataclass(frozen=True)
@@ -65,7 +157,8 @@ NOVEL_STYLE_BASE = """\
 本文は地の文と会話文を交ぜ、地の文に寄せすぎない。
 情景は視点人物が実際に見聞きした範囲で書き、説明のための地の文を挟まない。
 セリフは人物ごとの口調の差が読み分けられる長さで切る。
-空行は、言動の主体が変わるとき・場面が動くとき(時間が飛ぶ、場所が移る、人物から視点が外れる)・一行だけを孤立させて間を作るときにだけ置く。
+地の文は一文ごとに改行する。セリフは、中に文がいくつあっても「」ごと一行にする(長い行は清書のときに折り返される)。
+空行は、話し手や流れが変わるところにだけ一つ置き、ほかでは空けない。
 一人の人物の言動が続くあいだは、そのセリフと、誰が言ったか・どう動いたかの地の文を、空行を挟まず改行だけで続ける。
 描写の細かさは中身の重さで変える。筋が動くところ・人物の気持ちが揺れるところは、動作・セリフ・間を一つずつ追って細かく書く。
 移動・待ち時間・繰り返しの作業のように筋が動かないところは、一〜二文で飛ばす。
@@ -78,9 +171,8 @@ NOVEL_STYLE_BASE = """\
 
 def _scale_rule(unit: str, letters: tuple[int, int]) -> str:
     return f"""\
-孤立させた一行は間を作るための道具なので、{unit}に数回までに抑える。
 {unit}は{letters[0]}〜{letters[1]}字。
-場面の数と一場面の長さは決めず、中身に合わせる。場面が変わる(時間が飛ぶ・場所が移る)ところにだけ、「{SCENE_BREAK}」だけの行を置く。
+場面の数と一場面の長さは決めず、中身に合わせる。場面が変わる(場所・時間・書く対象が変わる)ところにだけ、「{SCENE_BREAK}」だけの行を置く。
 字数は、実際に起きることで作る。修飾・言い換え・心情の反芻を足して伸ばさない。"""
 
 
@@ -90,10 +182,13 @@ EPISODE_STYLE_BASE = f"""\
 種(key)に場面が足りないときは、足りないぶんを場面として立ててから書く。"""
 
 EPISODE_STYLE_EXTRACTED = """\
+括弧の例は直す向きを示すもので、言い回し・場面を本文へ流用しない。
 セリフは話し言葉で書く。書き言葉の丁寧さへ寄せず、崩した言い方・呼びかけを使う(「ほんとうに」より「ほんとに」、「言ってください」より「おしえてよ」)。
 問いには「？」、強い感情には「！」、言い淀みには「…」を置き、句点や言い切りに含ませない。
 同じ言葉を受けて返す応酬は、そのままなぞらない。なぞるなら「？」と「。」で問いと答えの差を付ける(「翼も？」「翼も。」)。
+一言ずつのセリフを何往復も続けない。一つのセリフに、相手への返事とその人物が言いたいことを一緒に持たせて、往復の数を減らす(「大きい」「二年は着られるの」「今年は?」「今年も着られるでしょう」より「母さま、これ大きいよ。袖が手より長い」「二年は着られるの。袖を折れば、今年だって着られるでしょう」)。
 セリフで理屈を積み上げて説明しない。短く言い切り、相手には理屈ではなく感情で返させる。
+人物の言動で表せるところは、積極的にセリフにする。視点人物のひとりの場面でも、段取りや内心を地の文で説明せず、独り言として口に出させる(「報告書はまだ書いていない。どうせいつも誤魔化して書いているだけだし。」より「ふぅ、やっとついた…。報告書は、…あとでいいか。どうせいつも誤魔化しているだけだし。」)。
 地の文の独白は、視点人物がその場で思った言葉のまま書く。比喩や警句・一般論へ言い換えず、好き・困ったといった感情を隠さない(「これがこんなに大きいものだと忘れている」より「こんなに大きかったっけ」)。
 制度や事務の側に立つ人物の口調だけは硬いまま残し、人間の口調との差を広げる。
 題は詩的な体言止めへ寄せず、人物の言葉に近い言い回しにする(「堕ちる翼」より「翼は捨てて」)。

@@ -15,7 +15,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 
 | 依頼内容(言い回しの例)           | 呼ぶコード                                                                 |
 | ---------------------------------- | -------------------------------------------------------------------------- |
-| 「同期して」「sync_db」             | `sync.sync_db.SyncDb()`。手で直された md だけを取り込み、db と食い違う md だけを書き直す。`{"imported", "conflicts", "written", "removed"}` を返す。`conflicts` は md と db の両方で直されていて md を勝たせたもの。取り込み・書き出しを片方だけ回すなら `sync.import_db.ImportDb()` / `sync.export_db.ExportDb()`(手で直された md が残っていれば止まる。`ExportDb(force=True)` で押し切る) |
+| 「同期して」「sync_db」             | `sync.sync_db.SyncDb()`。手で直された md だけを取り込み、手で消された md の行を db から消し(md に出さない要約・中間テーブル・子の行も一緒に消す。残っている他の md の行が指していれば止まる)、db と食い違う md だけを書き直す。`{"imported", "deleted", "conflicts", "written", "removed"}` を返す。`deleted` は手で消されて行を消した md、`conflicts` は md と db の両方で直されていて md を勝たせたもの。取り込み・書き出しを片方だけ回すなら `sync.import_db.ImportDb()` / `sync.export_db.ExportDb()`(手で直された・消された md が残っていれば止まる。`ExportDb(force=True)` で押し切る) |
 | 「どんな場所がある?」「村の一覧」   | `world.list_places.ListPlaces(kind=None)`                                    |
 | 「この場所の近くには何がある?」     | `world.list_neighbors.ListNeighbors(place_id, kind=None, limit=None)`。同じ星の他の場所の方角・距離・高低差を近い順に返す |
 | 「人物の一覧」「誰がいる?」         | `world.list_characters.ListCharacters()`                                     |
@@ -35,8 +35,8 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「作中での呼び名を足して」「この場所・時代では〇〇と呼ぶ」 | `randomizer.commit_idea.CommitIdea(idea)` に `alias_of_idea_id`(本質のアイデア)を付けて足す。呼び名を使う場所・時代は `location_id` / `start` / `end`(空の列はどこでも・いつでも)。清書・断面・検索は、場所・時代が当てはまる呼び名のうち場所の近いものを選んで本質のアイデアをその名で呼び、当てはまらなければ本質の `name` を使う。呼び名の呼び名は持てない |
 | 「アイデア・oracle・ミームを検めて」「妥当性を調べて」 | `fact_check.check_facts.CheckFacts(table, ids=None, limit=None)`。`table` は `"idea"` / `"oracle"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`fact_check` 欄へ入れる。`ids` を省くと `fact_check` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。アイデア・oracle は検めたあと本文と検証結果からミームを抜き出し直し、足したミームも検める。`{"checked", "memes_added"}` を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
-| 「この人物の〇歳からの背丈・口調・性格を決めて」 | `randomizer.update_character.UpdateCharacter({"id": …, "parameters": [...]})`。期間ごとの行の配列をまるごと渡す(下の「期間ごとのパラメータ」)。今の配列は `ReadCharacter` の `parameters` で読める |
-| 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。体格・口調・性格は `parameters` に入れる(渡さなければ触らない)。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
+| 「この人物の〇歳からの名字・背丈・口調・性格を決めて」「結婚して名字が変わる」 | `randomizer.update_character.UpdateCharacter({"id": …, "parameters": [...]})`。期間ごとの行の配列をまるごと渡す(下の「期間ごとのパラメータ」)。今の配列は `ReadCharacter` の `parameters` で読める |
+| 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。名字・体格・口調・性格は `parameters` に入れる(渡さなければ触らない)。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
 | 「出来事を直して」                   | `randomizer.update_event.UpdateEvent(event)`。`id` 必須、渡した欄だけ直す。当事者は変えない。直したあと要約(`event_summary`)を作り直す |
 | 「出来事を消して」「出来事を作り直して」 | `randomizer.delete_event.DeleteEvent(event_id)`。子の出来事が残っていれば止まる。当事者・アイデアとの中間テーブルの行と要約も消す。出来事で人物の `text` に積み足した一文と、足したアイデアの候補は残るので、要らなければ `UpdateCharacter` / `DeleteIdea` で別に戻す |
@@ -60,7 +60,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「作品を作る」「筋書きを足して」     | `story.commit_story.CommitStory(story)`。筋書きは作品の `text` に書く        |
 | 「作品を直して」「筋書きを直して」   | `story.update_story.UpdateStory(story)`                                      |
 | 「作品を消して」                     | `story.delete_story.DeleteStory(story_id)`。話が残っていれば止まる           |
-| 「本文を確定する」「話の種を入れる」 | `story.commit_episode.CommitEpisode(episode)`。`id` を渡せばその話を直し(渡した欄だけ)、省けば `story_id` の作品に新しい話を足す。`key`(種)か `text`(本文)のどちらかがあればよい。話に番号は無く、作品の中では `start` の順に並ぶ(`start` の無い話は後ろに id 順)。あいだに話を足すときは、前後の話のあいだの `start` を付ける |
+| 「本文を確定する」「話の種を入れる」 | `story.commit_episode.CommitEpisode(episode)`。`id` を渡せばその話を直し(渡した欄だけ)、省けば `story_id` の作品に新しい話を足す。`key`(種)か `text`(本文)のどちらかがあればよい。`text` は `ai/instructions/style.py` の `layout_novel_text` で改行を整えてから入れる(地の文は一文一行、「◇」の行は空行二つ)。話に番号は無く、作品の中では `start` の順に並ぶ(`start` の無い話は後ろに id 順)。あいだに話を足すときは、前後の話のあいだの `start` を付ける |
 | 「未同期の話は残ってる?」           | `story.list_unsynced_episodes.ListUnsyncedEpisodes(story_id=None)`           |
 | 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(episode_id, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
@@ -71,7 +71,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 筋書き(`plot` / `character_plot`)のテーブルは無い。場所に掛かる筋書きは作品(`story`)の
 `text` に、人物に掛かる筋書きはその人物の `text` の `# plot` の節に書く。
 
-**期間ごとのパラメータ**: 人物の体格(`sex` `height` `build`)・口調(`first_person` `second_person` `third_person` `tone` `dialect`)・
+**期間ごとのパラメータ**: 人物の名字(`family_name`)・体格(`sex` `height` `build`)・口調(`first_person` `second_person` `third_person` `tone` `dialect`)・
 性格(12 軸。無/低/並/高/必)は、`character_parameter` テーブルに期間ごとの行で持つ。md では人物の `# data` の
 `parameters` に配列で並ぶ(id と character_id は出さない。行は配列の並びで決まり、並びを変えなければ id も変わらない)。
 
@@ -88,6 +88,9 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 - 時刻を渡さずに引くと、期間を限らない行だけを重ねる
 - 生成(毎日のルーチン・出来事の進行)は、出来事の時刻の値を使う。人物の自動生成・`CreateRandomCharacter` は期間を限らない一行だけを作る
 - `CommitCharacter` / `UpdateCharacter` は `parameters` を受け取る。`UpdateCharacter` に渡すと配列をまるごと置き換える
+- `name` は名字を含めない名だけを持つ。名字は `family_name` に分け、結婚・養子・家の取り立てなどで変わるなら、
+  変わった時点からの行を足す。名字を持たない身分なら空。`CreateRandomCharacter` の下書きでは空なので、
+  出自・身分・土地柄から決めて入れる(時の流れの中で生む人物は、名づけのときに AI が決める)
 
 人物の来歴は、その人物の `text` の `# 来歴` 節に、節目を `- <年>年(<歳>歳): <何があり、立場・仕事・住まい・人間関係がどう変わったか>`
 の箇条書きで、歳の順に書く。人物説明にある立場・仕事・住まいには、いつそうなったかの節目を必ず入れ、

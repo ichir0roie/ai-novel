@@ -11,7 +11,7 @@ __all__ = ["WORLDS_ROOT", "sync_db", "run"]
 
 
 def sync_db(root: str = WORLDS_ROOT) -> dict:
-    """手で直された md だけを db へ入れ、db と食い違う md だけを書き直す。
+    """手で直された md だけを db へ入れ、手で消された md の行を db から消し、db と食い違う md だけを書き直す。
 
     いつ呼んでも、db にだけ入った変更も md にだけ入った変更も消さない。
     同じ行を両方で直していたら md(ユーザの直接編集)を勝たせ、`conflicts` に返す。
@@ -29,6 +29,7 @@ def sync_db(root: str = WORLDS_ROOT) -> dict:
 
     return {
         "imported": imported["counts"],
+        "deleted": relative(imported["deleted"]),
         "conflicts": relative(imported["conflicts"]),
         "written": relative(exported["written"]),
         "removed": relative(exported["removed"]),

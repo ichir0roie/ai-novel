@@ -75,6 +75,11 @@ class Manifest:
         entry = self.get(path)
         return entry is None or entry["md"] != digest(text)
 
+    def missing(self) -> list[str]:
+        """前回の同期より後に消された(または動かされた)md のパス。"""
+        paths = [os.path.normpath(os.path.join(self.root, key)) for key in self.entries]
+        return sorted(path for path in paths if not os.path.exists(path))
+
     def save(self) -> None:
         path = manifest_path(self.root)
         tmp = f"{path}.{os.getpid()}.tmp"

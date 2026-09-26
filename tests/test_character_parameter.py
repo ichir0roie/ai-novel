@@ -55,6 +55,12 @@ def test_narrower_and_later_rows_win():
     assert resolve_parameters(later[1:], Stamp(11650))["tone"] == "遅い始まり"
 
 
+def test_family_name_changes_from_its_period():
+    rows = [_row(1, family_name="ベルク"), _row(2, start="11600", family_name="ロウ")]
+    assert resolve_parameters(rows, Stamp(11599))["family_name"] == "ベルク"
+    assert resolve_parameters(rows, Stamp(11600))["family_name"] == "ロウ"
+
+
 def test_unset_personality_falls_back_to_default():
     values = resolve_parameters([_row(1, start="11600", curiosity="必")], Stamp(11500))
     assert values["curiosity"] == PERSONALITY_DEFAULT and values["tone"] is None

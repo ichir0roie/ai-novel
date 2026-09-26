@@ -28,11 +28,62 @@ def test_style_instruction_rejects_unknown_target():
         style.style_instruction("character")
 
 
-def test_episode_style_states_the_blank_line_rule():
+def test_episode_style_states_the_line_break_rule():
     base = style.EPISODE_STYLE_BASE
-    assert "空行は、言動の主体が変わるとき" in base
-    assert "改行だけで続ける" in base
-    assert "一話に数回まで" in base
+    assert "地の文は一文ごとに改行する。" in base
+    assert "空行は、話し手や流れが変わるところにだけ一つ置き" in base
+    assert "場面が変わる(場所・時間・書く対象が変わる)ところにだけ、「◇」だけの行を置く。" in base
+    assert "孤立させた一行" not in base
+
+
+def test_layout_puts_each_narration_sentence_on_its_own_line():
+    assert style.layout_novel_text("扉が開いた。ミレアが入ってきた。") == "扉が開いた。\nミレアが入ってきた。"
+
+
+def test_layout_keeps_a_quote_on_one_line():
+    text = "「知っている。だから、変える」カシルは言った。「今度こそ」"
+    assert style.layout_novel_text(text) == "「知っている。だから、変える」カシルは言った。\n「今度こそ」"
+
+
+def test_layout_does_not_split_repeated_marks():
+    assert style.layout_novel_text("本当に！？そう。") == "本当に！？\nそう。"
+
+
+def test_layout_turns_the_scene_break_into_two_blank_lines():
+    text = "一つ目。\n\n◇\n\n二つ目。"
+    assert style.layout_novel_text(text) == "一つ目。\n\n\n二つ目。"
+
+
+def test_layout_keeps_one_blank_line_and_collapses_longer_runs_into_a_scene_break():
+    text = "一つ目。\n\n二つ目。\n\n\n\n\n三つ目。"
+    assert style.layout_novel_text(text) == "一つ目。\n\n二つ目。\n\n\n三つ目。"
+
+
+def test_layout_wraps_a_long_quote_at_a_sentence_end():
+    first = "「" + "あ" * 30 + "。"
+    second = "い" * 30 + "。」"
+    assert style.layout_novel_text(first + second) == first + "\n" + second
+
+
+def test_layout_wraps_a_long_sentence_at_a_comma():
+    first = "う" * 30 + "、"
+    second = "え" * 30 + "。"
+    assert style.layout_novel_text(first + second) == first + "\n" + second
+
+
+def test_layout_keeps_a_long_sentence_without_breaks():
+    text = "お" * 60 + "。"
+    assert style.layout_novel_text(text) == text
+
+
+def test_layout_rewraps_wrapped_lines_the_same_way():
+    wrapped = "「" + "あ" * 30 + "。\n" + "い" * 30 + "。」\n" + "う" * 30 + "、\n" + "え" * 30 + "。"
+    assert style.layout_novel_text(wrapped) == wrapped
+
+
+def test_layout_is_stable_on_laid_out_text():
+    text = "扉が開いた。\n「来たか」\n\nミレアは座った。\n\n\n三日後。"
+    assert style.layout_novel_text(text) == text
 
 
 def test_event_novel_is_a_third_of_an_episode():

@@ -4,6 +4,7 @@ from __future__ import annotations
 from ai.claude_code import ai_client
 from ai.claude_code.interface._base import UnknownRecordError
 from ai.claude_code.interface.story._base import StoryCommit
+from ai.instructions.style import layout_novel_text
 from ai.time_keeper import generated_content
 from db.schema import Episode, Story, get_env_session
 from db.schema_pydantic import to_dict
@@ -34,7 +35,8 @@ class CommitEpisode(StoryCommit):
             if key in (None, "") and text in (None, ""):
                 raise ValueError("key(種)か text(本文)のどちらかは必須")
         if "text" in data:
-            data["letters"] = len(str(data["text"] or ""))
+            data["text"] = layout_novel_text(str(data["text"] or ""))
+            data["letters"] = len(data["text"])
         if "story_id" in data:
             self.check_exists(session, Story, data["story_id"], "story_id")
 

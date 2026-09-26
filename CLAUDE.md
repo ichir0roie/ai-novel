@@ -13,12 +13,12 @@
 - main ブランチへのコミットを頼まれたときは、深く調査しない
 - 変更内容を掘り下げて「なぜ」まで書いた丁寧なメッセージを作らず、diff・変更ファイルの表層だけを見て、端的なメッセージでそのままコミットする
 - プッシュ前に、最新の変更を取り込んで、コンフリクトがあれば解消してからpush
-- コミットは `core/`(このリポジトリ)と世界リポジトリ(my-novel-world)の **両方に同じメッセージで** 行う。
+- コミットは `core/`(このリポジトリ)と世界リポジトリ(my-novel-world)の両方に同じメッセージで行う。
   手順は「環境構築」のとおり `core/` → 世界の順
 
 # 文字コード
 
-- リポジトリのテキスト(`.py` `.md` `.json` `.yaml` など)はすべて **UTF-8**(BOM 無し)。
+- リポジトリのテキスト(`.py` `.md` `.json` `.yaml` など)はすべて UTF-8(BOM 無し)。
   ファイルを開くときは必ず `encoding="utf-8"` を付ける
 - `novel.db` の文字列も UTF-8(`create_db` が `PRAGMA encoding='UTF-8'` を打つ)。
   `.gitattributes` で `*.db` はバイナリ扱い
@@ -32,7 +32,7 @@
 コードは環境変数 `DEM_WORLD_DIR` で渡されたディレクトリを世界として読み書きする(未設定なら import で止まる)。
 python・pytest・alembic は世界リポジトリのルートを cwd にし、`DEM_WORLD_DIR` にそのルートを、
 `PYTHONPATH` に `<ルート>/core` を渡して動かす。
-md と db の同期(`import_db` / `export_db`)が使う `novel.db` と `worlds/` は、それぞれ `DEM_NOVEL_DB_PATH` / `DEM_WORLDS_DIR` でも個別に差し替えられる。
+md と db の同期(`SyncDb`)が使う `novel.db` と `worlds/` は、それぞれ `DEM_NOVEL_DB_PATH` / `DEM_WORLDS_DIR` でも個別に差し替えられる。
 自分の世界を作るときは、空のリポジトリで `git submodule add https://github.com/ichir0roie/ai-novel-core.git core` する。
 
 
@@ -74,11 +74,11 @@ git push
   `engine` も同じモジュールにある
 - 作業として db を読み書きするときは `ai/claude_code/interface/` の入口越しに、
   既存の python コードを呼んで行う。
-- **`ai/claude_code/interface/readme.md` を操作前のマニュアルとする。**
+- `ai/claude_code/interface/readme.md` を操作前のマニュアルとする。
   操作の前にその「依頼内容 → 呼ぶコード」の対応表を引き、依頼に当たる入口を呼ぶ
 - 対応する入口が無ければ、readme の「作り方」に沿って入口を新しく作ってから行う。
-  **足したら同じ作業のうちに readme の対応表へ行を足す**(表に無い入口は次から見えない)
-- **読み取り(`select`)だけなら入口を通さなくてよい。** python の `sqlite3` や SQLAlchemy で
+  足したら同じ作業のうちに readme の対応表へ行を足す(表に無い入口は次から見えない)
+- 読み取り(`select`)だけなら入口を通さなくてよい。python の `sqlite3` や SQLAlchemy で
   好きに覗いてよい。読むだけなら同期(`SyncDb`)も回さなくてよい。
   書き込み(`insert` `update` `delete`)は必ず入口越しに行う
 - 調査用の読み取り例(世界リポジトリのルートで `.venv/bin/python` を使う。`core/` は `.venv` の場所を持たない):
@@ -92,16 +92,17 @@ print(c.execute('select count(*) from character').fetchone())
 "
 ```
 
-# md と db の同期(import / export)
+# md と db の同期
 
-**db が正で、`worlds/` の md はユーザが db を読み書きするための窓口**。Claude は db だけで作業を完結させ、
-md を読んで判断したり、md を直接書き換えたりはしない(worlds/**/*.md は直接変更しない)。
+db が正で、`worlds/` の md はユーザが db を読み書きするための窓口。Claude は db だけで作業を完結させ、
+md を読んで判断したり、md を直接書き換えたりはしない(`worlds/**/*.md` は直接変更しない)。
 
 同期は入口 `sync.sync_db.SyncDb()`(`tool.markdown.sync_db`)で行う。差分だけを動かすので、いつ何度呼んでもよい。
 
 - `worlds/` の隣の `.markdown_sync.json`(台帳)に、md ごとに前回の同期時点の md と db の中身のハッシュを持つ
 - 取り込み(`import_db`)は、台帳と中身が違う md(ユーザが手で直した・足した md)だけを db へ入れる。
   台帳が無ければすべての md を取り込む
+- 台帳に載っているのに無くなった md(ユーザが手で消した md)は、同じ行を持つ md が他に無ければ db からも行を消す
 - 書き出し(`export_db`)は、db と中身が違う md だけを書き直し、db に行が無くなった md を消す。
   手で直された md が残っていれば止まる(`force=True` で md を捨てて押し切る)
 - `sync_db` は取り込み → 書き出しの順に回す。同じ行を md と db の両方で直していたら、
@@ -114,7 +115,7 @@ db を修正する作業は、入口越しの修正 → `SyncDb()` の順で回�
 
 # schema の確認方法
 
-- **列の定義は `db/schema.py` が唯一の正**。
+- 列の定義は `db/schema.py` が唯一の正。
 
 - マイグレーションは `db/alembic/`。コマンド例は `db/alembic/README` にある。
 - `schema.py` を変えたら alembic の `revision --autogenerate` → 内容確認 → `upgrade head` の順。

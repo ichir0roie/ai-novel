@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from ai.instructions.style import EPISODE_STYLE_INSTRUCTION
+from ai.instructions.style import EPISODE_STYLE_INSTRUCTION, layout_novel_text
 from ai.claude_code import ai_client
 from ai.claude_code.interface.story import _rows
 from ai.time_keeper import episode_summary, idea_context
@@ -152,7 +152,7 @@ def write_next_episode(
 
     decided = ai_client.try_generate_json(
         "\n".join(lines), _SCHEMA, system=_SYSTEM_PROMPT, timeout=EPISODE_TIMEOUT)
-    text = (decided.get("text") or "").strip()
+    text = layout_novel_text(decided.get("text") or "")
     if not text:
         print(f"[claude_ai/story] {story['name']}: 本文が得られなかったので見送り")
         return None

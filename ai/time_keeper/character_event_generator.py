@@ -7,7 +7,7 @@ import random
 from sqlalchemy import select
 
 from ai.instructions.event_writing import EVENT_AGE_INSTRUCTION, EVENT_NOVEL_INSTRUCTION
-from ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS
+from ai.instructions.style import EVENT_NOVEL_TARGET_LETTERS, layout_novel_text
 from ai.time_keeper import constants
 from ai.time_keeper import event_progression_generator as progression
 from ai.time_keeper import event_seed, event_summary, idea_context
@@ -102,7 +102,7 @@ def _sheet(character: Character, time: Stamp) -> dict:
     parameters = character.parameters_at(time)
     return {"name": character.name, "kind": character.kind, "age": progression.age_at(character, time),
             **{column: parameters[column] for column in (
-                "sex", "first_person", "second_person", "third_person", "tone", "dialect")},
+                "family_name", "sex", "first_person", "second_person", "third_person", "tone", "dialect")},
             "text": character.text}
 
 
@@ -129,7 +129,7 @@ def _novelize(
     ])
     decided = ai.try_generate_json(
         prompt, _NOVEL_SCHEMA, system=_NOVEL_SYSTEM_PROMPT, timeout=constants.EVENT_NOVEL_TIMEOUT)
-    text = (decided.get("text") or "").strip()
+    text = layout_novel_text(decided.get("text") or "")
     if not text:
         print(f"[time_keepr/daily] {record.name}(id={record.id}): 本文を小説にできなかったので記録のまま残す")
         return

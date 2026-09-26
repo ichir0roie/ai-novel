@@ -69,6 +69,16 @@ def test_episode_prompt_passes_summaries_instead_of_texts(session, story, calls)
     assert last_episode(session, story).id == record.id
 
 
+def test_written_episode_is_laid_out(session, story, monkeypatch):
+    monkeypatch.setattr(story_writer.ai_client, "try_generate_json",
+                        lambda *a, **k: {"title": "題", "text": "朝が来た。窓が白い。\n◇\n夜。"})
+
+    record = story_writer.write_next_episode(session, story.id)
+
+    assert record.text == "朝が来た。\n窓が白い。\n\n\n夜。"
+    assert record.letters == len(record.text)
+
+
 def test_recap_is_kept_in_the_episode_summary_table(session, story, calls):
     add_episodes(session, story, 2)
 

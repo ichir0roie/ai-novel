@@ -118,6 +118,16 @@ def test_commit_episode_updates_by_id(place):
     assert (updated["key"], updated["text"], updated["letters"]) == ("種", "本文", 2)
 
 
+def test_commit_episode_lays_out_the_text(place):
+    story = CommitStory({"name": "遥かなる幻想郷まで", "place_id": place}).run()
+
+    episode = CommitEpisode({"story_id": story["id"], "title": "白い灯り",
+                             "text": "扉が開いた。ミレアが来た。\n◇\n三日後。"}).run()
+
+    assert episode["text"] == "扉が開いた。\nミレアが来た。\n\n\n三日後。"
+    assert episode["letters"] == len(episode["text"])
+
+
 def test_commit_episode_rejects_unknown_id(place):
     with pytest.raises(UnknownRecordError):
         CommitEpisode({"id": 9999, "text": "本文"}).run()

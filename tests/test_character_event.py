@@ -257,8 +257,8 @@ def test_event_is_decided_by_the_monthly_logic_told_the_focus_and_the_previous_e
 def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
     place = _place(session)
     character = _character(session, place)
-    character.parameters = [CharacterParameter(first_person="俺", dialect="東北風の訛り"),
-                            CharacterParameter(start=Stamp(2100), first_person="僕")]
+    character.parameters = [CharacterParameter(first_person="俺", dialect="東北風の訛り", family_name="ベルク"),
+                            CharacterParameter(start=Stamp(2100), first_person="僕", family_name="ロウ")]
     session.commit()
     _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
     ai = MockAIClient(seed=1)
@@ -271,10 +271,27 @@ def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
     assert EVENT_RECORD_INSTRUCTION not in novel["system"]
     assert '"first_person": "僕"' in novel["prompt"]
     assert '"dialect": "東北風の訛り"' in novel["prompt"]
+    assert '"family_name": "ロウ"' in novel["prompt"]
     assert '"place": "村"' in novel["prompt"] and '"summary": "モックtext1"' in novel["prompt"]
     assert "峠越えの本文" not in novel["prompt"]
     assert "1700〜2700字の小説" in novel["prompt"]
     assert record.text == f"モックtext{len(ai.calls)}"
+
+
+class _WritesNovelInOneLine(MockAIClient):
+    def try_generate_json(self, prompt, schema, **kwargs):
+        if schema is character_event_generator._NOVEL_SCHEMA:
+            return {"text": "峠に着いた。風が強い。\n◇\n翌朝。"}
+        return super().try_generate_json(prompt, schema, **kwargs)
+
+
+def test_novel_text_is_laid_out(session):
+    place = _place(session)
+    _character(session, place)
+
+    record = character_event_generator.generate_next(session, _WritesNovelInOneLine(seed=1), random.Random(1))
+
+    assert record.text == "峠に着いた。\n風が強い。\n\n\n翌朝。"
 
 
 class _WritesNoNovel(MockAIClient):

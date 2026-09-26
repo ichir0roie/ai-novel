@@ -106,12 +106,13 @@ def _expected(session, root: str, models: list[type]) -> tuple[dict[str, tuple],
 
 
 def edited_markdown(root: str, manifest: Manifest | None = None) -> list[str]:
-    """前回の同期より後に手で直された(または手で足された)md。台帳が無ければ比べようがないので空。"""
+    """前回の同期より後に手で直された(または手で足された・消された)md。台帳が無ければ比べようがないので空。"""
     manifest = manifest or Manifest(root)
     if not manifest.exists:
         return []
-    return [path for path in _markdown_files(root, _markdown_models())
-            if manifest.edited(path, read_text(path))]
+    edited = [path for path in _markdown_files(root, _markdown_models())
+              if manifest.edited(path, read_text(path))]
+    return sorted(edited + manifest.missing())
 
 
 def check_no_hand_edits(root: str, manifest: Manifest | None = None) -> None:
@@ -123,7 +124,7 @@ def check_no_hand_edits(root: str, manifest: Manifest | None = None) -> None:
     if rest > 0:
         shown += f"\n(ほか {rest} 件)"
     raise ExportError(
-        "前回の同期より後に手で直された md がある。書き出すと消える:\n"
+        "前回の同期より後に手で直された・消された md がある。書き出すと手で入れた変更が失われる:\n"
         f"{shown}\n"
         "SyncDb() で取り込んでから書き出す。md を捨ててよいなら ExportDb(force=True)。")
 

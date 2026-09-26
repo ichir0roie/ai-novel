@@ -329,7 +329,7 @@ PERSONALITY_COLUMNS = (
 
 
 PERSON_PARAMETER_COLUMNS = (
-    "sex", "height", "build", "first_person", "second_person", "third_person", "tone", "dialect",
+    "family_name", "sex", "height", "build", "first_person", "second_person", "third_person", "tone", "dialect",
 )
 PARAMETER_COLUMNS = (*PERSON_PARAMETER_COLUMNS, *PERSONALITY_COLUMNS)
 
@@ -368,7 +368,7 @@ class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
     # 出自(生まれの場所)は別列を持たず、CharacterPlace の一番古い行として表す。
-    # 体格・口調・性格は期間ごとに CharacterParameter が持ち、md では `# data` の parameters に並ぶ。
+    # 名字・体格・口調・性格は期間ごとに CharacterParameter が持ち、md では `# data` の parameters に並ぶ。
     CHILD_LISTS = ("parameters",)
 
     def default_filename(self) -> str | None:
@@ -392,10 +392,10 @@ class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
 
 
 class CharacterParameter(Base):
-    """人物の体格・口調・性格を、期間ごとに一行で持つ。
+    """人物の名字・体格・口調・性格を、期間ごとに一行で持つ。
 
     空の列は「この期間では決めない」。ある時刻の値は `resolve_parameters` が、その時刻に掛かる行を
-    期間を限らない行から順に重ねて決める。体格・口調は人物だけが持ち、人物以外の対象は空のまま。
+    期間を限らない行から順に重ねて決める。名字・体格・口調は人物だけが持ち、人物以外の対象は空のまま。
     """
 
     __tablename__ = "character_parameter"
@@ -406,6 +406,10 @@ class CharacterParameter(Base):
         StampType, comment="この値が効き始める時。空なら初めから", sort_order=110)
     end: Mapped[Stamp | None] = mapped_column(
         StampType, comment="この値が効き終わる時(この時からは効かない)。空なら終わりまで", sort_order=120)
+
+    # --- 名字 -------------------------------------------------------------
+    family_name: Mapped[str | None] = mapped_column(
+        String, comment="名字。結婚・養子・家の取り立てなどで変わる。名字を持たない身分なら空", sort_order=310)
 
     # --- 体格 -------------------------------------------------------------
     sex: Mapped[str | None] = mapped_column(String,  comment="性別", sort_order=320)

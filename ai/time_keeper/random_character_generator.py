@@ -105,11 +105,12 @@ _NON_PERSON_CONTENT_SCHEMA = {
 
 _NAME_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観を構築する設定作家です。
-内容が決まっている人物1件に、名前だけを付けます。
+内容が決まっている人物1件に、名前と名字を付けます。
 {CHARACTER_NAMING_INSTRUCTION}
 渡す人物説明・年齢・体格や口調から連想できる、この人物に似合う名前にしてください。
 居場所・場所の特徴・所属する地域が渡されているときは、その参考地域・参考文化・参考時代を名の響きや漢字・カタカナの選び方の手がかりにして、同じ場所の人物として馴染む名にしてください(固有名詞をそのまま持ち込まない)。
-キーは name(名前)だけ。"""
+名字は、生まれたときに名乗るものを、出身地・身分・家業・参考文化から決める。その土地・身分で名字を持たないのが自然なら空文字にする。
+キーは name(名字を含めない名)と family_name(名字)の二つ。"""
 
 _NON_PERSON_NAME_SYSTEM_PROMPT = f"""\
 あなたは架空の世界観を構築する設定作家です。
@@ -140,6 +141,16 @@ _NAME_SCHEMA = {
         "name": {"type": "string"},
     },
     "required": ["name"],
+    "additionalProperties": False,
+}
+
+_PERSON_NAME_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "family_name": {"type": "string"},
+    },
+    "required": ["name", "family_name"],
     "additionalProperties": False,
 }
 
@@ -363,9 +374,11 @@ def _generate_one(
         f"既にいる人物・対象の名: {_character_names(nearby_characters)}\n"
         f"この{subject}に似合う名前を決めてください。"
     )
-    named = ai.try_generate_json(
-        name_prompt, _NAME_SCHEMA,
-        system=_NAME_SYSTEM_PROMPT if person else _NON_PERSON_NAME_SYSTEM_PROMPT)
+    if person:
+        named = ai.try_generate_json(name_prompt, _PERSON_NAME_SCHEMA, system=_NAME_SYSTEM_PROMPT)
+        parameters["family_name"] = (named.get("family_name") or "").strip() or None
+    else:
+        named = ai.try_generate_json(name_prompt, _NAME_SCHEMA, system=_NON_PERSON_NAME_SYSTEM_PROMPT)
     draft["name"] = named.get("name") or draft["name"]
     draft["text"] = fill_name_placeholder(draft["text"], draft["name"])
 
@@ -385,7 +398,8 @@ def _generate_one(
     place_label = f"{born_place.name}(id={born_place.id})" if born_place else "不明"
     print(f"[time_keepr/character] {when} 生成: {record.name}"
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
-          + (f"    性別: {parameters['sex']} / 体格: {parameters['build']} / 口調: {parameters['tone']}\n"
+          + (f"    名字: {parameters['family_name'] or '(無し)'}\n"
+             f"    性別: {parameters['sex']} / 体格: {parameters['build']} / 口調: {parameters['tone']}\n"
              f"    方言: {parameters['dialect']}\n"
              f"    性格: {_personality_label(parameters)}\n"
              if person else "")

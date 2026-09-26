@@ -29,6 +29,8 @@ class ParameterFactory(factory.DictFactory):
     start = None
     end = None
 
+    # 名字は出自・身分・土地柄で決まるので、サイコロでは引かず名づけのときに決める
+    family_name = None
     sex = factory.Faker("random_element", elements=_SEX_CHOICES)
     height = factory.Faker("pyfloat", min_value=140, max_value=195, right_digits=1, positive=True)
     build_ = factory.Faker("random_element", elements=_BUILD_CHOICES)

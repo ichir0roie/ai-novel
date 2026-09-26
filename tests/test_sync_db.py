@@ -6,7 +6,8 @@ import pytest
 from ai.claude_code.interface.sync.export_db import ExportDb, ExportError
 from ai.claude_code.interface.sync.import_db import ImportDb
 from ai.claude_code.interface.sync.sync_db import SyncDb
-from db.schema import Location
+from tool.markdown.import_db import ImportDbError
+from db.schema import Character, CharacterParameter, CharacterPlace, Location
 from tool.markdown import sync_manifest
 
 
@@ -48,7 +49,7 @@ def test_export_writes_manifest_and_skips_unchanged_files(root):
     before = os.stat(_md(root)).st_mtime_ns
 
     result = SyncDb(root).run()
-    assert result == {"imported": {}, "conflicts": [], "written": [], "removed": []}
+    assert result == {"imported": {}, "deleted": [], "conflicts": [], "written": [], "removed": []}
     assert os.stat(_md(root)).st_mtime_ns == before
 
 
@@ -99,6 +100,82 @@ def test_row_deleted_in_db_removes_markdown(session, root):
     assert not os.path.exists(_md(root, "2_ロザリオ.md"))
     session.expire_all()
     assert session.get(Location, 2) is None
+
+
+def test_markdown_deleted_by_hand_deletes_row(session, root):
+    ExportDb(root).run()
+    os.remove(_md(root, "2_ロザリオ.md"))
+
+    result = SyncDb(root).run()
+    assert result["deleted"] == ["location/2_ロザリオ.md"]
+    assert result["conflicts"] == []
+    assert result["written"] == []
+    assert not os.path.exists(_md(root, "2_ロザリオ.md"))
+    session.expire_all()
+    assert session.get(Location, 2) is None
+    assert session.get(Location, 1) is not None
+    assert SyncDb(root).run()["deleted"] == []
+
+
+def test_markdown_deleted_by_hand_wins_over_db_change(session, root):
+    ExportDb(root).run()
+    os.remove(_md(root, "2_ロザリオ.md"))
+    _edit_db(session, 2, text="db で直した")
+
+    result = SyncDb(root).run()
+    assert result["deleted"] == ["location/2_ロザリオ.md"]
+    assert result["conflicts"] == ["location/2_ロザリオ.md"]
+    session.expire_all()
+    assert session.get(Location, 2) is None
+
+
+def test_moved_markdown_does_not_delete_row(session, root):
+    ExportDb(root).run()
+    os.replace(_md(root), _md(root, "1_改名.md"))
+
+    result = SyncDb(root).run()
+    assert result["deleted"] == []
+    session.expire_all()
+    assert session.get(Location, 1).filename == "改名"
+
+
+def test_deleted_markdown_takes_rows_not_in_markdown_along(session, root):
+    session.add(Character(id=1, name="ノア", text=""))
+    session.add(CharacterParameter(character_id=1, sex="女"))
+    session.add(CharacterPlace(character_id=1, location_id=1))
+    session.commit()
+    ExportDb(root).run()
+    os.remove(os.path.join(root, "character", "1_ノア.md"))
+
+    assert SyncDb(root).run()["deleted"] == ["character/1_ノア.md"]
+    session.expire_all()
+    assert session.get(Character, 1) is None
+    assert session.query(CharacterParameter).count() == 0
+    assert session.query(CharacterPlace).count() == 0
+
+
+def test_deleted_markdown_still_referred_stops_sync(session, root):
+    session.add(Location(id=3, name="広場", kind="広場", text="", parent_id=2))
+    session.commit()
+    ExportDb(root).run()
+    os.remove(_md(root, "2_ロザリオ.md"))
+
+    with pytest.raises(ImportDbError):
+        SyncDb(root).run()
+    session.expire_all()
+    assert session.get(Location, 2) is not None
+
+    os.remove(_md(root, "3_広場.md"))
+    assert SyncDb(root).run()["deleted"] == ["location/2_ロザリオ.md", "location/3_広場.md"]
+
+
+def test_export_stops_when_markdown_deleted_by_hand(root):
+    ExportDb(root).run()
+    os.remove(_md(root))
+
+    with pytest.raises(ExportError):
+        ExportDb(root).run()
+    assert not os.path.exists(_md(root))
 
 
 def test_rename_in_db_moves_markdown(session, root):

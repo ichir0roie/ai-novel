@@ -7,6 +7,8 @@ import os
 import re
 import shutil
 
+from sqlalchemy import delete, select
+
 from db.child_lists import ChildListError, load_children
 from db.schema import NOVEL_DB_PATH, WORLDS_ROOT, Base, MarkdownBase, StampType, get_novel_session
 from db.stamp import Stamp
@@ -153,6 +155,55 @@ def _edited_files(root: str, manifest: Manifest) -> list[tuple[type, str, str | 
     return edited
 
 
+def _removed_rows(session, manifest: Manifest) -> list[tuple[type, str, object]]:
+    """手で消された md と、その行。動かしただけの md(同じ行を別の md が持つ)は含めない。"""
+    models = _markdown_models()
+    missing = manifest.missing()
+    missing_keys = {manifest.key(path) for path in missing}
+    kept = {(entry["table"], entry["id"]) for key, entry in manifest.entries.items()
+            if key not in missing_keys}
+    removed = []
+    for path in missing:
+        entry = manifest.get(path)
+        model = models.get(entry["table"])
+        if model is None or (entry["table"], entry["id"]) in kept:
+            continue
+        row = session.get(model, entry["id"])
+        if row is not None:
+            removed.append((model, path, row))
+    return removed
+
+
+def _delete_rows(session, removed: list[tuple[type, str, object]]) -> None:
+    ids: dict[type, set[int]] = {}
+    for model, _path, row in removed:
+        ids.setdefault(model, set()).add(row.id)
+    tables = {model.__table__: model for model in _markdown_models().values()}
+
+    for model, deleting in ids.items():
+        for mapper in Base.registry.mappers:
+            other = mapper.class_
+            if getattr(other, "__table__", None) is None:
+                continue
+            for column in other.__table__.columns:
+                if not any(fk.column.table is model.__table__ for fk in column.foreign_keys):
+                    continue
+                if other.__table__ not in tables:
+                    # md に出さない行(要約・中間テーブル・子の行)は、元の行と一緒に消す
+                    session.execute(delete(other).where(column.in_(deleting)))
+                    continue
+                left = session.scalars(
+                    select(other.id).where(column.in_(deleting))
+                    .where(other.id.not_in(ids.get(other, set())))).all()
+                if left:
+                    raise ImportDbError(
+                        f"消された md の行 {model.__tablename__} {sorted(deleting)} を、"
+                        f"残っている {other.__tablename__} {sorted(left)} が {column.key} で指している。"
+                        "そちらの md も消すか、指す先を直してから同期する")
+    for model, deleting in ids.items():
+        session.execute(delete(model).where(model.id.in_(deleting)))
+
+
 def _backup() -> None:
     date_str = datetime.now().strftime("%Y%m%d%H%M%S")
     backup_path = f"backup/{date_str}.db.bk"
@@ -161,7 +212,8 @@ def _backup() -> None:
 
 
 def import_changes(session, root: str, manifest: Manifest) -> dict:
-    """前回の同期より後に手で直された(または足された)md だけを db へ入れる。commit はしない。
+    """前回の同期より後に手で直された(または足された)md だけを db へ入れ、手で消された md の行を db から消す。
+    commit はしない。
 
     db 側も同じ行を直していたら md の方を勝たせ、その md を `conflicts` に返す。
     """
@@ -187,7 +239,18 @@ def import_changes(session, root: str, manifest: Manifest) -> dict:
         if conflict:
             conflicts.append(path)
         counts[model.__tablename__] = counts.get(model.__tablename__, 0) + 1
-    return {"counts": counts, "conflicts": conflicts}
+
+    # 動かしただけの md を見分けるため、消された md は動かした先を台帳に載せてから探す
+    removed = _removed_rows(session, manifest)
+    if removed and not edited:
+        _backup()
+    for model, path, row in removed:
+        if digest(export_db.render_row(model, row)) != manifest.get(path)["db"]:
+            conflicts.append(path)
+    _delete_rows(session, removed)
+    for _model, path, _row in removed:
+        manifest.drop(path)
+    return {"counts": counts, "conflicts": conflicts, "deleted": [path for _model, path, _row in removed]}
 
 
 def import_db(root: str = WORLDS_ROOT) -> dict[str, int]:
