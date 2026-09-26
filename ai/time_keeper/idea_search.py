@@ -8,13 +8,14 @@ from __future__ import annotations
 import unicodedata
 from dataclasses import dataclass, field
 
+from ai.instructions.sensitive import BIO_ABSTRACTION_INSTRUCTION
 from ai.time_keeper import constants
 from ai.time_keeper._ai import AIClient
 from data_access_logic.query import common_query, dictionary_query
 from db.schema import Idea, Session
 from db.stamp import Stamp
 
-_SYSTEM_PROMPT = """\
+_SYSTEM_PROMPT = f"""\
 あなたは物語の設定資料の編集者です。
 渡す文から、世界の設定資料(用語集)と照らし合わせるべき語を抜き出し、それぞれに検索用の言い換えを付けてください。
 - 抜き出すのは、その世界に固有の、または世界の設定に関わる語: 技術・道具・現象・病や体質・制度・身分・種族・組織の種類・信仰・歴史上の出来事・作中の呼び名など。
@@ -25,6 +26,7 @@ _SYSTEM_PROMPT = """\
 - coined は、その語がこの世界・作品に固有の語(作中の呼び名・造語・固有の技術や制度の名)なら true、一般の語なら false。
 - kind は、その語の種別を「技術」「制度」「概念」「呼称」「現象」「施設」「時代」などの短い語で一つ。
 - 0〜8 件。
+{BIO_ABSTRACTION_INSTRUCTION}
 JSON で答えてください。キーは terms だけ。各要素は keyword・variants・description・coined・kind の五つ。"""
 
 _SCHEMA = {

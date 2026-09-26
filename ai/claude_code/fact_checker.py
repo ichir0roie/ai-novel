@@ -11,6 +11,7 @@ import os
 from sqlalchemy import func, or_, select
 
 from ai.claude_code import ai_client
+from ai.instructions.sensitive import FACT_CHECK_BIO_INSTRUCTION
 from ai.time_keeper import meme
 from db.schema import Idea, Meme, Oracle, Session
 
@@ -21,7 +22,7 @@ TIMEOUT = 900.0
 # 一度の呼び出しで検めさせる本文の字数の上限。一件でこれを超えるものは一件だけで渡す。
 BATCH_LETTERS = 3000
 
-_SYSTEM_PROMPT = """\
+_SYSTEM_PROMPT = f"""\
 あなたは創作の設定を検める、科学・歴史・思想に詳しい校閲者です。
 小説の世界の設定(アイデア)か、著者の創作・AI についての覚え書き(oracle)か、人物の行動原理の芯になる考え方(ミーム)を番号つきで渡すので、\
 それぞれをDラボのナレッジとネット検索で調べ、内容の妥当性を検め、書き手の役に立つ補足を書いてください。
@@ -42,6 +43,7 @@ _SYSTEM_PROMPT = """\
   ## 出典
   出典は `- [題](URL)` の箇条書きにする。Dラボの動画・記事は題の頭に「Dラボ: 」を付ける。
 - 全体で 400〜800 字を目安にする。
+{FACT_CHECK_BIO_INSTRUCTION}
 JSON で答えてください。キーは results だけ。各要素は number(番号)と fact_check(検めた結果の markdown)の二つ。"""
 
 _SCHEMA = {

@@ -7,6 +7,7 @@ import re
 
 from sqlalchemy import select
 
+from ai.instructions.sensitive import BIO_ABSTRACTION_INSTRUCTION
 from ai.time_keeper import constants
 from ai.time_keeper._ai import AIClient
 from data_access_logic.query import meme_query
@@ -36,6 +37,7 @@ _SYSTEM_PROMPT = f"""\
 - 一つの元から 0〜3 件。同じ元の中で似たミームは一つにまとめる。
 - それぞれに、次の分類から一つを振る。
 {_CATEGORY_GUIDE}
+{BIO_ABSTRACTION_INSTRUCTION}
 JSON で答えてください。キーは memes だけ。各要素は text(ミームの一文)と category(分類)の二つ。"""
 
 _SCHEMA = {
