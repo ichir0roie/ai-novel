@@ -5,30 +5,30 @@ from collections import defaultdict
 from xml.sax.saxutils import escape
 
 from db.polygon import polygon_center
+from tool.map.category import CATEGORIES, CATEGORY_COLORS, SHAPE_OPACITY
 from tool.map.layout import fit_frame, place_labels
 
-__all__ = ["COLORS", "layers_of", "marker", "shape_path", "alt_text", "render_svg"]
+__all__ = ["COLORS", "marker", "shape_path", "alt_text", "render_svg"]
 
+# 人物相関図の色。地図の色は区分ごとの CATEGORY_COLORS
 COLORS = ("#c0392b", "#2471a3", "#1e8449", "#b9770e", "#7d3c98",
           "#148f77", "#a04000", "#5d6d7e", "#d4ac0d", "#884ea0")
 
-_MARGIN_RIGHT = 200     # 凡例
+_MARGIN_RIGHT = 240     # 凡例
 _MARGIN_BOTTOM = 40
-_NO_PARENT = "(親なし)"
 
 
-def layers_of(points: list[dict]) -> list[str]:
-    seen: dict[str, str] = {}
-    for p in points:
-        seen.setdefault(p["parent_name"] or _NO_PARENT, p["parent_kind"] or "")
-    return sorted(seen, key=lambda name: (seen[name] != "大陸", name))
-
-
-def marker(kind_of_parent: str | None, x: float, y: float, r: float, color: str, extra: str = "") -> str:
-    if kind_of_parent == "大陸":
-        return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="{color}" stroke="#fff" stroke-width="1" {extra}/>'
-    d = f"M{x:.1f},{y - r:.1f} L{x + r:.1f},{y:.1f} L{x:.1f},{y + r:.1f} L{x - r:.1f},{y:.1f} Z"
-    return f'<path d="{d}" fill="{color}" stroke="#fff" stroke-width="1" {extra}/>'
+def marker(category: str, x: float, y: float, r: float, color: str, extra: str = "") -> str:
+    attrs = f'fill="{color}" stroke="#fff" stroke-width="1" {extra}'
+    if category == "国":
+        return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" {attrs}/>'
+    if category == "都市":
+        return f'<rect x="{x - r:.1f}" y="{y - r:.1f}" width="{2 * r:.1f}" height="{2 * r:.1f}" {attrs}/>'
+    if category == "自然":
+        d = f"M{x:.1f},{y - r * 1.2:.1f} L{x + r * 1.1:.1f},{y + r * 0.8:.1f} L{x - r * 1.1:.1f},{y + r * 0.8:.1f} Z"
+    else:
+        d = f"M{x:.1f},{y - r:.1f} L{x + r:.1f},{y:.1f} L{x:.1f},{y + r:.1f} L{x - r:.1f},{y:.1f} Z"
+    return f'<path d="{d}" {attrs}/>'
 
 
 def shape_path(frame, polygon: dict) -> str:
@@ -68,8 +68,7 @@ def render_svg(planet: dict, points: list[dict], shapes: list[dict] = ()) -> str
     frame = fit_frame(points, shapes)
     width = frame.left + frame.plot_width + _MARGIN_RIGHT
     height = frame.top + frame.plot_height + _MARGIN_BOTTOM
-    layers = layers_of(points + list(shapes))
-    color_of = {name: COLORS[i % len(COLORS)] for i, name in enumerate(layers)}
+    order = {c: i for i, c in enumerate(CATEGORIES)}
 
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
            f'viewBox="0 0 {width:.0f} {height:.0f}" font-family="sans-serif" font-size="11">',
@@ -87,11 +86,11 @@ def render_svg(planet: dict, points: list[dict], shapes: list[dict] = ()) -> str
 
     # 輪郭は点より先に描き、点を持たない場所(大陸など)だけ真ん中に名を置く
     point_ids = {p["id"] for p in points}
-    for p in sorted(shapes, key=lambda p: (layers.index(p["parent_name"] or _NO_PARENT), p["id"])):
-        color = color_of[p["parent_name"] or _NO_PARENT]
+    for p in sorted(shapes, key=lambda p: (order[p["category"]], p["id"])):
+        color = CATEGORY_COLORS[p["category"]]
         out.append(f'<g class="shape"><title>{escape(p["name"] or "")} / {escape(p["kind"] or "")} / '
                    f'{escape(p["parent_name"] or "")}</title>')
-        out.append(f'<path d="{shape_path(frame, p["polygon"])}" fill="{color}" fill-opacity="0.15" '
+        out.append(f'<path d="{shape_path(frame, p["polygon"])}" fill="{color}" fill-opacity="{SHAPE_OPACITY[p["category"]]}" '
                    f'fill-rule="evenodd" stroke="{color}" stroke-width="1.2" stroke-linejoin="round"/>')
         if p["id"] not in point_ids:
             cx, cy = polygon_center(p["polygon"])
@@ -101,7 +100,7 @@ def render_svg(planet: dict, points: list[dict], shapes: list[dict] = ()) -> str
 
     # 同じ経緯度に重なる点(地上の国の真上・真下にある天上・地下の国など)は印を大きくし、ラベルを下へ積む
     groups: dict[tuple[float, float], list[dict]] = defaultdict(list)
-    for p in sorted(points, key=lambda p: (layers.index(p["parent_name"] or _NO_PARENT), p["id"])):
+    for p in sorted(points, key=lambda p: (order[p["category"]], p["id"])):
         groups[(p["lon"], p["lat"])].append(p)
 
     drawn = []
@@ -111,27 +110,26 @@ def render_svg(planet: dict, points: list[dict], shapes: list[dict] = ()) -> str
     labels = place_labels([(x, y + 12 * i, (p["name"] or "") + alt_text(p["alt"])) for p, x, y, i in drawn])
 
     for (p, x, y, i), (lx, ly, anchor) in zip(drawn, labels):
-        color = color_of[p["parent_name"] or _NO_PARENT]
+        color = CATEGORY_COLORS[p["category"]]
         label = escape(p["name"] or "") + escape(alt_text(p["alt"]))
         out.append(f'<g><title>{escape(p["name"] or "")} / {escape(p["kind"] or "")} / '
                    f'{escape(p["parent_name"] or "")} / lon {p["lon"]:g} lat {p["lat"]:g}{escape(alt_text(p["alt"]))}</title>')
-        out.append(marker(p["parent_kind"], x, y, 4 + 2 * i, color))
+        out.append(marker(p["category"], x, y, 4 + 2 * i, color))
         out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" fill="{color}" '
                    f'stroke="#fdfcf8" stroke-width="3" paint-order="stroke">{label}</text>')
         out.append("</g>")
 
     lx = frame.x(frame.lon_max) + 20
-    out.append(f'<text x="{lx:.0f}" y="{frame.top + 12:.0f}" font-weight="bold">親ごとの色</text>')
-    for i, name in enumerate(layers):
+    out.append(f'<text x="{lx:.0f}" y="{frame.top + 12:.0f}" font-weight="bold">区分ごとの色</text>')
+    for i, category in enumerate(CATEGORIES):
         y = frame.top + 32 + i * 18
-        kind = next((p["parent_kind"] for p in points + list(shapes) if (p["parent_name"] or _NO_PARENT) == name), None)
-        out.append(marker(kind, lx + 6, y - 4, 5, color_of[name]))
-        out.append(f'<text x="{lx + 18:.0f}" y="{y:.0f}">{escape(name)}'
-                   f'{"" if not kind else " (" + escape(kind) + ")"}</text>')
-    out.append(f'<text x="{lx:.0f}" y="{frame.top + 44 + len(layers) * 18:.0f}" fill="#555">● 大陸の子  ◆ それ以外の子</text>')
-    out.append(f'<text x="{lx:.0f}" y="{frame.top + 60 + len(layers) * 18:.0f}" fill="#555">同じ経緯度は印を重ね、名を下に積む</text>')
+        out.append(marker(category, lx + 6, y - 4, 5, CATEGORY_COLORS[category]))
+        out.append(f'<text x="{lx + 18:.0f}" y="{y:.0f}">{category}</text>')
+    notes = ["大陸に世界(地下など)を含む", "同じ経緯度は印を重ね、名を下に積む"]
     if shapes:
-        out.append(f'<text x="{lx:.0f}" y="{frame.top + 76 + len(layers) * 18:.0f}" fill="#555">薄い面は輪郭(polygon)を持つ場所</text>')
+        notes.append("薄い面は輪郭(polygon)を持つ場所")
+    for i, note in enumerate(notes):
+        out.append(f'<text x="{lx:.0f}" y="{frame.top + 44 + (len(CATEGORIES) + i) * 16:.0f}" fill="#555">{note}</text>')
 
     out.append("</svg>")
     return "\n".join(out) + "\n"

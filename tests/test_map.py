@@ -5,6 +5,7 @@ import pytest
 from ai.claude_code.interface.world.list_neighbors import ListNeighbors
 from data_access_logic.query.common_query import NotFoundError
 from db.schema import Location
+from tool.map.category import category_of
 from tool.map.geometry import (
     angular_distance_deg, bearing_deg, bearing_name, distance_km, planet_radius_km,
 )
@@ -41,6 +42,13 @@ def test_fit_frame_pads_and_snaps_to_grid():
     assert frame.x(frame.lon_min) == frame.left and frame.y(frame.lat_max) == frame.top
     whole = fit_frame([{"lon": -179, "lat": 89}, {"lon": 179, "lat": -89}])
     assert (whole.lon_min, whole.lon_max, whole.lat_min, whole.lat_max) == (-180, 180, -90, 90)
+
+
+def test_category_of_kind():
+    assert category_of("大陸") == category_of("世界") == "大陸"
+    assert category_of("国") == "国"
+    assert category_of("都市") == category_of("町") == category_of("村") == "都市"
+    assert category_of("森") == category_of("火山") == category_of(None) == "自然"
 
 
 def test_place_labels_avoid_each_other():
@@ -128,11 +136,13 @@ def test_export_writes_maps_next_to_planet(star, tmp_path):
     with open(svg_path, encoding="utf-8") as f:
         svg = f.read()
     assert svg.startswith("<svg") and "東京 (+40 m)" in svg and "空の都 (+20,040 m)" in svg
-    assert "大陸 (大陸)" in svg and "天上 (世界)" in svg
+    assert "区分ごとの色" in svg and "(親なし)" not in svg
+    assert '<circle cx=' in svg and 'width="8.0" height="8.0"' in svg  # 国と町の印
 
     with open(html_path, encoding="utf-8") as f:
         html = f.read()
     assert '"name": "ロンドン"' in html and '"radius_km"' in html
+    assert '"category": "国"' in html and '"category": "都市"' in html
     assert "</script>" in html and "<\\/" not in svg
 
 

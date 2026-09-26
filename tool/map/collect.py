@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from data_access_logic.query import common_query
 from db.schema import Location
+from tool.map.category import category_of
 from tool.map.geometry import planet_radius_km
 
 __all__ = ["planet_dict", "point_dict", "collect_planets"]
@@ -21,7 +22,7 @@ def point_dict(session, place) -> dict:
     # `Location.parent` は noload なので、識別マップに先に載った行では None のまま。id で引き直す
     parent = session.get(Location, place.parent_id) if place.parent_id is not None else None
     return {
-        "id": place.id, "name": place.name, "kind": place.kind,
+        "id": place.id, "name": place.name, "kind": place.kind, "category": category_of(place.kind),
         "parent_id": place.parent_id,
         "parent_name": parent.name if parent else None,
         "parent_kind": parent.kind if parent else None,

@@ -8,6 +8,7 @@ from ai.claude_code.interface.randomizer.update_place import UpdatePlace
 from ai.claude_code.interface.world.list_neighbors import ListNeighbors
 from db.polygon import outer_ring, parse_polygon, polygon_center
 from db.schema import Location
+from tool.map.category import CATEGORY_COLORS, SHAPE_OPACITY
 from tool.map.collect import collect_planets
 from tool.map.layout import fit_frame
 from tool.markdown.export_db import export_db
@@ -130,7 +131,9 @@ def test_export_draws_polygons(outlined, tmp_path):
     assert 'fill-rule="evenodd"' in svg and "薄い面は輪郭" in svg
     # 点を持たない大陸だけ、面の真ん中に名を置く
     assert svg.count('font-weight="bold" fill="#') == 1 and ">大陸</text>" in svg
-    assert "星 (星)" in svg  # 大陸の親(星)も凡例に並ぶ
+    # 面は親ではなく区分(大陸・国)の色で塗る
+    assert f'fill="{CATEGORY_COLORS["大陸"]}" fill-opacity="{SHAPE_OPACITY["大陸"]}"' in svg
+    assert f'fill="{CATEGORY_COLORS["国"]}" fill-opacity="{SHAPE_OPACITY["国"]}"' in svg
 
     with open(os.path.join(root, "maps", "map.html"), encoding="utf-8") as f:
         html = f.read()

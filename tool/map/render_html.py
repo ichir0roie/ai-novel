@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import json
 
+from tool.map.category import CATEGORIES, CATEGORY_COLORS, SHAPE_OPACITY
 from tool.map.geometry import BEARINGS
-from tool.map.render_svg import COLORS
 
 __all__ = ["render_html"]
 
@@ -56,7 +56,9 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <div class="tip" id="tip"></div>
 <script>
 const PLANETS = __PLANETS__;
-const COLORS = __COLORS__;
+const CATEGORIES = __CATEGORIES__;
+const CATEGORY_COLORS = __CATEGORY_COLORS__;
+const SHAPE_OPACITY = __SHAPE_OPACITY__;
 const BEARINGS = __BEARINGS__;
 const ML = 60, MT = 40, MR = 20, MB = 30, PAD = 10, GRID = 10, MIN_SCALE = 6, TARGET_WIDTH = 1400;
 const state = { planet: 0, hidden: new Set(), origin: null, zoom: 1 };
@@ -94,7 +96,6 @@ function placeLabels(items, px = 11) {
 }
 const rad = d => d * Math.PI / 180;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const parentOf = p => p.parent_name ?? "(親なし)";
 
 function angular(a, b) {
   const p1 = rad(a.lat), p2 = rad(b.lat), dl = rad(b.lon - a.lon);
@@ -119,12 +120,6 @@ function altDiffText(d) {
   return `${d > 0 ? "上" : "下"}へ ${Math.round(Math.abs(d)).toLocaleString()} m`;
 }
 
-function layersOf(points) {
-  const kinds = new Map();
-  for (const p of points) if (!kinds.has(parentOf(p))) kinds.set(parentOf(p), p.parent_kind ?? "");
-  return [...kinds.keys()].sort((a, b) => (kinds.get(a) !== "大陸") - (kinds.get(b) !== "大陸") || (a < b ? -1 : a > b ? 1 : 0));
-}
-
 function renderTabs() {
   const tabs = document.getElementById("tabs");
   tabs.innerHTML = PLANETS.map((pl, i) =>
@@ -133,26 +128,27 @@ function renderTabs() {
     state.planet = +b.dataset.i; state.hidden.clear(); state.origin = null; render(); };
 }
 
-function renderLayers(layers, colorOf, points) {
+function renderLayers() {
   const box = document.getElementById("layers");
-  box.innerHTML = layers.map(name => {
-    const kind = points.find(p => parentOf(p) === name)?.parent_kind;
-    return `<label><input type="checkbox" data-name="${esc(name)}" ${state.hidden.has(name) ? "" : "checked"}>` +
-      `<span class="swatch" style="background:${colorOf[name]}"></span>${esc(name)}${kind ? ` (${esc(kind)})` : ""}</label>`;
-  }).join("");
+  box.innerHTML = CATEGORIES.map(name =>
+    `<label><input type="checkbox" data-name="${esc(name)}" ${state.hidden.has(name) ? "" : "checked"}>` +
+    `<svg width="12" height="12" style="display:inline-block;vertical-align:middle;margin-right:3px">${marker(name, 6, 6, 5, CATEGORY_COLORS[name], "")}</svg>${esc(name)}</label>`).join("");
   box.onchange = e => { const n = e.target.dataset.name; if (e.target.checked) state.hidden.delete(n); else state.hidden.add(n); render(); };
 }
 
-function marker(p, x, y, r, color, extra) {
-  if (p.parent_kind === "大陸") return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="#fff" ${extra}/>`;
-  return `<path d="M${x},${y - r} L${x + r},${y} L${x},${y + r} L${x - r},${y} Z" fill="${color}" stroke="#fff" ${extra}/>`;
+function marker(category, x, y, r, color, extra) {
+  const attrs = `fill="${color}" stroke="#fff" ${extra}`;
+  if (category === "国") return `<circle cx="${x}" cy="${y}" r="${r}" ${attrs}/>`;
+  if (category === "都市") return `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" ${attrs}/>`;
+  if (category === "自然") return `<path d="M${x},${y - r * 1.2} L${x + r * 1.1},${y + r * .8} L${x - r * 1.1},${y + r * .8} Z" ${attrs}/>`;
+  return `<path d="M${x},${y - r} L${x + r},${y} L${x},${y + r} L${x - r},${y} Z" ${attrs}/>`;
 }
 
 function shapePath(f, poly) {
   return poly.coordinates.map(ring => ring.map(([lon, lat], i) => `${i ? "L" : "M"}${f.x(lon)},${f.y(lat)}`).join(" ") + " Z").join(" ");
 }
 
-function renderMap(planet, points, shapes, layers, colorOf) {
+function renderMap(planet, points, shapes) {
   const f = fitFrame(points, shapes), X = f.x, Y = f.y;
   const W = ML + (f.lonMax - f.lonMin) * f.scale + MR, H = MT + (f.latMax - f.latMin) * f.scale + MB;
   let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-size="11">`;
@@ -171,9 +167,10 @@ function renderMap(planet, points, shapes, layers, colorOf) {
   s += `<text x="${ML + 40 + planet.name.length * 18}" y="24" fill="#555">${r ? `半径 約${Math.round(r).toLocaleString()} km、緯度1度 ≒ ${Math.round(r * Math.PI / 180).toLocaleString()} km` : "半径は不明(area が無い)"}</text>`;
 
   const pointIds = new Set(points.map(p => p.id));
-  for (const p of shapes.filter(p => !state.hidden.has(parentOf(p)))) {
-    const color = colorOf[parentOf(p)];
-    s += `<g class="shape" data-id="${p.id}"><path d="${shapePath(f, p.polygon)}" fill="${color}" fill-opacity=".15" fill-rule="evenodd" stroke="${color}" stroke-width="1.2" stroke-linejoin="round"/>`;
+  const order = p => CATEGORIES.indexOf(p.category);
+  for (const p of shapes.filter(p => !state.hidden.has(p.category)).sort((a, b) => order(a) - order(b) || a.id - b.id)) {
+    const color = CATEGORY_COLORS[p.category];
+    s += `<g class="shape" data-id="${p.id}"><path d="${shapePath(f, p.polygon)}" fill="${color}" fill-opacity="${SHAPE_OPACITY[p.category]}" fill-rule="evenodd" stroke="${color}" stroke-width="1.2" stroke-linejoin="round"/>`;
     if (!pointIds.has(p.id)) {
       const ring = outerRing(p.polygon), cx = ring.reduce((a, q) => a + q[0], 0) / ring.length, cy = ring.reduce((a, q) => a + q[1], 0) / ring.length;
       s += `<text x="${X(cx)}" y="${Y(cy)}" text-anchor="middle" font-size="13" font-weight="bold" fill="${color}" fill-opacity=".7" pointer-events="none">${esc(p.name)}</text>`;
@@ -181,23 +178,23 @@ function renderMap(planet, points, shapes, layers, colorOf) {
     s += "</g>";
   }
 
-  const shown = points.filter(p => !state.hidden.has(parentOf(p)));
+  const shown = points.filter(p => !state.hidden.has(p.category));
   const origin = shown.find(p => p.id === state.origin) ?? null;
   if (origin) for (const p of shown) if (p !== origin)
     s += `<line x1="${X(origin.lon)}" y1="${Y(origin.lat)}" x2="${X(p.lon)}" y2="${Y(p.lat)}" stroke="#333" stroke-width=".5" stroke-dasharray="3 3"/>`;
 
   const groups = new Map();
-  for (const p of [...shown].sort((a, b) => layers.indexOf(parentOf(a)) - layers.indexOf(parentOf(b)) || a.id - b.id)) {
+  for (const p of [...shown].sort((a, b) => order(a) - order(b) || a.id - b.id)) {
     const k = `${p.lon},${p.lat}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p);
   }
   const drawn = [];
   for (const members of groups.values()) members.forEach((p, i) => drawn.push([p, X(p.lon), Y(p.lat), i]));
   const labels = placeLabels(drawn.map(([p, x, y, i]) => [x, y + 12 * i, p.name + altText(p.alt)]));
   drawn.forEach(([p, x, y, i], n) => {
-    const [lx, ly, anchor] = labels[n], color = colorOf[parentOf(p)];
+    const [lx, ly, anchor] = labels[n], color = CATEGORY_COLORS[p.category];
     const sel = origin && origin.id === p.id;
     s += `<g class="pt" data-id="${p.id}" style="cursor:pointer">`;
-    s += marker(p, x, y, (sel ? 7 : 4) + 2 * i, color, `stroke-width="${sel ? 2.5 : 1}"`);
+    s += marker(p.category, x, y, (sel ? 7 : 4) + 2 * i, color, `stroke-width="${sel ? 2.5 : 1}"`);
     s += `<text x="${lx}" y="${ly}" text-anchor="${anchor}" fill="${color}" stroke="#fdfcf8" stroke-width="3" paint-order="stroke" font-weight="${sel ? "bold" : "normal"}">${esc(p.name)}${esc(altText(p.alt))}</text></g>`;
   });
   s += "</svg>";
@@ -228,7 +225,7 @@ function renderSide(planet, points, shapes) {
   const origin = points.find(p => p.id === state.origin);
   if (!origin) { side.innerHTML = `<p class="hint">点をクリックすると、そこから見た他の場所の距離と方角を出す。</p>` +
     `<p class="hint">経緯度を持つ場所 ${points.length} 件、輪郭(polygon)を持つ場所 ${shapes.length} 件。輪郭は薄い面として敷く。</p>`; return; }
-  const rows = points.filter(p => p !== origin && !state.hidden.has(parentOf(p))).map(p => {
+  const rows = points.filter(p => p !== origin && !state.hidden.has(p.category)).map(p => {
     const deg = angular(origin, p), km = planet.radius_km ? rad(deg) * planet.radius_km : null, b = bearing(origin, p);
     const diff = (origin.alt != null && p.alt != null) ? p.alt - origin.alt : null;
     return { p, deg, km, b, diff };
@@ -246,9 +243,7 @@ function renderSide(planet, points, shapes) {
 
 function render() {
   const { planet, points, shapes } = PLANETS[state.planet];
-  const layers = layersOf([...points, ...shapes]);
-  const colorOf = Object.fromEntries(layers.map((n, i) => [n, COLORS[i % COLORS.length]]));
-  renderTabs(); renderLayers(layers, colorOf, [...points, ...shapes]); renderMap(planet, points, shapes, layers, colorOf); renderSide(planet, points, shapes);
+  renderTabs(); renderLayers(); renderMap(planet, points, shapes); renderSide(planet, points, shapes);
 }
 document.getElementById("zoom").oninput = e => { state.zoom = +e.target.value; document.getElementById("zoomv").textContent = state.zoom + "×"; render(); };
 if (PLANETS.length) render(); else document.getElementById("map").innerHTML = '<p class="hint" style="padding:16px">経緯度も輪郭も持つ場所が無い。</p>';
@@ -262,5 +257,7 @@ def render_html(planets: list[dict]) -> str:
     dump = lambda value: json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
     return (_TEMPLATE
             .replace("__PLANETS__", dump(planets))
-            .replace("__COLORS__", dump(list(COLORS)))
+            .replace("__CATEGORIES__", dump(list(CATEGORIES)))
+            .replace("__CATEGORY_COLORS__", dump(CATEGORY_COLORS))
+            .replace("__SHAPE_OPACITY__", dump(SHAPE_OPACITY))
             .replace("__BEARINGS__", dump(list(BEARINGS))))
