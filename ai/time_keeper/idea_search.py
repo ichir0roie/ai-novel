@@ -13,7 +13,7 @@ from ai.time_keeper import constants
 from ai.time_keeper._ai import AIClient
 from data_access_logic.query import common_query, dictionary_query
 from db.schema import Idea, Session
-from db.stamp import Stamp
+from db.stamp import Stamp, StampError
 
 _SYSTEM_PROMPT = f"""\
 あなたは物語の設定資料の編集者です。
@@ -25,9 +25,11 @@ _SYSTEM_PROMPT = f"""\
 - description は、この文の中でその語が何を指しているかの一文。
 - coined は、その語がこの世界・作品に固有の語(作中の呼び名・造語・固有の技術や制度の名)なら true、一般の語なら false。
 - kind は、その語の種別を「技術」「制度」「概念」「呼称」「現象」「施設」「時代」などの短い語で一つ。
+- start は、その事柄がこの世界に現れた(作られた・始まった・そう呼ばれ始めた)時期。文の時刻と文の中身から、ある程度はっきり言えるときだけ「年」か「年/月/日」で書く(文の時刻に初めて現れた事柄ならその時刻、「十年前から」ならそこから数えた年)。はっきり言えなければ null。
+- end は、その事柄が終わった・廃れた・そう呼ばれなくなった時期。文から分かるときだけ start と同じ形で書き、分からなければ null。
 - 0〜8 件。
 {BIO_ABSTRACTION_INSTRUCTION}
-JSON で答えてください。キーは terms だけ。各要素は keyword・variants・description・coined・kind の五つ。"""
+JSON で答えてください。キーは terms だけ。各要素は keyword・variants・description・coined・kind・start・end の七つ。"""
 
 _SCHEMA = {
     "type": "object",
@@ -42,8 +44,10 @@ _SCHEMA = {
                     "description": {"type": "string"},
                     "coined": {"type": "boolean"},
                     "kind": {"type": "string"},
+                    "start": {"type": ["string", "null"]},
+                    "end": {"type": ["string", "null"]},
                 },
-                "required": ["keyword", "variants", "description", "coined", "kind"],
+                "required": ["keyword", "variants", "description", "coined", "kind", "start", "end"],
                 "additionalProperties": False,
             },
         },
@@ -94,10 +98,18 @@ def spellings(word: str) -> list[str]:
     return found
 
 
+def _stamp(value) -> Stamp | None:
+    try:
+        return Stamp.parse(value)
+    except (StampError, TypeError):
+        return None
+
+
 def terms_of(keywords) -> list[dict]:
-    """`"語"` / `{"keyword", "variants", "description", "coined", "kind"}` / それらのリストを、そろえた辞書のリストにする。
+    """`"語"` / `{"keyword", "variants", "description", "coined", "kind", "start", "end"}` / それらのリストを、そろえた辞書のリストにする。
 
     `coined` が無ければ true(claude が自分で選んで渡した語は、固有の語として扱う)。`kind` が無ければ `DEFAULT_KIND`。
+    `start` / `end` は読めなければ None。`end` が `start` より後でなければ `end` を捨てる。
     """
     if isinstance(keywords, (str, dict)):
         keywords = [keywords]
@@ -115,21 +127,31 @@ def terms_of(keywords) -> list[dict]:
         variants = [_normalized(v) for v in item.get("variants") or [] if isinstance(v, str)]
         description = item.get("description") if isinstance(item.get("description"), str) else ""
         kind = _normalized(item.get("kind") if isinstance(item.get("kind"), str) else "")
+        start, end = _stamp(item.get("start")), _stamp(item.get("end"))
+        if start is not None and end is not None and end <= start:
+            end = None
         terms.append({"keyword": keyword,
                       "variants": [v for v in dict.fromkeys(variants)
                                    if len(v) >= _MIN_VARIANT_LETTERS and v != keyword],
                       "description": description.strip(),
                       "coined": item.get("coined", True) is not False,
-                      "kind": kind or DEFAULT_KIND})
+                      "kind": kind or DEFAULT_KIND,
+                      "start": start,
+                      "end": end})
     return terms
 
 
-def keywords_of(text: str, ai: AIClient) -> list[dict]:
-    """`text` から、アイデアと照らす語とその言い換えを AI に挙げさせる。答えなければ空。"""
+def keywords_of(text: str, ai: AIClient, time=None) -> list[dict]:
+    """`text` から、アイデアと照らす語とその言い換えを AI に挙げさせる。答えなければ空。
+
+    `time`(文の時刻)を渡すと、それと文の中身から語ごとの `start` / `end` を決めさせる。
+    """
     if not (text or "").strip():
         return []
+    time = Stamp.parse(time)
+    when = f"この文の時刻: {time}\n\n" if time is not None else ""
     decided = ai.try_generate_json(
-        f"{text}\n\nこの文から、設定資料と照らし合わせる語を挙げてください。",
+        f"{when}{text}\n\nこの文から、設定資料と照らし合わせる語を挙げてください。",
         _SCHEMA, system=_SYSTEM_PROMPT, timeout=constants.IDEA_TERMS_TIMEOUT)
     return terms_of(decided.get("terms") or [])
 

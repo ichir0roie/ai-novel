@@ -47,7 +47,7 @@ def _is_proper_name(session: Session, word: str) -> bool:
             or session.scalar(select(Location.id).where(Location.name == word).limit(1)) is not None)
 
 
-def _candidate_for(session: Session, term: dict, place_id: int | None, time: Stamp | None) -> Idea | None:
+def _candidate_for(session: Session, term: dict, place_id: int | None) -> Idea | None:
     names = idea_search.spellings(term["keyword"])
     existing = session.scalars(
         dictionary_query.auto_generated_ideas_select().where(Idea.name.in_(names))).first()
@@ -57,7 +57,7 @@ def _candidate_for(session: Session, term: dict, place_id: int | None, time: Sta
         return None
     candidate = Idea(
         name=term["keyword"], kind=term["kind"], auto_generated=True, text=term["description"],
-        location_id=_world_id(session, place_id), start=time,
+        location_id=_world_id(session, place_id), start=term["start"], end=term["end"],
         directory_path=term["kind"].replace("/", "／") or None)
     session.add(candidate)
     session.flush()
@@ -94,7 +94,8 @@ def _related(session: Session, hits: list[Idea], place_id: int | None, time: Sta
 def resolve(session: Session, keywords, place_id: int | None = None, time=None) -> IdeaContext:
     """洗い出した語(`idea_search.terms_of` の形)をアイデアと照らし、当たらなかった語を候補として足す。
 
-    `time` は出来事の時刻。その時刻に効くアイデアだけを引き、足す候補はその時刻から効かせる。
+    `time` は出来事の時刻。その時刻に効くアイデアだけを引く。足す候補の効く期間は語の `start` / `end`
+    (時期のはっきりしない語は None のまま)。
     時期の決まっていないアイデアは、語が当たっても候補は足さず、清書にも渡さない(`related` に入れない)。
     """
     time = Stamp.parse(time)
@@ -105,7 +106,7 @@ def resolve(session: Session, keywords, place_id: int | None = None, time=None) 
     for term in terms:
         if term["keyword"] in matched or not term["coined"]:
             continue
-        candidate = _candidate_for(session, term, place_id, time)
+        candidate = _candidate_for(session, term, place_id)
         if candidate is not None and candidate not in context.candidates:
             context.candidates.append(candidate)
     context.related = _dated(idea_alias.essences(
@@ -116,7 +117,7 @@ def resolve(session: Session, keywords, place_id: int | None = None, time=None) 
 
 def gather(session: Session, draft: str, ai: AIClient, place_id: int | None = None, time=None) -> IdeaContext:
     """下書き `draft` から語を洗い出して `resolve` する。"""
-    return resolve(session, idea_search.keywords_of(draft, ai), place_id, time)
+    return resolve(session, idea_search.keywords_of(draft, ai, time), place_id, time)
 
 
 def prompt_section(ideas: list[Idea], called: dict[int, Idea] | None = None) -> str:

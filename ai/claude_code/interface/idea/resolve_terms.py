@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """洗い出した語をアイデアと照らす、claude が呼ぶ入口(中間段を claude が自分で回すとき)。
 
-    ResolveTerms([{"keyword": "虫憑き", "variants": ["寄生", "宿り"], "description": "…", "kind": "呼称"}],
+    ResolveTerms([{"keyword": "虫憑き", "variants": ["寄生", "宿り"], "description": "…", "kind": "呼称",
+                   "start": "1190", "end": None}],
                  place_id=61, time="1200/04/01").run()
 
 `time` は出来事の時刻。その時刻に効くアイデアだけを引く。
 当たったアイデアとその上位・下位を `ideas` に返す。呼び名に当たったら本質のアイデアにそろえ、
 その場所・時刻での作中の呼び名を `called` に付ける。どれにも当たらなかった語は、`kind` の種別で
-自動生成(`auto_generated`)のアイデアとして足し、`candidates` に返す。足した候補は `time` から効く。
+自動生成(`auto_generated`)のアイデアとして足し、`candidates` に返す。足した候補は語の `start` から `end` まで効く。
+`start` は `time` と下書きの中身からある程度はっきり言えるときだけ付け、言えなければ省く(None)。`end` は分かるときだけ付ける。
 清書したら `idea.link_ideas.LinkIdeas` で、`hits` と `candidates` の id を清書したレコードに結ぶ。
 """
 from __future__ import annotations

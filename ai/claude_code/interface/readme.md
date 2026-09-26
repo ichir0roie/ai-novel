@@ -22,7 +22,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「人物同士の関係は?」               | `world.list_character_relations.ListCharacterRelations(character_id=None)`   |
 | 「出来事の一覧」                     | `world.list_events.ListEvents()`(全件)。絞るなら `story.read_events.ReadEvents(time=…)` か、`ReadEvents(place_id=…)` / `ReadEvents(character_id=…)` / `ReadEvents(event_id=…)`(どの表の id かを名前で渡す) |
 | 「このアイデアは何?」「アイデアを調べて」 | `world.search_ideas.SearchIdeas(keywords, place_id=None, limit=None, time=None)`。名前・本文の部分一致のあいまい検索。`keywords` は語一つか、`{"keyword", "variants"}`(言い換え)のリスト。当たり方の強い順に返す。自動生成の候補も返す。`place_id` は現在地から最上位までの場所に、`time` はその時刻に効く(`start` <= time < `end`)アイデアに絞る。`called` はその場所・時刻での作中の呼び名 |
-| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None, time=None)`。下書きから洗い出した語(`{"keyword", "variants", "description", "kind"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」)。`time` は出来事の時刻。`time` を渡すと `start` が空(時期が未定)のアイデアは `ideas` に入れない。呼び名に当たったら本質のアイデアにそろえ、作中の呼び名を `called` に付ける |
+| 「この下書きに関わる設定は?」(中間段を自分で回す) | `idea.resolve_terms.ResolveTerms(terms, place_id=None, time=None)`。下書きから洗い出した語(`{"keyword", "variants", "description", "kind", "start", "end"}`)をアイデアと照らし、当たったものと上位・下位を返す。当たらなかった語は候補として足す(下の「中間段」)。候補の効く期間は語の `start` / `end`。`start` は `time` と下書きの中身からある程度はっきり言えるときだけ付け(言えなければ省いて None)、`end` は分かるときだけ付ける。`time` は出来事の時刻。`time` を渡すと `start` が空(時期が未定)のアイデアは `ideas` に入れない。呼び名に当たったら本質のアイデアにそろえ、作中の呼び名を `called` に付ける |
 | 「この本文が踏まえたアイデアを結んで」 | `idea.link_ideas.LinkIdeas(idea_ids, event_id=None, episode_id=None, character_id=None)`。三つのうち一つだけ渡す |
 | 「この候補をあのアイデアにまとめて」 | `randomizer.merge_idea.MergeIdea(source_id, target_id)`。結んだ本文と source の呼び名を付け替えてから source を消す |
 | 「判断待ちの一覧」「週次レビュー」   | `review.list_pending_reviews.ListPendingReviews()`。候補・未同期の話・本文に残った TODO。Todoist へ載せる手順はスキル `weekly-review` |
@@ -115,14 +115,15 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 本文を書く生成は、下書き(一段目)と清書(二段目)のあいだに、アイデアと照らす中間段を挟む
 (`ai/time_keeper/idea_context.py`)。
 
-1. 下書きから、設定資料と照らす語とその言い換えを AI に挙げさせる(`idea_search.keywords_of`)
+1. 下書きから、設定資料と照らす語とその言い換えを AI に挙げさせる(`idea_search.keywords_of`)。
+   出来事の時刻と下書きの中身から、語ごとの `start` / `end` も決めさせる。ある程度はっきりした `start` が言えない語は null、`end` は分かる語だけ
 2. 語と言い換えで、アイデアの名前・本文を部分一致で引く(`idea_search.search`)。その場所・時刻で効くアイデアだけ。
    場所は、アイデアの `location_id` が現在地から最上位までの場所のどれかに当たるもの。
    時刻は、出来事の時刻が `start` 以上 `end` 未満のもの(`end` が空なら限らない)。
    `start` が空のアイデアは時期が未定で、その時刻にもうあるかが分からないので、語が当たっても清書に渡さない(候補も足さない)。
    当たったアイデアに上位・下位のアイデアを足して、清書に「関係する設定」として渡す
 3. どのアイデアにも当たらなかった語は、AI が決めた種別(`kind`)と `auto_generated=true` で、種別のディレクトリ(`worlds/idea/<kind>/`)に足す。
-   場所は世界線、`start` は出来事の時刻。候補も他のアイデアと同じく検索・断面・清書・ミームの抜き出しに出る。
+   場所は世界線、`start` / `end` は 1. で決めたもの(null ならそのまま空。時期が未定の候補になる)。候補も他のアイデアと同じく検索・断面・清書・ミームの抜き出しに出る。
    確かめたら `auto_generated` を false にする
 4. 下書きが当たったアイデアと候補を、清書したレコードに中間テーブル(`event_idea` / `episode_idea` /
    `character_idea`。md には出さない)で結ぶ

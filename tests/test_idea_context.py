@@ -146,8 +146,31 @@ def test_terms_are_normalized_and_deduplicated():
     terms = idea_search.terms_of(
         ["語", {"keyword": " 語 "}, {"keyword": "虫", "variants": ["虫", "むし", "官", ""]}, 3])
 
-    assert terms == [{"keyword": "語", "variants": [], "description": "", "coined": True, "kind": "概念"},
-                     {"keyword": "虫", "variants": ["むし"], "description": "", "coined": True, "kind": "概念"}]
+    assert terms == [{"keyword": "語", "variants": [], "description": "", "coined": True, "kind": "概念",
+                      "start": None, "end": None},
+                     {"keyword": "虫", "variants": ["むし"], "description": "", "coined": True, "kind": "概念",
+                      "start": None, "end": None}]
+
+
+def test_term_periods_are_parsed_and_unreadable_ones_dropped():
+    terms = idea_search.terms_of([
+        {"keyword": "宿り", "start": "2090/04/01", "end": "2150"},
+        {"keyword": "虫憑き", "start": "昔", "end": None},
+        {"keyword": "寄生", "start": "2100", "end": "2100"},
+    ])
+
+    assert [(term["start"], term["end"]) for term in terms] == [
+        (Stamp(2090, 4, 1), Stamp(2150)), (None, None), (Stamp(2100), None)]
+
+
+def test_keywords_are_asked_with_the_time_of_the_text():
+    ai = _Terms([{"keyword": "宿り", "variants": [], "description": "", "coined": True, "kind": "技術",
+                  "start": "2090", "end": None}])
+
+    [term] = idea_search.keywords_of("虫を宿す", ai, "2100/04/01")
+
+    assert "この文の時刻: 2100/04/01" in ai.calls[0]["prompt"]
+    assert (term["start"], term["end"]) == (Stamp(2090), None)
 
 
 def test_keywords_are_not_asked_for_an_empty_text():
@@ -190,16 +213,20 @@ def test_resolve_at_a_time_leaves_undated_ideas_out_of_the_references(session, p
 
 def test_unmatched_term_becomes_an_auto_generated_idea_of_the_world(session, places):
     context = idea_context.resolve(
-        session, [{"keyword": "宿り", "variants": ["寄生"], "description": "体に虫を宿す治療", "kind": "技術"}],
+        session, [{"keyword": "宿り", "variants": ["寄生"], "description": "体に虫を宿す治療", "kind": "技術",
+                   "start": "2090", "end": "2150"},
+                  {"keyword": "虫憑き", "description": "宿りを受けた人", "kind": "呼称"}],
         places["village"].id, "2100/04/01")
 
     assert context.hits == [] and context.related == []
-    [candidate] = context.candidates
+    [candidate, undated] = context.candidates
     assert (candidate.name, candidate.kind, candidate.text) == ("宿り", "技術", "体に虫を宿す治療")
     assert candidate.auto_generated is True
     assert candidate.location_id == places["world"].id
-    assert candidate.start == Stamp(2100, 4, 1) and candidate.end is None
+    assert candidate.start == Stamp(2090) and candidate.end == Stamp(2150)
     assert candidate.directory_path == "技術"
+    # 時期のはっきりしない語は、出来事の時刻を入れずに空のままにする
+    assert undated.start is None and undated.end is None
 
 
 def test_general_words_do_not_become_candidates(session, places):
@@ -350,19 +377,20 @@ def test_daily_event_novel_is_told_the_ideas_and_the_event_is_linked(session, pl
                  start=Stamp(2000))
     _sub_character(session, places["village"])
     ai = _Terms([{"keyword": "遺伝子異常", "variants": [], "description": ""},
-                 {"keyword": "宿り", "variants": [], "description": "治療"}])
+                 {"keyword": "宿り", "variants": [], "description": "治療", "start": "2050"}])
 
     record = character_event_generator.generate_next(session, ai, random.Random(1))
 
     [terms_call] = ai.calls_for(idea_search._SCHEMA)
     assert record.name in terms_call["prompt"]
+    assert f"この文の時刻: {record.time}" in terms_call["prompt"]
     novel = ai.calls[-1]
     assert novel["schema"] is character_event_generator._NOVEL_SCHEMA
     assert "関係する設定:" in novel["prompt"] and "世代を重ねると出る病" in novel["prompt"]
     linked = {row.idea_id for row in session.query(EventIdea).filter_by(event_id=record.id)}
     candidate = session.query(Idea).filter_by(name="宿り").one()
     assert linked == {idea.id, candidate.id}
-    assert candidate.auto_generated is True and candidate.start == record.time
+    assert candidate.auto_generated is True and candidate.start == Stamp(2050)
 
 
 def test_daily_event_without_matching_ideas_tells_no_setting(session, places):
