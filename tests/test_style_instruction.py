@@ -49,6 +49,14 @@ def test_layout_does_not_split_repeated_marks():
     assert style.layout_novel_text("本当に！？そう。") == "本当に！？\nそう。"
 
 
+def test_layout_turns_half_width_marks_into_full_width():
+    assert style.layout_novel_text("「ノア! こっち!」「なに?」") == "「ノア！こっち！」「なに？」"
+
+
+def test_layout_splits_sentences_at_half_width_marks():
+    assert style.layout_novel_text("本当に!?そう。") == "本当に！？\nそう。"
+
+
 def test_layout_turns_the_scene_break_into_two_blank_lines():
     text = "一つ目。\n\n◇\n\n二つ目。"
     assert style.layout_novel_text(text) == "一つ目。\n\n\n二つ目。"
