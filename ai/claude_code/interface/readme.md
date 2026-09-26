@@ -66,6 +66,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「世界観へ反映済みにする」           | `story.set_episode_synced.SetEpisodeSynced(episode_id, synced=True)`   |
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
 | 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `daily_event`。主役を決めるなら `character_id` を渡す。「〇〇の17歳の出来事」のように歳を決めるなら `age` も渡す(直前の出来事の後ではなく、その歳のうちに差し込む) |
+| 「この場所・この時の出来事を起こして」「ヴァレンツァで11579/03/02に〇〇な場面」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `place_event`。場所 id・時刻・`key`(ジャンルや場面を一言で)を渡す。当事者はその時刻にそこにいるサブキャラクターから選ぶ |
 
 **まだ入口が無いもの**(頼まれたら作ってから行う): 人物の削除。
 
@@ -185,6 +186,7 @@ claude が対話で書くときは、自分で語と言い換えを挙げて `Re
 | 時間を進める                                 | `local_ai_time_keeper.loop_time()`         | `claude_code_time_keeper.claude_main()` / `story_writer.write_story()` |
 | ある作品の開始から指定年数ぶん進める         | `local_ai_time_keeper.loop_time_for_story()` | `claude_code_time_keeper.claude_story_years_main()`               |
 | サブキャラ一人の次の出来事を一件起こす(毎日のルーチン) | `local_ai_time_keeper.daily_event()`       | `claude_code_time_keeper.claude_daily_event_main()`                |
+| ある場所・時刻に、居合わせるサブキャラで出来事を一件起こす(場面を指定) | `local_ai_time_keeper.place_event(place_id, time, key)` | `claude_code_time_keeper.claude_place_event_main(place_id, time, key)` |
 
 (`ai.local_ai.` / `ai.claude_code.` を頭に付ける)
 
@@ -202,6 +204,13 @@ AI に棚卸し済みの種と見比べさせ、同じ出来事の言い換え�
 その時点に別の出来事の最中にいる者は当事者から外す(主役なら選び直す)。
 ルーチンで起こした出来事は `CommitEvent` を通らないので、ルーチンの頭でミームも棚卸しする(`meme.refresh`)。
 前の回までに起こした出来事から、当事者が行き着いた考え方をミームとして抜き出す。
+
+場所の出来事(`place_event`)は、毎日のルーチンの主役の代わりに場所・時刻・`key`(ジャンルや場面を一言で。「市場の喧嘩」「怪談」など)を決めて起こす。
+それ以外は毎日のルーチンと同じ(頭でのミーム・種の棚卸し、種を引く、作品の本文を渡さない、後の出来事を渡す、小説に書き起こす)。
+当事者の候補は、その時刻にその場所にいて(`character_place`)、別の出来事の最中でない、生きているサブキャラクター。
+場所を名指しするので、場所の `active_random_generation` は見ない。`key` は候補・記録・小説のすべての段に場面の指定として渡し、
+小説は当事者のうち指定が一番よく伝わる一人の視点で書く。`time` は `Stamp` か `"11579/03/02"` の形の文字列。
+居合わせる者がいなければ何もせず None を返す(`ai/time_keeper/place_event_generator.py`)。
 
 上の表の「作る」「確定する」入口を使えば、Claude も対話の中で人物・場所・出来事の
 内容を決めて確定してよい。

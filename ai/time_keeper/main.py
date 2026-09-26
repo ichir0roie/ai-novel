@@ -4,7 +4,9 @@ from __future__ import annotations
 import random
 import traceback
 
-from ai.time_keeper import character_event_generator, event_progression_generator, event_seed, meme
+from ai.time_keeper import (
+    character_event_generator, event_progression_generator, event_seed, meme, place_event_generator,
+)
 from data_access_logic.query import common_query, world_createion_query
 from db.schema import Session, Stamp, Story, get_env_session
 from ai.time_keeper import (
@@ -62,6 +64,16 @@ def daily_event(ai: AIClient, character_id: int | None = None, age: int | None =
         event_seed.refresh(s, ai)
         event_seed.consolidate(s, ai)
         record = character_event_generator.generate_next(s, ai, character_id=character_id, age=age)
+        return record.id if record is not None else None
+
+
+def place_event(ai: AIClient, place_id: int, time: Stamp | str, key: str) -> int | None:
+    time = Stamp.parse(time)
+    with get_env_session() as s:
+        meme.refresh(s, ai)
+        event_seed.refresh(s, ai)
+        event_seed.consolidate(s, ai)
+        record = place_event_generator.generate_at(s, ai, place_id, time, key)
         return record.id if record is not None else None
 
 

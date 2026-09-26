@@ -22,6 +22,10 @@ def daily_event(character_id: int | None = None, age: int | None = None) -> int 
     return main.daily_event(ai_client, character_id, age)
 
 
+def place_event(place_id: int, time: Stamp | str, key: str) -> int | None:
+    return main.place_event(ai_client, place_id, time, key)
+
+
 if __name__ == "__main__":
     year = int(input("year>>"))
     stamp = Stamp(
