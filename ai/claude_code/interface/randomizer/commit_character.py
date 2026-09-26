@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft
 from data_access_logic.query import world_createion_query
-from db.schema import Character, CharacterPlace, Location, check_personality
+from db.child_lists import load_children
+from db.schema import Character, CharacterPlace, Location
 from db.schema_pydantic import to_dict
 
 
@@ -17,14 +18,15 @@ class CommitCharacter(CommitDraft):
         data = self.parse(self.character)
         data.pop("id", None)
         place_id = data.pop("place_id", None)
+        parameters = data.pop("parameters", [])
         self.check_columns(data)
-        check_personality(data)
 
         self.check_exists(session, Location, place_id, "place_id")
         self._check_span(session, place_id, data)
         self._check_story(session, place_id)
 
         record = Character(**data)
+        load_children(record, "parameters", parameters)
         session.add(record)
         session.flush()  # CharacterPlace の character_id に使う id を先に確定させる
         if place_id is not None:

@@ -18,15 +18,16 @@ def _personality():
     return factory.Faker("random_element", elements=PERSONALITY_LEVELS)
 
 
-class CharacterFactory(factory.DictFactory):
+class ParameterFactory(factory.DictFactory):
+    """期間を限らない(start・end が空の)一行。"""
+
     class Meta:
-        # `build` は Character の列名(体格)と `Factory.build()` が衝突するので、
+        # `build` は CharacterParameter の列名(体格)と `Factory.build()` が衝突するので、
         # 下の `build_` で宣言して辞書の `build` キーへ流し込む。
         rename = {"build_": "build"}
 
-    name = factory.Sequence(lambda n: f"仮名{n}")
-    text = ""
-    kind = CHARACTER_KIND_PERSON
+    start = None
+    end = None
 
     sex = factory.Faker("random_element", elements=_SEX_CHOICES)
     height = factory.Faker("pyfloat", min_value=140, max_value=195, right_digits=1, positive=True)
@@ -50,8 +51,20 @@ class CharacterFactory(factory.DictFactory):
     sensitivity = _personality()
     imagination = _personality()
 
+
+class CharacterFactory(factory.DictFactory):
+    name = factory.Sequence(lambda n: f"仮名{n}")
+    text = ""
+    kind = CHARACTER_KIND_PERSON
+
     start = None
     end = None
+
+    parameters = factory.LazyFunction(lambda: [ParameterFactory.build()])
+
+
+def build_parameter(**overrides) -> dict:
+    return ParameterFactory.build(**overrides)
 
 
 def build_character(**overrides) -> dict:

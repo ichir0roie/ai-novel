@@ -9,7 +9,7 @@ from ai.time_keeper import (
 from ai.time_keeper._format import days_between
 from data_access_logic.query import common_query
 from db.schema import (
-    Character, CharacterPlace, CharacterRelation, Event, EventCharacter, EventSeed, EventSummary,
+    Character, CharacterParameter, CharacterPlace, CharacterRelation, Event, EventCharacter, EventSeed, EventSummary,
     Location, Story,
     summary_source_hash,
 )
@@ -257,8 +257,8 @@ def test_event_is_decided_by_the_monthly_logic_told_the_focus_and_the_previous_e
 def test_text_is_rewritten_as_a_novel_of_the_decided_event(session):
     place = _place(session)
     character = _character(session, place)
-    character.first_person = "僕"
-    character.dialect = "東北風の訛り"
+    character.parameters = [CharacterParameter(first_person="俺", dialect="東北風の訛り"),
+                            CharacterParameter(start=Stamp(2100), first_person="僕")]
     session.commit()
     _event(session, place, [character], Stamp(2100, 5, 1), Stamp(2100, 5, 10), "峠越え")
     ai = MockAIClient(seed=1)

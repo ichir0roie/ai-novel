@@ -6,7 +6,8 @@ from ai.time_keeper.random_character_generator import (
     history_section,
 )
 from db.schema import (
-    MEME_CATEGORIES, PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, Location, Meme, Story,
+    MEME_CATEGORIES, PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterParameter, Location, Meme,
+    Story,
 )
 from db.stamp import Stamp
 from tool.test.mock_ai_client import MockAIClient
@@ -24,7 +25,7 @@ def test_personality_label_uses_column_comments():
 
 
 def test_personality_label_accepts_record():
-    record = Character(name="x", text="", **_ALL_HIGH)
+    record = CharacterParameter(**_ALL_HIGH)
     assert _personality_label(record) == _personality_label(_ALL_HIGH)
 
 
@@ -49,7 +50,8 @@ def test_generate_person_passes_personality_to_ai_and_keeps_it(session):
 
     record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
 
-    levels = {name: getattr(record, name) for name in PERSONALITY_COLUMNS}
+    parameters = record.parameters_at()
+    levels = {name: parameters[name] for name in PERSONALITY_COLUMNS}
     assert all(value in PERSONALITY_LEVELS for value in levels.values())
 
     content_call = next(c for c in ai.calls if c["system"] == _CONTENT_SYSTEM_PROMPT)
@@ -61,7 +63,8 @@ def test_generate_person_passes_personality_to_ai_and_keeps_it(session):
 
     session.expire_all()
     stored = session.get(Character, record.id)
-    assert {name: getattr(stored, name) for name in PERSONALITY_COLUMNS} == levels
+    assert [(row.start, row.end) for row in stored.parameters] == [(None, None)]
+    assert {name: stored.parameters_at()[name] for name in PERSONALITY_COLUMNS} == levels
 
 
 def test_generate_non_person_has_no_personality_line(session):
@@ -71,7 +74,7 @@ def test_generate_non_person_has_no_personality_line(session):
     record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), ai, person=False)
 
     assert record.kind != "人物"
-    assert record.sex is None and record.tone is None
+    assert record.parameters_at()["sex"] is None and record.parameters_at()["tone"] is None
     assert all("性格(" not in c["prompt"] for c in ai.calls)
 
 
@@ -127,10 +130,11 @@ def test_generate_person_decides_dialect_and_passes_it_to_naming(session):
     record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(1), ai, person=True)
 
     assert "dialect" in next(c for c in ai.calls if c["system"] == _CONTENT_SYSTEM_PROMPT)["schema"]["required"]
-    assert record.dialect
-    assert f"方言: {record.dialect}" in ai.calls[-1]["prompt"]
+    dialect = record.parameters_at()["dialect"]
+    assert dialect
+    assert f"方言: {dialect}" in ai.calls[-1]["prompt"]
     session.expire_all()
-    assert session.get(Character, record.id).dialect == record.dialect
+    assert session.get(Character, record.id).parameters_at()["dialect"] == dialect
 
 
 def test_generate_non_person_has_no_dialect(session):
@@ -139,7 +143,7 @@ def test_generate_non_person_has_no_dialect(session):
 
     record = _generate_one(session, place, Stamp(2100, 1, 1), random.Random(2), ai, person=False)
 
-    assert record.dialect is None
+    assert record.parameters_at()["dialect"] is None
     assert all("方言: " not in c["prompt"] for c in ai.calls)
 
 

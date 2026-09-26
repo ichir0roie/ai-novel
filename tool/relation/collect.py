@@ -15,7 +15,7 @@ def _year(stamp) -> int | None:
 def character_dict(character) -> dict:
     return {
         "id": character.id, "name": character.name, "kind": character.kind,
-        "sex": character.sex,
+        "sex": character.parameters_at()["sex"],
         "start": _year(character.start), "end": _year(character.end),
         "path": (f"{character.directory_path}/{character.markdown_name}"
                  if character.directory_path else character.markdown_name),

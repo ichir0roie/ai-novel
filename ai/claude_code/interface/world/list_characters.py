@@ -11,8 +11,9 @@ class ListCharacters(WorldQuery):
 
     def row(self, row) -> dict:
         place = row.places[0] if row.places else None
+        parameters = row.parameters_at()
         return {
             "id": row.id, "name": row.name, "kind": row.kind, "text": row.text,
-            "sex": row.sex, "tone": row.tone, "dialect": row.dialect,
+            "sex": parameters["sex"], "tone": parameters["tone"], "dialect": parameters["dialect"],
             "place_id": place.location_id if place else None,
         }

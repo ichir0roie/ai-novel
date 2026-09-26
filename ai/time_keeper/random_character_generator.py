@@ -13,7 +13,8 @@ from ai.instructions.naming import (
 from data_access_logic.query import common_query, story_createion_query, world_createion_query
 from data_access_logic.query.base import *
 from db.schema import *
-from db.schema import PERSONALITY_COLUMNS, PERSONALITY_LEVELS
+from db.schema import PERSON_PARAMETER_COLUMNS, PERSONALITY_COLUMNS, PERSONALITY_LEVELS
+from db.child_lists import load_children
 from ai.time_keeper._ai import AIClient
 from ai.time_keeper import constants, idea_context, meme
 from ai.time_keeper._format import format_time
@@ -142,12 +143,6 @@ _NAME_SCHEMA = {
     "additionalProperties": False,
 }
 
-# 人物だけが持つ列。人物以外の対象では空にする。
-_PERSON_ONLY_COLUMNS = (
-    "sex", "height", "build", "first_person", "second_person", "third_person", "tone", "dialect",
-)
-
-
 def history_section(items, born_year: int, age: int) -> str:
     """来歴の各行に年と歳を併記する。最後の行は現在の歳にそろえ、後から読む側がその時点の段階を引けるようにする。"""
     rows = []
@@ -175,7 +170,7 @@ def _should_roll(time: Stamp) -> bool:
 
 def _personality_label(values) -> str:
     get = values.get if hasattr(values, "get") else (lambda column: getattr(values, column))
-    columns = Character.__table__.columns
+    columns = CharacterParameter.__table__.columns
     return " / ".join(f"{columns[column].comment}={get(column)}" for column in PERSONALITY_COLUMNS)
 
 
@@ -273,9 +268,11 @@ def _generate_one(
     ai: AIClient, person: bool = True,
 ) -> Character:
     draft = build_character()
+    # 生まれた時点で決める値なので、期間を限らない一行だけを持つ
+    parameters = draft["parameters"][0]
     if not person:
-        for column in _PERSON_ONLY_COLUMNS:
-            draft[column] = None
+        for column in PERSON_PARAMETER_COLUMNS:
+            parameters[column] = None
 
     region_label = _region_label(session, born_place)
     story_text = _story_text(session, born_place, time)
@@ -298,8 +295,8 @@ def _generate_one(
 
     nearby_characters = _nearby_characters(session, born_place, time)
     person_line = (
-        f"性別: {draft['sex']} / 体格: {draft['build']} / 口調: {draft['tone']}\n"
-        f"性格({'/'.join(PERSONALITY_LEVELS)} の五段階): {_personality_label(draft)}\n"
+        f"性別: {parameters['sex']} / 体格: {parameters['build']} / 口調: {parameters['tone']}\n"
+        f"性格({'/'.join(PERSONALITY_LEVELS)} の五段階): {_personality_label(parameters)}\n"
         if person else ""
     )
 
@@ -326,7 +323,7 @@ def _generate_one(
 
     draft["text"] = decided.get("text") or draft["text"]
     if person:
-        draft["dialect"] = (decided.get("dialect") or "").strip() or None
+        parameters["dialect"] = (decided.get("dialect") or "").strip() or None
     context = idea_context.gather(session, draft["text"], ai, born_place.id if born_place else None, time)
     if context.related:
         polished = ai.try_generate_json(
@@ -352,7 +349,7 @@ def _generate_one(
     draft["start"] = Stamp(time.year - age)
     draft["end"] = Stamp(time.year - age + dead_age)
 
-    dialect_line = f"方言: {draft['dialect']}\n" if person and draft.get("dialect") else ""
+    dialect_line = f"方言: {parameters['dialect']}\n" if person and parameters.get("dialect") else ""
     # 名前は、説明・年齢など中身が決まったあとに、その内容から連想して決める。
     name_prompt = (
         f"種別: {draft['kind']}\n"
@@ -372,7 +369,8 @@ def _generate_one(
     draft["name"] = named.get("name") or draft["name"]
     draft["text"] = fill_name_placeholder(draft["text"], draft["name"])
 
-    record = Character(**draft)
+    record = Character(**{key: value for key, value in draft.items() if key != "parameters"})
+    load_children(record, "parameters", draft["parameters"])
     session.add(record)
     session.flush()  # place から character_id で参照するため、先に id を確定する
 
@@ -387,9 +385,9 @@ def _generate_one(
     place_label = f"{born_place.name}(id={born_place.id})" if born_place else "不明"
     print(f"[time_keepr/character] {when} 生成: {record.name}"
           f" id={record.id} 種別={record.kind} 出自={place_label} 年齢={age}\n"
-          + (f"    性別: {record.sex} / 体格: {record.build} / 口調: {record.tone}\n"
-             f"    方言: {record.dialect}\n"
-             f"    性格: {_personality_label(record)}\n"
+          + (f"    性別: {parameters['sex']} / 体格: {parameters['build']} / 口調: {parameters['tone']}\n"
+             f"    方言: {parameters['dialect']}\n"
+             f"    性格: {_personality_label(parameters)}\n"
              if person else "")
           + f"    筋書きの要素: {chosen_element or '(無し)'}\n"
           + "".join(f"    ミーム: {item['position']}: {item['text']}\n" for item in drawn_memes)

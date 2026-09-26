@@ -60,6 +60,8 @@ def character_sheet(session: Session, character_id: int, *, until=None,
     at = common_query.span(until)[1] if until is not None else Stamp(99999, 12, 31, 23, 59, 59)
 
     sheet = to_dict_with(character, text=text)
+    # 時刻を渡さないときは、期間を限らない値だけを重ねる
+    sheet.update(character.parameters_at(None if until is None else at))
     sheet["place"] = _place_at(session, common_query.character_place_select, character_id, at)
     sheet["recent_events"] = events_of(
         session, common_query.events_of_character_select, character_id, until=None if until is None else at,

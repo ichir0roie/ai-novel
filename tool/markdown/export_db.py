@@ -6,6 +6,7 @@ import os
 import shutil
 from decimal import Decimal
 
+from db.child_lists import dump_children
 from db.schema import WORLDS_ROOT, Base, MarkdownBase, get_novel_session
 from db.stamp import Stamp
 from tool.map.render import render_maps
@@ -45,11 +46,15 @@ def _render(data: dict, sections: dict[str, str]) -> str:
 
 def _row_data(model: type, row, ignore_columns: set[str]) -> dict:
     ignored = ignore_columns | set(model.TEXT_SECTIONS)
-    return {
+    data = {
         column.key: _serialize(getattr(row, column.key))
         for column in model.__table__.columns
         if column.key not in ignored
     }
+    for name in model.CHILD_LISTS:
+        data[name] = [{key: _serialize(value) for key, value in item.items()}
+                      for item in dump_children(row, name)]
+    return data
 
 
 def _sections(model: type, row) -> dict[str, str]:

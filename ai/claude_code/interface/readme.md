@@ -35,8 +35,10 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「作中での呼び名を足して」「この場所・時代では〇〇と呼ぶ」 | `randomizer.commit_idea.CommitIdea(idea)` に `alias_of_idea_id`(本質のアイデア)を付けて足す。呼び名を使う場所・時代は `location_id` / `start` / `end`(空の列はどこでも・いつでも)。清書・断面・検索は、場所・時代が当てはまる呼び名のうち場所の近いものを選んで本質のアイデアをその名で呼び、当てはまらなければ本質の `name` を使う。呼び名の呼び名は持てない |
 | 「アイデア・oracle・ミームを検めて」「妥当性を調べて」 | `fact_check.check_facts.CheckFacts(table, ids=None, limit=None)`。`table` は `"idea"` / `"oracle"` / `"meme"`。AI が Dラボのナレッジ(優先)とネット検索で妥当性と補足を書き、`fact_check` 欄へ入れる。`ids` を省くと `fact_check` が空のものすべて(`limit` で件数を絞る)、渡すと検め済みでも検め直す。アイデア・oracle は検めたあと本文と検証結果からミームを抜き出し直し、足したミームも検める。`{"checked", "memes_added"}` を返す |
 | 「場所を直して」                     | `randomizer.update_place.UpdatePlace(place)`                                 |
-| 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
+| 「この人物の〇歳からの背丈・口調・性格を決めて」 | `randomizer.update_character.UpdateCharacter({"id": …, "parameters": [...]})`。期間ごとの行の配列をまるごと渡す(下の「期間ごとのパラメータ」)。今の配列は `ReadCharacter` の `parameters` で読める |
+| 「人物を直して」                     | `randomizer.update_character.UpdateCharacter(character)`。体格・口調・性格は `parameters` に入れる(渡さなければ触らない)。出自・居場所は `randomizer.update_character_place.UpdateCharacterPlace(place)`、相関は `randomizer.update_character_relation.UpdateCharacterRelation(relation)` |
 | 「場所を消して」                     | `randomizer.delete_place.DeletePlace(place_id)`                              |
+| 「出来事を直して」                   | `randomizer.update_event.UpdateEvent(event)`。`id` 必須、渡した欄だけ直す。当事者は変えない。直したあと要約(`event_summary`)を作り直す |
 | 「出来事を消して」「出来事を作り直して」 | `randomizer.delete_event.DeleteEvent(event_id)`。子の出来事が残っていれば止まる。当事者・アイデアとの中間テーブルの行と要約も消す。出来事で人物の `text` に積み足した一文と、足したアイデアの候補は残るので、要らなければ `UpdateCharacter` / `DeleteIdea` で別に戻す |
 | 「アイデアを直して」                 | `randomizer.update_idea.UpdateIdea(idea)`。`id` 必須、渡した欄だけ直す       |
 | 「アイデアを消して」                 | `randomizer.delete_idea.DeleteIdea(idea_id)`。下位のアイデアか呼び名が残っていれば止まる。結んだ本文との中間テーブルの行も消す |
@@ -54,7 +56,7 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「その時点の顔ぶれは?」             | `story.read_cast.ReadCast(story_id, time=None)`                              |
 | 「その場所・その時点の様子は?」     | `story.read_brief.ReadBrief(place_id, time)`                                 |
 | 「この人物の周りで何が起きている?」 | `story.read_surroundings.ReadSurroundings(character_id, time)`               |
-| 「この人物を本文用にそろえて」       | `story.read_character.ReadCharacter(character_id, time=None)`                |
+| 「この人物を本文用にそろえて」       | `story.read_character.ReadCharacter(character_id, time=None)`。体格・口調・性格は `time` の時点の値を上の段に出す(`time` を省くと期間を限らない値だけ)。期間ごとの行は `parameters` |
 | 「作品を作る」「筋書きを足して」     | `story.commit_story.CommitStory(story)`。筋書きは作品の `text` に書く        |
 | 「作品を直して」「筋書きを直して」   | `story.update_story.UpdateStory(story)`                                      |
 | 「作品を消して」                     | `story.delete_story.DeleteStory(story_id)`。話が残っていれば止まる           |
@@ -64,10 +66,28 @@ db の触り方(入口越し・読み取り・md との同期)は CLAUDE.md の�
 | 「世界を進めて」「ループを回して」   | 入口ではなく常駐ループ。「常駐ループ」を見る                                  |
 | 「毎日のルーチン」「サブキャラの次の出来事を起こして」 | 入口ではなく常駐ループ側。「常駐ループ」の表の `daily_event`。主役を決めるなら `character_id` を渡す。「〇〇の17歳の出来事」のように歳を決めるなら `age` も渡す(直前の出来事の後ではなく、その歳のうちに差し込む) |
 
-**まだ入口が無いもの**(頼まれたら作ってから行う): 出来事の修正、人物の削除。
+**まだ入口が無いもの**(頼まれたら作ってから行う): 人物の削除。
 
 筋書き(`plot` / `character_plot`)のテーブルは無い。場所に掛かる筋書きは作品(`story`)の
 `text` に、人物に掛かる筋書きはその人物の `text` の `# plot` の節に書く。
+
+**期間ごとのパラメータ**: 人物の体格(`sex` `height` `build`)・口調(`first_person` `second_person` `third_person` `tone` `dialect`)・
+性格(12 軸。無/低/並/高/必)は、`character_parameter` テーブルに期間ごとの行で持つ。md では人物の `# data` の
+`parameters` に配列で並ぶ(id と character_id は出さない。行は配列の並びで決まり、並びを変えなければ id も変わらない)。
+
+```json
+"parameters": [
+  {"start": null, "end": null, "height": 140.0, "tone": "負けず嫌いで声が大きい", "sincerity": "並", ...},
+  {"start": "11600", "end": null, "height": 175.0, "tone": null, ...}
+]
+```
+
+- `start` / `end` が空なら、その端は限らない。両方空の行は全期間に効く。`end` の時刻からは効かない
+- 空の欄は「この期間では決めない」。ある時刻の値は、その時刻に掛かる行を、期間を限らない行から順に重ねて決める
+  (限る端の多い行、同じなら `start` の遅い行、それも同じなら後の行が勝つ)。どの行も決めていない性格の軸は「並」
+- 時刻を渡さずに引くと、期間を限らない行だけを重ねる
+- 生成(毎日のルーチン・出来事の進行)は、出来事の時刻の値を使う。人物の自動生成・`CreateRandomCharacter` は期間を限らない一行だけを作る
+- `CommitCharacter` / `UpdateCharacter` は `parameters` を受け取る。`UpdateCharacter` に渡すと配列をまるごと置き換える
 
 人物の来歴は、その人物の `text` の `# 来歴` 節に、節目を `- <年>年(<歳>歳): <何があり、立場・仕事・住まい・人間関係がどう変わったか>`
 の箇条書きで、歳の順に書く。人物説明にある立場・仕事・住まいには、いつそうなったかの節目を必ず入れ、

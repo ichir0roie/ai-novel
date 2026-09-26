@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from ai.claude_code.interface.randomizer._base import CommitDraft
-from db.schema import Character, check_personality
+from db.child_lists import load_children
+from db.schema import Character
 from db.schema_pydantic import to_dict
 
 
@@ -17,8 +18,8 @@ class UpdateCharacter(CommitDraft):
         character_id = data.pop("id", None)
         if character_id is None:
             raise ValueError("id は必須(直す対象の人物)")
+        parameters = data.pop("parameters", None)
         self.check_columns(data)
-        check_personality(data)
 
         record = session.get(Character, character_id)
         if record is None:
@@ -26,5 +27,7 @@ class UpdateCharacter(CommitDraft):
 
         for key, value in data.items():
             setattr(record, key, value)
+        if parameters is not None:
+            load_children(record, "parameters", parameters)
         self.finalize(session, record)
         return to_dict(record)

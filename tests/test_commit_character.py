@@ -13,6 +13,7 @@ from db.schema import (
     PERSONALITY_COLUMNS, PERSONALITY_LEVELS, Character, CharacterPlace, Location, Story,
 )
 from db.stamp import Stamp
+from randomizer.random_character_generator import build_parameter
 
 
 @pytest.fixture
@@ -30,8 +31,9 @@ def world(session):
     return {"root": root.id, "village": village.id}
 
 
-def _draft(**overrides) -> str:
+def _draft(parameter: dict | None = None, **overrides) -> str:
     draft = CreateRandomCharacter().run()
+    draft["parameters"][0].update(parameter or {})
     draft.update(overrides)
     return json.dumps(draft, ensure_ascii=False)
 
@@ -41,9 +43,12 @@ def test_commit_from_json_string(session, world):
 
     record = session.get(Character, result["id"])
     assert record.start == Stamp(2100) and record.end == Stamp(2160)
-    assert all(getattr(record, name) in PERSONALITY_LEVELS for name in PERSONALITY_COLUMNS)
-    assert {name: result[name] for name in PERSONALITY_COLUMNS} == {
-        name: getattr(record, name) for name in PERSONALITY_COLUMNS}
+    [row] = record.parameters
+    assert row.start is None and row.end is None
+    assert all(getattr(row, name) in PERSONALITY_LEVELS for name in PERSONALITY_COLUMNS)
+    [parameter] = result["parameters"]
+    assert {name: parameter[name] for name in PERSONALITY_COLUMNS} == {
+        name: getattr(row, name) for name in PERSONALITY_COLUMNS}
 
     place = session.query(CharacterPlace).filter_by(character_id=record.id).one()
     assert place.location_id == world["root"]
@@ -58,13 +63,18 @@ def test_committed_character_is_a_sub_character_by_default(session, world):
 
 def test_commit_rejects_non_level_personality(session, world):
     with pytest.raises(ValueError, match="無/低/並/高/必"):
-        CommitCharacter(_draft(place_id=world["root"], start="2100", sincerity=0)).run()
+        CommitCharacter(_draft({"sincerity": 0}, place_id=world["root"], start="2100")).run()
     assert session.query(Character).count() == 0
 
 
 def test_commit_rejects_unknown_field(world):
     with pytest.raises(UnknownFieldError):
         CommitCharacter(_draft(place_id=world["root"], start="2100", charisma="高")).run()
+    # 期間ごとの欄は parameters の中にしか置けない
+    with pytest.raises(UnknownFieldError):
+        CommitCharacter(_draft(place_id=world["root"], start="2100", sincerity="高")).run()
+    with pytest.raises(ValueError, match="スキーマに無い欄"):
+        CommitCharacter(_draft({"charisma": "高"}, place_id=world["root"], start="2100")).run()
 
 
 def test_commit_requires_story_on_place(session):
@@ -110,18 +120,29 @@ def test_commit_without_parent_span_accepts_any_time(world):
 
 def test_update_personality(session, world):
     committed = CommitCharacter(_draft(place_id=world["root"], start="2100")).run()
+    [base] = committed["parameters"]
+    base_id = session.get(Character, committed["id"]).parameters[0].id
 
-    updated = UpdateCharacter({"id": committed["id"], "curiosity": "必"}).run()
-    assert updated["curiosity"] == "必"
+    parameters = [dict(base, curiosity="必"), build_parameter(start="2120", curiosity="低")]
+    updated = UpdateCharacter({"id": committed["id"], "parameters": parameters}).run()
+    assert [row["curiosity"] for row in updated["parameters"]] == ["必", "低"]
     session.expire_all()
-    assert session.get(Character, committed["id"]).curiosity == "必"
+    record = session.get(Character, committed["id"])
+    # 同じ位置の行は使い回す
+    assert record.parameters[0].id == base_id
+    assert record.parameters_at(Stamp(2110))["curiosity"] == "必"
+    assert record.parameters_at(Stamp(2130))["curiosity"] == "低"
 
-    for bad in ({"id": committed["id"], "curiosity": 3},
-                {"id": committed["id"], "sincerity": "中"}):
+    for bad in ({"curiosity": 3}, {"sincerity": "中"}):
         with pytest.raises(ValueError, match="無/低/並/高/必"):
-            UpdateCharacter(bad).run()
+            UpdateCharacter({"id": committed["id"], "parameters": [dict(base, **bad)]}).run()
     session.expire_all()
-    assert session.get(Character, committed["id"]).sincerity == committed["sincerity"]
+    assert len(session.get(Character, committed["id"]).parameters) == 2
+
+    # parameters を渡さなければ期間ごとの行は触らない
+    UpdateCharacter({"id": committed["id"], "name": "別名"}).run()
+    session.expire_all()
+    assert len(session.get(Character, committed["id"]).parameters) == 2
 
 
 def test_update_accepts_stamp_string_with_five_digit_year(session, world):
@@ -141,15 +162,30 @@ def test_update_accepts_stamp_string_with_five_digit_year(session, world):
 
 def test_update_requires_id():
     with pytest.raises(ValueError, match="id は必須"):
-        UpdateCharacter({"curiosity": "必"}).run()
+        UpdateCharacter({"name": "x"}).run()
 
 
 def test_read_character_returns_levels(world):
     committed = CommitCharacter(
-        _draft(place_id=world["root"], start="2100", sincerity="無", imagination="必")).run()
+        _draft({"sincerity": "無", "imagination": "必"}, place_id=world["root"], start="2100")).run()
     sheet = ReadCharacter(committed["id"]).run()
     assert sheet["sincerity"] == "無" and sheet["imagination"] == "必"
     assert sheet["place"]["place_id"] == world["root"]
+
+
+def test_read_character_returns_values_of_the_time(world):
+    parameters = [build_parameter(sincerity="無", height=140.0),
+                  build_parameter(start="2120", sincerity="高", height=None)]
+    committed = CommitCharacter(
+        _draft(place_id=world["root"], start="2100", parameters=parameters)).run()
+
+    young = ReadCharacter(committed["id"], time="2110").run()
+    grown = ReadCharacter(committed["id"], time="2130").run()
+    assert (young["sincerity"], young["height"]) == ("無", 140.0)
+    assert (grown["sincerity"], grown["height"]) == ("高", 140.0)
+    assert len(grown["parameters"]) == 2
+    # 時刻を渡さなければ、期間を限らない値だけ
+    assert ReadCharacter(committed["id"]).run()["sincerity"] == "無"
 
 
 def test_commit_place_from_json_string_checks_parent_span(session, world):

@@ -8,7 +8,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from db.schema import (
     CHARACTER_KIND_PERSON,
-    Character, CharacterPlace, Episode, Event, EventCharacter,
+    Character, CharacterParameter, CharacterPlace, Episode, Event, EventCharacter,
     Idea, Location, Story,
 )
 from db.stamp import Stamp
@@ -121,14 +121,23 @@ class LocationFactory(_ModelFactory):
 class CharacterFactory(_ModelFactory):
     class Meta:
         model = Character
-        # `build` は Character の列名と `Factory.build()` が衝突する
-        rename = {"build_": "build"}
 
     name = factory.Faker("name", locale=_LOCALE)
     kind = factory.Faker("random_element", elements=_CHARACTER_KINDS)
     main_character = factory.Faker("pybool")
     text = _text()
 
+    start = _optional_stamp()
+    end = _end_after_start()
+
+
+class CharacterParameterFactory(_ModelFactory):
+    class Meta:
+        model = CharacterParameter
+        # `build` は CharacterParameter の列名と `Factory.build()` が衝突する
+        rename = {"build_": "build"}
+
+    character_id = _pool(Character, "CharacterFactory")
     start = _optional_stamp()
     end = _end_after_start()
 
@@ -235,6 +244,7 @@ class EpisodeFactory(_ModelFactory):
 ALL_FACTORIES = (
     LocationFactory,
     CharacterFactory,
+    CharacterParameterFactory,
     EventFactory,
     EventCharacterFactory,
     CharacterPlaceFactory,

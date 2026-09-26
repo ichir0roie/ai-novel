@@ -9,6 +9,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import DeclarativeBase
 
 import db.schema as schema
+from db.child_lists import dump_children
 from db.stamp import Stamp
 
 # 列の型 → pydantic (python) の型
@@ -63,12 +64,17 @@ def to_model(row) -> BaseModel:
 
 
 def to_dict(row) -> dict:
-    return _to_jsonable(to_model(row).model_dump())
+    data = to_model(row).model_dump()
+    for name in getattr(type(row), "CHILD_LISTS", ()):
+        data[name] = dump_children(row, name)
+    return _to_jsonable(data)
 
 
 def _to_jsonable(value):
     if isinstance(value, Stamp):
         return str(value)
+    if isinstance(value, Decimal):
+        return float(value)
     if isinstance(value, dict):
         return {key: _to_jsonable(val) for key, val in value.items()}
     if isinstance(value, list):

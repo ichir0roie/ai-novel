@@ -99,11 +99,10 @@ def _note(character: Character, previous_row: dict | str) -> str:
 
 
 def _sheet(character: Character, time: Stamp) -> dict:
+    parameters = character.parameters_at(time)
     return {"name": character.name, "kind": character.kind, "age": progression.age_at(character, time),
-            "sex": character.sex,
-            "first_person": character.first_person, "second_person": character.second_person,
-            "third_person": character.third_person, "tone": character.tone,
-            "dialect": character.dialect,
+            **{column: parameters[column] for column in (
+                "sex", "first_person", "second_person", "third_person", "tone", "dialect")},
             "text": character.text}
 
 

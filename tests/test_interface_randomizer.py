@@ -7,6 +7,7 @@ from ai.claude_code.interface.randomizer.create_random_event import CreateRandom
 from ai.claude_code.interface.randomizer.create_random_place import CreateRandomPlace
 from ai.claude_code.interface.randomizer.delete_event import DeleteEvent
 from ai.claude_code.interface.randomizer.delete_place import DeletePlace
+from ai.claude_code.interface.randomizer.update_event import UpdateEvent
 from db.schema import Character, Event, EventCharacter, EventIdea, EventSummary, Idea, Location
 
 
@@ -169,3 +170,37 @@ def test_delete_event_refuses_event_with_children(session, place, character):
 def test_delete_event_rejects_unknown_id():
     with pytest.raises(UnknownRecordError):
         DeleteEvent(9999).run()
+
+
+def test_update_event_rewrites_only_the_given_fields_and_summarizes_again(session, place, character, monkeypatch):
+    event_id = _stored_event(session, place, character)
+    monkeypatch.setattr(ai_client, "try_generate_json", lambda *a, **k: {"text": "灯りの祭り"})
+
+    result = UpdateEvent({"id": event_id, "text": "灯りをともす"}).run()
+
+    assert result["text"] == "灯りをともす"
+    assert result["name"] == "祭り"
+    session.expire_all()
+    assert session.query(EventSummary).filter_by(event_id=event_id).one().text == "灯りの祭り"
+    assert session.query(EventCharacter).count() == 1
+
+
+def test_update_event_requires_a_known_id(session, place, character):
+    event_id = _stored_event(session, place, character)
+    with pytest.raises(ValueError):
+        UpdateEvent({"text": "本文"}).run()
+    with pytest.raises(UnknownRecordError):
+        UpdateEvent({"id": event_id + 1, "text": "本文"}).run()
+
+
+@pytest.mark.parametrize("field", ["location_id", "parent_event_id"])
+def test_update_event_rejects_unknown_reference(session, place, character, field):
+    event_id = _stored_event(session, place, character)
+    with pytest.raises(UnknownRecordError):
+        UpdateEvent({"id": event_id, field: 9999}).run()
+
+
+def test_update_event_rejects_itself_as_parent(session, place, character):
+    event_id = _stored_event(session, place, character)
+    with pytest.raises(ValueError):
+        UpdateEvent({"id": event_id, "parent_event_id": event_id}).run()

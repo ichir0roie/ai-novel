@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 
+from db.child_lists import ChildListError, load_children
 from db.schema import NOVEL_DB_PATH, WORLDS_ROOT, Base, MarkdownBase, StampType, get_novel_session
 from db.stamp import Stamp
 from tool.markdown import export_db, sync_stamp
@@ -69,6 +70,7 @@ def _upsert(
     if row_id is None and data_id is not None:
         row_id = int(data_id)
     data["directory_path"] = directory_path
+    children = {name: data.pop(name) for name in model.CHILD_LISTS if name in data}
     # `# data` にある欄はそれが勝つ。名前は `# data` に無い欄(filename や、手書き md の start/end)だけ埋める
     data.update({k: v for k, v in stem_values.items() if k not in data})
 
@@ -92,6 +94,11 @@ def _upsert(
     else:
         for key, value in values.items():
             setattr(row, key, value)
+    for name, items in children.items():
+        try:
+            load_children(row, name, items)
+        except ChildListError as error:
+            raise ImportDbError(f"{path}: {error}") from error
     default_filenames.add(row.default_filename())
     # 名前から自動で付く部分(人物名など)は filename に残さない。名前が変わったら md 名も追従する
     if row.filename is not None and row.filename in default_filenames:

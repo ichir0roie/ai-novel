@@ -1,11 +1,11 @@
 import pytest
 
 from db.schema import (
-    PERSONALITY_COLUMNS, PERSONALITY_DEFAULT, PERSONALITY_LEVELS, Character,
+    PERSONALITY_COLUMNS, PERSONALITY_DEFAULT, PERSONALITY_LEVELS, Character, CharacterParameter,
     PersonalityLevel, check_personality,
 )
-from randomizer.mock_factories import CharacterFactory
-from randomizer.random_character_generator import build_character
+from randomizer.mock_factories import CharacterParameterFactory
+from randomizer.random_character_generator import build_character, build_parameter
 
 
 def test_levels_are_five_stages_in_order():
@@ -14,22 +14,22 @@ def test_levels_are_five_stages_in_order():
     assert [level.value for level in PersonalityLevel] == list(PERSONALITY_LEVELS)
 
 
-def test_personality_columns_are_string_with_default():
-    columns = Character.__table__.columns
+def test_personality_columns_are_nullable_strings():
+    columns = CharacterParameter.__table__.columns
     assert len(PERSONALITY_COLUMNS) == 12
     for name in PERSONALITY_COLUMNS:
         column = columns[name]
         assert column.type.python_type is str
-        assert column.nullable is False
-        assert column.default.arg == PERSONALITY_DEFAULT
+        assert column.nullable is True
+        assert name not in Character.__table__.columns
 
 
-def test_new_character_gets_default_level(session):
+def test_character_without_parameters_gets_default_level(session):
     record = Character(name="x", text="")
     session.add(record)
     session.flush()
     session.refresh(record)
-    assert all(getattr(record, name) == PERSONALITY_DEFAULT for name in PERSONALITY_COLUMNS)
+    assert all(record.parameters_at()[name] == PERSONALITY_DEFAULT for name in PERSONALITY_COLUMNS)
 
 
 @pytest.mark.parametrize("data", [
@@ -37,6 +37,7 @@ def test_new_character_gets_default_level(session):
     {"name": "x"},
     {"sincerity": "無", "imagination": "必"},
     {name: "並" for name in PERSONALITY_COLUMNS},
+    {"sincerity": None},
 ])
 def test_check_personality_accepts_levels(data):
     check_personality(data)
@@ -46,7 +47,6 @@ def test_check_personality_accepts_levels(data):
     {"sincerity": 0},
     {"curiosity": 3},
     {"sincerity": "中"},
-    {"sincerity": None},
     {"sincerity": "高", "imagination": "とても高い"},
 ])
 def test_check_personality_rejects_non_levels(bad):
@@ -63,14 +63,17 @@ def _assert_levels(draws):
 
 
 def test_build_character_draws_levels():
-    _assert_levels([build_character() for _ in range(100)])
+    drafts = [build_character() for _ in range(100)]
+    assert all(len(draft["parameters"]) == 1 for draft in drafts)
+    assert all(draft["parameters"][0]["start"] is None and draft["parameters"][0]["end"] is None
+               for draft in drafts)
+    _assert_levels([draft["parameters"][0] for draft in drafts])
 
 
-def test_build_character_overrides_keep_levels():
-    draft = build_character(sincerity="必")
-    assert draft["sincerity"] == "必"
+def test_build_parameter_overrides_keep_levels():
+    assert build_parameter(sincerity="必")["sincerity"] == "必"
 
 
 def test_mock_factory_draws_levels():
-    rows = [CharacterFactory.build() for _ in range(100)]
+    rows = [CharacterParameterFactory.build(character_id=1) for _ in range(100)]
     _assert_levels([{name: getattr(row, name) for name in PERSONALITY_COLUMNS} for row in rows])

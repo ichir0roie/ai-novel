@@ -380,11 +380,12 @@ def _progress_place(
     )
     characters_payload = [
         {"character_id": c.id, "kind": c.kind, "name": c.name, "age": age_at(c, time),
-         "tone": c.tone, "dialect": c.dialect, "text": c.text,
-         "traits": {column: getattr(c, column) for column in constants.TRAIT_COLUMNS},
+         "tone": parameters["tone"], "dialect": parameters["dialect"], "text": c.text,
+         "traits": {column: parameters[column] for column in constants.TRAIT_COLUMNS},
          "relations": _relations(session, c, time),
          "recent_events": _character_recent_event_names(session, c.id, time)}
         for c in characters[:20]
+        for parameters in (c.parameters_at(time),)
     ]
     destinations = _move_destinations(session, place_id, time)
     later_events = _later_events(session, place_id, characters, time, ai)

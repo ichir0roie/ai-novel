@@ -5,6 +5,7 @@ import enum
 import hashlib
 import os
 import re
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger, Boolean, Integer, String, DECIMAL, JSON, TypeDecorator,
@@ -109,6 +110,8 @@ class MarkdownBase(Base):
 
     # md 側で `# <名前>` の節として出し入れする列。`# data` には出さない
     TEXT_SECTIONS: tuple[str, ...] = ("text",)
+    # `# data` に子の行の配列として出し入れする relationship の名前
+    CHILD_LISTS: tuple[str, ...] = ()
 
     text: Mapped[str] = mapped_column(String,  nullable=False, sort_order=10000)
 
@@ -325,9 +328,16 @@ PERSONALITY_COLUMNS = (
 )
 
 
+PERSON_PARAMETER_COLUMNS = (
+    "sex", "height", "build", "first_person", "second_person", "third_person", "tone", "dialect",
+)
+PARAMETER_COLUMNS = (*PERSON_PARAMETER_COLUMNS, *PERSONALITY_COLUMNS)
+
+
 def check_personality(data) -> None:
+    """空(None)は「この期間では決めない」として通す。"""
     bad = {column: data[column] for column in PERSONALITY_COLUMNS
-           if column in data and data[column] not in PERSONALITY_LEVELS}
+           if data.get(column) is not None and data[column] not in PERSONALITY_LEVELS}
     if bad:
         raise ValueError(
             f"性格は {'/'.join(PERSONALITY_LEVELS)} のいずれか: {bad}")
@@ -358,7 +368,45 @@ class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
     end: Mapped[Stamp | None] = mapped_column(StampType, sort_order=260)
 
     # 出自(生まれの場所)は別列を持たず、CharacterPlace の一番古い行として表す。
-    # 体格・口調は人物だけが持つ。人物以外の対象は空のまま。
+    # 体格・口調・性格は期間ごとに CharacterParameter が持ち、md では `# data` の parameters に並ぶ。
+    CHILD_LISTS = ("parameters",)
+
+    def default_filename(self) -> str | None:
+        return self.name
+
+    def parameters_at(self, time=None) -> dict:
+        return resolve_parameters(self.parameters, time)
+
+    # relationships
+
+    parameters: Mapped[list[CharacterParameter]] = relationship(
+        back_populates="character", lazy="selectin", cascade="all, delete-orphan",
+        order_by="CharacterParameter.id")
+    places: Mapped[list[CharacterPlace]] = relationship(
+        back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
+    )
+    events: Mapped[list[Event]] = relationship(
+        secondary="event_character", viewonly=True, lazy="noload",
+        order_by="Event.start.desc()"
+    )
+
+
+class CharacterParameter(Base):
+    """人物の体格・口調・性格を、期間ごとに一行で持つ。
+
+    空の列は「この期間では決めない」。ある時刻の値は `resolve_parameters` が、その時刻に掛かる行を
+    期間を限らない行から順に重ねて決める。体格・口調は人物だけが持ち、人物以外の対象は空のまま。
+    """
+
+    __tablename__ = "character_parameter"
+
+    character_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("character.id"), index=True, nullable=False, sort_order=100)
+    start: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="この値が効き始める時。空なら初めから", sort_order=110)
+    end: Mapped[Stamp | None] = mapped_column(
+        StampType, comment="この値が効き終わる時(この時からは効かない)。空なら終わりまで", sort_order=120)
+
     # --- 体格 -------------------------------------------------------------
     sex: Mapped[str | None] = mapped_column(String,  comment="性別", sort_order=320)
     height: Mapped[float | None] = mapped_column(DECIMAL, comment="背丈 cm", sort_order=330)
@@ -373,32 +421,49 @@ class Character(EventSeededMixin, MemeSeededMixin, MarkdownBase):
         String, comment="方言。方言の種類か、標準語で話すならその癖(語尾・言い回し・訛り)", sort_order=385)
 
     # --- 性格 -----------------------------------------------------------
-    # 各列は PersonalityLevel の値(無/低/並/高/必)。
-    sincerity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="誠実性", sort_order=390)
-    curiosity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="好奇心", sort_order=400)
-    proactivity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="行動力", sort_order=410)
-    cooperativeness: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="協調性", sort_order=420)
-    sociability: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="社交性", sort_order=430)
-    emotional_expression: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="感情表現", sort_order=440)
-    self_esteem: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="自己肯定感", sort_order=450)
-    self_efficacy: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="自己効力感", sort_order=460)
-    stress_resilience: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="ストレス耐性", sort_order=470)
-    flexibility_of_values: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="価値観の柔軟性", sort_order=480)
-    sensitivity: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="感受性", sort_order=490)
-    imagination: Mapped[str] = mapped_column(String, default=PERSONALITY_DEFAULT, nullable=False, comment="想像力", sort_order=500)
+    # 各列は PersonalityLevel の値(無/低/並/高/必)。どの行でも決めていない軸は PERSONALITY_DEFAULT。
+    sincerity: Mapped[str | None] = mapped_column(String, comment="誠実性", sort_order=390)
+    curiosity: Mapped[str | None] = mapped_column(String, comment="好奇心", sort_order=400)
+    proactivity: Mapped[str | None] = mapped_column(String, comment="行動力", sort_order=410)
+    cooperativeness: Mapped[str | None] = mapped_column(String, comment="協調性", sort_order=420)
+    sociability: Mapped[str | None] = mapped_column(String, comment="社交性", sort_order=430)
+    emotional_expression: Mapped[str | None] = mapped_column(String, comment="感情表現", sort_order=440)
+    self_esteem: Mapped[str | None] = mapped_column(String, comment="自己肯定感", sort_order=450)
+    self_efficacy: Mapped[str | None] = mapped_column(String, comment="自己効力感", sort_order=460)
+    stress_resilience: Mapped[str | None] = mapped_column(String, comment="ストレス耐性", sort_order=470)
+    flexibility_of_values: Mapped[str | None] = mapped_column(String, comment="価値観の柔軟性", sort_order=480)
+    sensitivity: Mapped[str | None] = mapped_column(String, comment="感受性", sort_order=490)
+    imagination: Mapped[str | None] = mapped_column(String, comment="想像力", sort_order=500)
 
-    def default_filename(self) -> str | None:
-        return self.name
+    character: Mapped[Character] = relationship(back_populates="parameters", lazy="noload")
 
-    # relationships
+    @staticmethod
+    def validate(data) -> None:
+        check_personality(data)
 
-    places: Mapped[list[CharacterPlace]] = relationship(
-        back_populates="character", lazy="noload", order_by="CharacterPlace.start.desc()"
-    )
-    events: Mapped[list[Event]] = relationship(
-        secondary="event_character", viewonly=True, lazy="noload",
-        order_by="Event.start.desc()"
-    )
+    def covers(self, time: Stamp | None) -> bool:
+        """時刻が空なら、期間を限らない行だけが掛かる。"""
+        if time is None:
+            return self.start is None and self.end is None
+        return (self.start is None or self.start <= time) and (self.end is None or time < self.end)
+
+
+def _parameter_order(row: CharacterParameter) -> tuple:
+    # 期間を限る端が多い行ほど後に重ねて勝たせる。同じなら始まりの遅い行、後に足した行が勝つ
+    bounds = (row.start is not None) + (row.end is not None)
+    return bounds, row.start.to_int() if row.start is not None else -1, row.id or 0
+
+
+def resolve_parameters(rows, time=None) -> dict:
+    time = Stamp.parse(time)
+    values: dict = {column: None for column in PERSON_PARAMETER_COLUMNS}
+    values.update({column: PERSONALITY_DEFAULT for column in PERSONALITY_COLUMNS})
+    for row in sorted((row for row in rows if row.covers(time)), key=_parameter_order):
+        for column in PARAMETER_COLUMNS:
+            value = getattr(row, column)
+            if value is not None:
+                values[column] = float(value) if isinstance(value, Decimal) else value
+    return values
 
 
 class CharacterPlace(Base):
